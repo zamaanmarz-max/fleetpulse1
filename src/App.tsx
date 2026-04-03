@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -22,30 +24,32 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/vehicles" element={<Vehicles />} />
-            <Route path="/drivers" element={<Drivers />} />
-            <Route path="/certificates" element={<Certificates />} />
-            <Route path="/compliance-templates" element={<ComplianceTemplates />} />
-            <Route path="/inspections" element={<Inspections />} />
-            <Route path="/fines" element={<Fines />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/admin" element={<AdminPanel />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/vehicles" element={<Vehicles />} />
+              <Route path="/drivers" element={<Drivers />} />
+              <Route path="/certificates" element={<Certificates />} />
+              <Route path="/compliance-templates" element={<ComplianceTemplates />} />
+              <Route path="/inspections" element={<Inspections />} />
+              <Route path="/fines" element={<Fines />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/alerts" element={<Alerts />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/admin" element={<AdminPanel />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
