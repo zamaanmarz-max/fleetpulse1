@@ -1,35 +1,22 @@
 import { useState } from "react";
 import { Sparkles, X, Send, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFleetChat } from "@/hooks/useFleetAI";
+import ReactMarkdown from "react-markdown";
 
 export function AIChatButton() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { messages, loading, send, clear } = useFleetChat();
 
   const handleSend = () => {
     if (!input.trim()) return;
-    setMessages((prev) => [...prev, { role: "user", content: input }]);
+    send(input);
     setInput("");
-    setLoading(true);
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "I'm FleetPulse AI. Once the backend is connected, I'll have access to your fleet data to help with compliance insights, vehicle status, and more. How can I help?",
-        },
-      ]);
-      setLoading(false);
-    }, 1500);
   };
 
   return (
     <>
-      {/* Floating button */}
       <button
         onClick={() => setOpen(true)}
         className={cn(
@@ -40,17 +27,15 @@ export function AIChatButton() {
         <Sparkles className="w-6 h-6 text-primary-foreground" />
       </button>
 
-      {/* Chat panel */}
       {open && (
         <div className="fixed right-0 top-0 z-50 h-screen w-96 bg-card border-l border-border flex flex-col animate-slide-in-right shadow-2xl">
-          {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
               <span className="font-semibold text-foreground">FleetPulse AI</span>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={() => setMessages([])} className="p-2 text-muted-foreground hover:text-foreground rounded-md">
+              <button onClick={clear} className="p-2 text-muted-foreground hover:text-foreground rounded-md">
                 <Trash2 className="w-4 h-4" />
               </button>
               <button onClick={() => setOpen(false)} className="p-2 text-muted-foreground hover:text-foreground rounded-md">
@@ -59,7 +44,6 @@ export function AIChatButton() {
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
             {messages.length === 0 && (
               <div className="text-center text-muted-foreground text-sm mt-8">
@@ -78,7 +62,11 @@ export function AIChatButton() {
                       : "bg-secondary text-secondary-foreground"
                   )}
                 >
-                  {msg.content}
+                  {msg.role === "assistant" ? (
+                    <div className="prose prose-sm prose-invert max-w-none">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : msg.content}
                 </div>
               </div>
             ))}
@@ -91,7 +79,6 @@ export function AIChatButton() {
             )}
           </div>
 
-          {/* Input */}
           <div className="p-4 border-t border-border">
             <div className="flex gap-2">
               <input

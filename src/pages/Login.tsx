@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Truck, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { signIn } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -17,17 +19,19 @@ export default function Login() {
       return;
     }
     setLoading(true);
-    // TODO: Supabase auth
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await signIn(email, password);
       toast.success("Logged in successfully");
       navigate("/dashboard");
-    }, 1000);
+    } catch (err: any) {
+      toast.error(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Left panel - branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center p-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5" />
         <div className="relative z-10 text-center">
@@ -55,7 +59,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right panel - login form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">

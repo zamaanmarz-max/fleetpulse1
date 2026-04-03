@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, FileCheck, Shield, ClipboardCheck,
   AlertTriangle, BarChart3, Settings, ChevronLeft, ChevronRight,
-  Receipt, Bell, Blocks, UserCog, Sparkles
+  Receipt, Bell, UserCog, LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -26,7 +27,14 @@ const adminItems = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const location = useLocation();
+  const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
+  const isAdmin = profile?.role === "superadmin";
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login");
+  };
 
   return (
     <aside
@@ -35,7 +43,6 @@ export function Sidebar() {
         collapsed ? "w-16" : "w-60"
       )}
     >
-      {/* Logo */}
       <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
@@ -49,7 +56,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto scrollbar-thin">
         {navItems.map((item) => (
           <NavLink
@@ -58,9 +64,7 @@ export function Sidebar() {
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-primary"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                isActive ? "bg-sidebar-accent text-primary" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )
             }
           >
@@ -69,33 +73,46 @@ export function Sidebar() {
           </NavLink>
         ))}
 
-        <div className="pt-4 mt-4 border-t border-sidebar-border">
-          {!collapsed && (
-            <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Admin
-            </p>
-          )}
-          {adminItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-primary"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )
-              }
-            >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </NavLink>
-          ))}
-        </div>
+        {isAdmin && (
+          <div className="pt-4 mt-4 border-t border-sidebar-border">
+            {!collapsed && (
+              <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin</p>
+            )}
+            {adminItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+                    isActive ? "bg-sidebar-accent text-primary" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )
+                }
+              >
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
+              </NavLink>
+            ))}
+          </div>
+        )}
       </nav>
 
-      {/* Collapse toggle */}
+      {/* User info and sign out */}
+      <div className="border-t border-sidebar-border p-2">
+        {!collapsed && profile && (
+          <div className="px-3 py-2 text-xs text-muted-foreground truncate">
+            {profile.full_name || profile.email}
+          </div>
+        )}
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span>Sign Out</span>}
+        </button>
+      </div>
+
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="flex items-center justify-center h-12 border-t border-sidebar-border text-muted-foreground hover:text-foreground transition-colors"

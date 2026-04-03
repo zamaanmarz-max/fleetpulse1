@@ -1,1 +1,4 @@
 project_id = "cgqmyqveqnvrmytmpbfh"
+
+[functions.fleet-ai]
+verify_jwt = false
