@@ -32,8 +32,13 @@ serve(async (req) => {
     const { messages, mode } = await req.json();
 
     // Fetch org data for context
-    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).single();
-    if (!profile?.organisation_id) throw new Error("No organisation found");
+    const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).maybeSingle();
+    if (!profile?.organisation_id) {
+      return new Response(JSON.stringify({ error: "No organisation linked to your account. Please complete registration first." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const [vehiclesRes, certsRes, driversRes] = await Promise.all([
       supabase.from("vehicles").select("registration_number, fleet_number, make, model, compliance_status, km_until_service, risk_score").eq("is_active", true),
