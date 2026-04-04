@@ -2,49 +2,58 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Truck, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-export default function Login() {
+export default function Register() {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [brn, setBrn] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error("Please enter email and password");
+    if (!fullName || !email || !password || !companyName || !brn) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters");
       return;
     }
     setLoading(true);
     try {
-      await signIn(email, password);
-      // Fetch profile to determine role-based redirect
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("users")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (profile?.role === "superadmin") {
-          navigate("/admin");
-        } else {
-          navigate("/dashboard");
-        }
-      } else {
-        navigate("/dashboard");
-      }
-      toast.success("Logged in successfully");
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            company_name: companyName,
+            brn,
+            role: "clientadmin",
+          },
+        },
+      });
+      if (error) throw error;
+      toast.success("Account created! Redirecting...");
+      navigate("/dashboard");
     } catch (err: any) {
-      toast.error(err.message || "Login failed");
+      toast.error(err.message || "Registration failed");
     } finally {
       setLoading(false);
     }
   };
+
+  const fields = [
+    { label: "Full name", value: fullName, set: setFullName, type: "text", placeholder: "John Doe" },
+    { label: "Email address", value: email, set: setEmail, type: "email", placeholder: "name@company.co.za" },
+    { label: "Company name", value: companyName, set: setCompanyName, type: "text", placeholder: "Acme Logistics" },
+    { label: "BRN number", value: brn, set: setBrn, type: "text", placeholder: "2026/123456/07" },
+  ];
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -58,20 +67,8 @@ export default function Login() {
             Fleet<span className="text-primary">Pulse</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-md">
-            AI-powered fleet compliance & inspection management for South Africa
+            Get your fleet compliant in minutes. AI-powered compliance for South African fleets.
           </p>
-          <div className="mt-8 grid grid-cols-3 gap-4 max-w-sm mx-auto">
-            {[
-              { value: "99.2%", label: "Uptime" },
-              { value: "50K+", label: "Vehicles" },
-              { value: "24/7", label: "Monitoring" },
-            ].map((stat) => (
-              <div key={stat.label} className="stat-card text-center">
-                <div className="text-xl font-bold text-primary">{stat.value}</div>
-                <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -86,20 +83,23 @@ export default function Login() {
             </span>
           </div>
 
-          <h2 className="text-2xl font-bold text-foreground mb-1">Welcome back</h2>
-          <p className="text-muted-foreground mb-8">Sign in to your account to continue</p>
+          <h2 className="text-2xl font-bold text-foreground mb-1">Create your account</h2>
+          <p className="text-muted-foreground mb-6">Register your company to get started</p>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Email address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.co.za"
-                className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              />
-            </div>
+          <form onSubmit={handleRegister} className="space-y-4">
+            {fields.map((f) => (
+              <div key={f.label}>
+                <label className="block text-sm font-medium text-foreground mb-1.5">{f.label}</label>
+                <input
+                  type={f.type}
+                  value={f.value}
+                  onChange={(e) => f.set(e.target.value)}
+                  placeholder={f.placeholder}
+                  className="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                />
+              </div>
+            ))}
+
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
               <div className="relative">
@@ -107,7 +107,7 @@ export default function Login() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder="Minimum 6 characters"
                   className="w-full bg-secondary border border-border rounded-lg px-4 py-3 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 />
                 <button
@@ -120,16 +120,6 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="rounded border-border bg-secondary text-primary focus:ring-primary" />
-                <span className="text-muted-foreground">Remember me</span>
-              </label>
-              <button type="button" className="text-sm text-primary hover:underline">
-                Forgot password?
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
@@ -138,23 +128,19 @@ export default function Login() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Signing in...
+                  Creating account...
                 </>
               ) : (
-                "Sign in"
+                "Create account"
               )}
             </button>
           </form>
 
           <p className="text-center text-sm text-muted-foreground mt-6">
-            Don't have an account?{" "}
-            <Link to="/register" className="text-primary hover:underline font-medium">
-              Register
+            Already have an account?{" "}
+            <Link to="/login" className="text-primary hover:underline font-medium">
+              Sign in
             </Link>
-          </p>
-
-          <p className="text-center text-xs text-muted-foreground mt-4">
-            © 2026 FleetPulse. Built for South African fleet compliance.
           </p>
         </div>
       </div>
