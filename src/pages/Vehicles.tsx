@@ -1,5 +1,6 @@
 import { Search, Filter, Plus, Download, Upload, Loader2, X } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useVehicles } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
