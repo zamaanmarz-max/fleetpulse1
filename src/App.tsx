@@ -19,6 +19,7 @@ import Reports from "./pages/Reports";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPanel from "./pages/AdminPanel";
+import VehicleDetail from "./pages/VehicleDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/vehicles" element={<Vehicles />} />
+              <Route path="/vehicles/:id" element={<VehicleDetail />} />
               <Route path="/drivers" element={<Drivers />} />
               <Route path="/certificates" element={<Certificates />} />
               <Route path="/compliance-templates" element={<ComplianceTemplates />} />

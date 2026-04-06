@@ -16,7 +16,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader || "" } },
     });
@@ -40,23 +40,56 @@ serve(async (req) => {
       });
     }
 
-    const [vehiclesRes, certsRes, driversRes] = await Promise.all([
-      supabase.from("vehicles").select("registration_number, fleet_number, make, model, compliance_status, km_until_service, risk_score").eq("is_active", true),
-      supabase.from("certificates").select("certificate_type, expiry_date, status, vehicles(registration_number)").order("expiry_date"),
-      supabase.from("drivers").select("full_name, licence_expiry, prdp_expiry, demerit_points, employment_status"),
+    // Fetch comprehensive fleet data
+    const [vehiclesRes, certsRes, driversRes, finesRes, inspectionsRes, damageRes] = await Promise.all([
+      supabase.from("vehicles").select("registration_number, fleet_number, make, model, year, vin_number, colour, vehicle_type, compliance_status, km_until_service, current_odometer_km, next_service_due_km, last_service_km, risk_score, is_active"),
+      supabase.from("certificates").select("certificate_type, certificate_number, expiry_date, status, issue_date, issuing_authority, vehicles(registration_number)").order("expiry_date"),
+      supabase.from("drivers").select("full_name, licence_code, licence_expiry, prdp_expiry, prdp_category, demerit_points, employment_status, phone, email"),
+      supabase.from("fines").select("fine_number, offence_date, offence_description, amount, payment_status, demerit_points_applied, issuing_authority, vehicles(registration_number), drivers(full_name)").order("offence_date", { ascending: false }),
+      supabase.from("damage_inspections").select("inspection_date, overall_condition, total_damage_items, new_damage_items, has_critical_damage, status, vehicles(registration_number)").order("inspection_date", { ascending: false }).limit(20),
+      supabase.from("damage_items").select("location, damage_type, severity, description, resolved, requires_immediate_action, vehicles(registration_number)").eq("resolved", false),
     ]);
 
     const fleetData = JSON.stringify({
       vehicles: vehiclesRes.data || [],
       certificates: certsRes.data || [],
       drivers: driversRes.data || [],
+      fines: finesRes.data || [],
+      recent_inspections: inspectionsRes.data || [],
+      unresolved_damage: damageRes.data || [],
+      today: new Date().toISOString().split("T")[0],
     });
 
     let systemPrompt: string;
     if (mode === "insights") {
-      systemPrompt = `You are FleetPulse AI for a South African fleet company. Analyse this fleet data and give exactly 3 bullet point insights about the most urgent compliance risks. Be specific - mention registration numbers and certificate types. Keep each bullet to one sentence. Format: bullet points only, no headers.\n\nFleet data:\n${fleetData}`;
+      systemPrompt = `You are FleetPulse AI for a South African fleet management company. Today's date is ${new Date().toISOString().split("T")[0]}.
+
+Analyse the fleet data below and provide exactly 3 bullet point insights about the MOST URGENT compliance risks. Rules:
+- Be SPECIFIC: mention vehicle registration numbers, certificate types, exact expiry dates, exact KM readings
+- Calculate days until expiry from today's date
+- Flag any expired certificates, overdue services, high-risk vehicles, unpaid fines, unresolved critical damage
+- Prioritise: expired/overdue items first, then items expiring within 7 days, then 30 days
+- Keep each bullet to 1-2 sentences max
+- Format as bullet points only, no headers
+- If no issues found, say the fleet is compliant and suggest proactive checks
+
+Fleet data:
+${fleetData}`;
     } else {
-      systemPrompt = `You are FleetPulse AI, a fleet compliance assistant for South African businesses. You have access to the following fleet data:\n${fleetData}\n\nAnswer questions about this fleet accurately and concisely. Flag urgent compliance issues clearly. Keep responses brief and actionable. Use bullet points for lists. Understand South African context: AARTO, C-NATIS, PrDP, COF, operator permits, etc. If you cannot find the answer in the data provided, say so clearly.`;
+      systemPrompt = `You are FleetPulse AI, an expert fleet compliance assistant for South African businesses. Today's date is ${new Date().toISOString().split("T")[0]}.
+
+You have COMPLETE access to this organisation's fleet data:
+${fleetData}
+
+IMPORTANT INSTRUCTIONS:
+- When asked about a specific vehicle (by registration number), provide ALL details: certificates with exact expiry dates, current KM and service status, any open fines with amounts, last inspection result and condition, any unresolved damage items
+- Always be SPECIFIC: use exact dates, KM readings, amounts in ZAR, certificate names, registration numbers
+- Never give generic answers. If data exists, quote it. If data is missing, say so clearly.
+- Understand SA context: AARTO demerit system, C-NATIS, PrDP categories (D/G/P), COF validity, operator permits
+- Calculate days until expiry or overdue from today's date
+- Flag urgent items clearly with severity
+- Use bullet points for lists, keep responses concise and actionable
+- For compliance queries, reference the specific certificate types and their statuses`;
     }
 
     const aiMessages = [
@@ -65,7 +98,7 @@ serve(async (req) => {
     ];
 
     if (mode === "insights") {
-      aiMessages.push({ role: "user", content: "Analyse the fleet data and provide 3 bullet point insights." });
+      aiMessages.push({ role: "user", content: "Analyse the fleet data and provide 3 bullet point insights about the most urgent compliance risks." });
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

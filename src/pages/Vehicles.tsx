@@ -1,5 +1,6 @@
 import { Search, Filter, Plus, Download, Upload, Loader2, X } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useVehicles } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +27,7 @@ export default function Vehicles() {
   const { data: vehicles, isLoading } = useVehicles();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const filtered = (vehicles || []).filter(
     (v) =>
@@ -116,7 +118,7 @@ export default function Vehicles() {
             </thead>
             <tbody>
               {filtered.map((v) => (
-                <tr key={v.id} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                   <td className="px-4 py-3 text-sm font-mono text-foreground">{v.fleet_number || "-"}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
