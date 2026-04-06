@@ -118,7 +118,7 @@ export default function Vehicles() {
             </thead>
             <tbody>
               {filtered.map((v) => (
-                <tr key={v.id} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                   <td className="px-4 py-3 text-sm font-mono text-foreground">{v.fleet_number || "-"}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
                   <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
