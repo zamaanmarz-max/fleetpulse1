@@ -19,6 +19,7 @@ import Reports from "./pages/Reports";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPanel from "./pages/AdminPanel";
+import VehicleDetail from "./pages/VehicleDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
