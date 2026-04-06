@@ -27,6 +27,7 @@ export default function Vehicles() {
   const { data: vehicles, isLoading } = useVehicles();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const filtered = (vehicles || []).filter(
     (v) =>
