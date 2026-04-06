@@ -34,7 +34,11 @@ export default function Vehicles() {
       v.registration_number.toLowerCase().includes(search.toLowerCase()) ||
       (v.fleet_number || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.make || "").toLowerCase().includes(search.toLowerCase())
-  );
+  ).sort((a, b) => {
+    const numA = parseInt(a.fleet_number || "0", 10) || 0;
+    const numB = parseInt(b.fleet_number || "0", 10) || 0;
+    return numA - numB;
+  });
 
   const [form, setForm] = useState({
     registration_number: "", fleet_number: "", make: "", model: "",
@@ -99,13 +103,13 @@ export default function Vehicles() {
         </div>
       </div>
 
-      <div className="glass-card overflow-hidden">
+      <div className="glass-card overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">No vehicles found. Add your first vehicle to get started.</div>
         ) : (
-          <table className="w-full">
+          <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet No</th>
