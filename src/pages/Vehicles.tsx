@@ -109,7 +109,7 @@ export default function Vehicles() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">No vehicles found. Add your first vehicle to get started.</div>
         ) : (
-          <table className="w-full">
+          <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet No</th>
