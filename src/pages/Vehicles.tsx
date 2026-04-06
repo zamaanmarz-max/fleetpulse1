@@ -34,7 +34,11 @@ export default function Vehicles() {
       v.registration_number.toLowerCase().includes(search.toLowerCase()) ||
       (v.fleet_number || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.make || "").toLowerCase().includes(search.toLowerCase())
-  );
+  ).sort((a, b) => {
+    const numA = parseInt(a.fleet_number || "0", 10) || 0;
+    const numB = parseInt(b.fleet_number || "0", 10) || 0;
+    return numA - numB;
+  });
 
   const [form, setForm] = useState({
     registration_number: "", fleet_number: "", make: "", model: "",
