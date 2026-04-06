@@ -61,7 +61,6 @@ export default function Vehicles() {
       colour: form.colour || null,
       current_odometer_km: kmNow,
       next_service_due_km: kmNext,
-      km_until_service: kmNext - kmNow,
     });
     setSaving(false);
     if (error) {
