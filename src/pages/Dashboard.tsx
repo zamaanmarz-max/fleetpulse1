@@ -105,7 +105,7 @@ export default function Dashboard() {
     const kmUntil = (v.next_service_due_km ?? 0) - (v.current_odometer_km ?? 0);
     let status = v.compliance_status || "compliant";
     if (kmUntil < 0) status = "critical";
-    else if (kmUntil < 500) status = "warning";
+    else if (kmUntil < 2000) status = "warning";
     return { ...v, effectiveStatus: status, kmUntil };
   }).filter(v => v.effectiveStatus !== "compliant").sort((a, b) => a.kmUntil - b.kmUntil);
 
