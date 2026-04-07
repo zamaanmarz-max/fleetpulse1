@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, Loader2, X, Plus, Trash2, Upload } from "lucide-react";
 import { useInspections, useVehicles, useDrivers } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,6 +51,7 @@ type DamageItem = {
 };
 
 export default function Inspections() {
+  const navigate = useNavigate();
   const { data: inspections, isLoading } = useInspections();
   const { data: vehicles } = useVehicles();
   const { data: drivers } = useDrivers();
@@ -169,7 +171,12 @@ export default function Inspections() {
         {isLoading ? (
           <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (inspections || []).length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">No inspections yet.</div>
+          <div className="text-center py-12 space-y-3">
+            <p className="text-muted-foreground text-sm">No inspections yet.</p>
+            <button onClick={() => { setShowForm(true); setStep(1); }} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90">
+              <ClipboardCheck className="w-5 h-5" /> Start New Inspection
+            </button>
+          </div>
         ) : (
           <table className="w-full">
             <thead>
@@ -185,7 +192,7 @@ export default function Inspections() {
             </thead>
             <tbody>
               {(inspections || []).map((ins) => (
-                <tr key={ins.id} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                <tr key={ins.id} onClick={() => navigate(`/inspections/${ins.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{(ins as any).vehicles?.registration_number || "N/A"}</td>
                   <td className="px-4 py-3 text-sm text-center text-foreground">{ins.inspection_date}</td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{(ins as any).inspector?.full_name || "N/A"}</td>

@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
-  DollarSign, History, Loader2, AlertTriangle, Upload, Plus, X,
+  DollarSign, History, Loader2, AlertTriangle, Upload, Plus, X, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -66,6 +66,14 @@ export default function VehicleDetail() {
   const [showOdometer, setShowOdometer] = useState(false);
   const [odometerValue, setOdometerValue] = useState("");
   const [savingOdometer, setSavingOdometer] = useState(false);
+  const [viewingPdf, setViewingPdf] = useState<string | null>(null);
+
+  const openPdf = async (fileUrl: string | null) => {
+    if (!fileUrl) { toast.error("No file attached"); return; }
+    const { data } = await supabase.storage.from("documents").createSignedUrl(fileUrl, 3600);
+    if (data?.signedUrl) setViewingPdf(data.signedUrl);
+    else toast.error("Could not load file");
+  };
 
   const { data: vehicle, isLoading } = useQuery({
     queryKey: ["vehicle", id],
@@ -355,9 +363,10 @@ export default function VehicleDetail() {
                   <tr className="border-b border-border">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Number</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
+                     <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
+                     <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                     <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">View</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -385,6 +394,11 @@ export default function VehicleDetail() {
                           }`}>
                             {cert.status || "valid"}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => openPdf(cert.file_url)} className="text-muted-foreground hover:text-primary transition-colors" title="View document">
+                            <Eye className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -418,7 +432,7 @@ export default function VehicleDetail() {
                 </thead>
                 <tbody>
                   {(inspections || []).map((insp) => (
-                    <tr key={insp.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                    <tr key={insp.id} onClick={() => navigate(`/inspections/${insp.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                       <td className="px-4 py-3 text-sm text-foreground">{insp.inspection_date}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{(insp as any).inspector?.full_name || "-"}</td>
                       <td className="px-4 py-3 text-center">
@@ -563,6 +577,20 @@ export default function VehicleDetail() {
               {savingOdometer && <Loader2 className="w-4 h-4 animate-spin" />}
               Save
             </button>
+          </div>
+        </div>
+      )}
+      {/* PDF Viewer Modal */}
+      {viewingPdf && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+          <div className="relative w-[90vw] h-[90vh] bg-card border border-border rounded-lg shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Document Viewer</h3>
+              <button onClick={() => setViewingPdf(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <iframe src={viewingPdf} className="flex-1 w-full rounded-b-lg" title="PDF Viewer" />
           </div>
         </div>
       )}

@@ -21,6 +21,7 @@ import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPanel from "./pages/AdminPanel";
 import VehicleDetail from "./pages/VehicleDetail";
+import InspectionDetail from "./pages/InspectionDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/certificates" element={<Certificates />} />
               <Route path="/compliance-templates" element={<ComplianceTemplates />} />
               <Route path="/inspections" element={<Inspections />} />
+              <Route path="/inspections/:id" element={<InspectionDetail />} />
               <Route path="/fines" element={<Fines />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/alerts" element={<Alerts />} />

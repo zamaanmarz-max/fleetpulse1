@@ -1,9 +1,9 @@
 import {
   Truck, ShieldCheck, FileWarning, AlertTriangle,
-  Sparkles, RefreshCw, Loader2,
+  Sparkles, RefreshCw, Loader2, Users,
 } from "lucide-react";
 import { useEffect } from "react";
-import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts } from "@/hooks/useOrgData";
+import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
 import ReactMarkdown from "react-markdown";
 
@@ -19,11 +19,26 @@ export default function Dashboard() {
   const { data: expiries } = useUpcomingExpiries();
   const { data: inspections } = useRecentInspections();
   const { data: alerts } = useRecentAlerts();
+  const { data: drivers } = useDrivers();
   const { insights, loading: aiLoading, fetchInsights } = useFleetInsights();
 
   useEffect(() => {
     fetchInsights();
   }, [fetchInsights]);
+
+  // Driver compliance calculation
+  const now = new Date();
+  const totalDrivers = (drivers || []).length;
+  const driversWithExpired = (drivers || []).filter(d => {
+    const licExpired = d.licence_expiry && new Date(d.licence_expiry) < now;
+    const prdpExpired = d.prdp_expiry && new Date(d.prdp_expiry) < now;
+    return licExpired || prdpExpired;
+  }).length;
+  const driverCompliance = totalDrivers > 0 ? Math.round(((totalDrivers - driversWithExpired) / totalDrivers) * 100) : 100;
+
+  // Combined compliance
+  const vehicleScore = stats?.complianceScore ?? 0;
+  const combinedScore = totalDrivers > 0 ? Math.round((vehicleScore + driverCompliance) / 2) : vehicleScore;
 
   return (
     <div className="p-6 space-y-6">
@@ -33,9 +48,10 @@ export default function Dashboard() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard icon={Truck} label="Active Vehicles" value={statsLoading ? "..." : stats?.totalVehicles ?? 0} color="text-primary" />
-        <StatCard icon={ShieldCheck} label="Compliance Score" value={statsLoading ? "..." : `${stats?.complianceScore ?? 0}%`} color="text-primary" />
+        <StatCard icon={ShieldCheck} label="Fleet Score" value={statsLoading ? "..." : `${combinedScore}%`} color="text-primary" />
+        <StatCard icon={Users} label="Driver Compliance" value={statsLoading ? "..." : `${driverCompliance}%`} color={driversWithExpired > 0 ? "text-destructive" : "text-primary"} highlight={driversWithExpired > 0} />
         <StatCard icon={FileWarning} label="Expiring This Month" value={statsLoading ? "..." : stats?.expiringCerts ?? 0} color="text-warning" />
         <StatCard icon={AlertTriangle} label="Critical Alerts" value={statsLoading ? "..." : stats?.criticalAlerts ?? 0} color="text-destructive" highlight={(stats?.criticalAlerts ?? 0) > 0} />
       </div>
@@ -50,6 +66,11 @@ export default function Dashboard() {
             <TrafficItem label="Critical" count={stats?.critical ?? 0} color="bg-destructive" />
             <TrafficItem label="Expired" count={stats?.expired ?? 0} color="bg-muted-foreground" />
           </div>
+          {driversWithExpired > 0 && (
+            <div className="mt-3 p-2 bg-destructive/10 border border-destructive/30 rounded-lg text-xs text-destructive font-semibold">
+              ⚠️ {driversWithExpired} driver(s) have expired licence or PrDP
+            </div>
+          )}
         </div>
 
         <div className="stat-card">
