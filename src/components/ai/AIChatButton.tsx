@@ -2,16 +2,25 @@ import { useState } from "react";
 import { Sparkles, X, Send, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFleetChat } from "@/hooks/useFleetAI";
+import { useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 
 export function AIChatButton() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const { messages, loading, send, clear } = useFleetChat();
+  const queryClient = useQueryClient();
 
   const handleSend = () => {
     if (!input.trim()) return;
-    send(input);
+    send(input).then(() => {
+      // Refresh all data after AI response (in case AI made updates)
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["certificates"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard_stats"] });
+      queryClient.invalidateQueries({ queryKey: ["inspections"] });
+    });
     setInput("");
   };
 
