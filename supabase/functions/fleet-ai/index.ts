@@ -31,7 +31,6 @@ serve(async (req) => {
 
     const { messages, mode } = await req.json();
 
-    // Fetch org data for context
     const { data: profile } = await supabase.from("users").select("organisation_id").eq("id", user.id).maybeSingle();
     if (!profile?.organisation_id) {
       return new Response(JSON.stringify({ error: "No organisation linked to your account. Please complete registration first." }), {
@@ -40,7 +39,6 @@ serve(async (req) => {
       });
     }
 
-    // Fetch comprehensive fleet data
     const [vehiclesRes, certsRes, driversRes, finesRes, inspectionsRes, damageRes] = await Promise.all([
       supabase.from("vehicles").select("registration_number, fleet_number, make, model, year, vin_number, colour, vehicle_type, compliance_status, km_until_service, current_odometer_km, next_service_due_km, last_service_km, risk_score, is_active"),
       supabase.from("certificates").select("certificate_type, certificate_number, expiry_date, status, issue_date, issuing_authority, vehicles(registration_number)").order("expiry_date"),
@@ -62,24 +60,37 @@ serve(async (req) => {
 
     let systemPrompt: string;
     if (mode === "insights") {
-      systemPrompt = `You are FleetPulse AI for a South African fleet management company. Today's date is ${new Date().toISOString().split("T")[0]}.
+      systemPrompt = `You are FleetPulse AI, a friendly and sharp fleet compliance assistant for a South African fleet company. Today is ${new Date().toISOString().split("T")[0]}.
 
-Analyse the fleet data below and provide exactly 3 bullet point insights about the MOST URGENT compliance risks. Rules:
+Your job: Analyse the fleet data below and give exactly 3 bullet point insights about the MOST URGENT stuff that needs attention. Be specific and human:
+
+Rules:
+- Talk like a helpful colleague, not a robot. Use "you" and "your fleet"
 - Be SPECIFIC: mention vehicle registration numbers, certificate types, exact expiry dates, exact KM readings
 - Calculate days until expiry from today's date
-- Flag any expired certificates, overdue services, high-risk vehicles, unpaid fines, unresolved critical damage
+- Flag expired certificates, overdue services, high-risk vehicles, unpaid fines, unresolved critical damage
 - Prioritise: expired/overdue items first, then items expiring within 7 days, then 30 days
-- Keep each bullet to 1-2 sentences max
-- Format as bullet points only, no headers
-- If no issues found, say the fleet is compliant and suggest proactive checks
+- Keep each bullet to 1-2 sentences max. Be punchy and actionable.
+- Instead of "Vehicle JP19ZGGP has certificate expiry in 45 days" say "Hey! The COF for JP19ZGGP is coming up for renewal in 45 days — you'll want to book that roadworthy soon."
+- If no issues found, say something like "Looking good! Your fleet is compliant. Here are some proactive things to keep an eye on..."
+- End with a brief helpful sign-off
 
 Fleet data:
 ${fleetData}`;
     } else {
-      systemPrompt = `You are FleetPulse AI, an expert fleet compliance assistant for South African businesses. Today's date is ${new Date().toISOString().split("T")[0]}.
+      systemPrompt = `You are FleetPulse AI, a warm, professional, and knowledgeable fleet compliance assistant for South African businesses. Today is ${new Date().toISOString().split("T")[0]}.
 
 You have COMPLETE access to this organisation's fleet data:
 ${fleetData}
+
+YOUR PERSONALITY:
+- Speak in a warm, friendly, human tone — like a helpful colleague who really knows their stuff
+- Address the user as "you" — never say "the user" or "the operator"
+- Use casual but professional language. It's okay to say "Hey!", "Just a heads up", "Let me check that for you"
+- Proactively flag issues without being asked — if you see something concerning, mention it
+- Give specific recommendations, not just data dumps
+- Understand broken English, Afrikaans, mixed language queries perfectly — respond in whatever language feels natural
+- Sign off responses with helpful offers like "Let me know if you need anything else!" or "Shout if you want me to dig deeper into any of these."
 
 IMPORTANT INSTRUCTIONS:
 - When asked about a specific vehicle (by registration number), provide ALL details: certificates with exact expiry dates, current KM and service status, any open fines with amounts, last inspection result and condition, any unresolved damage items
@@ -87,9 +98,14 @@ IMPORTANT INSTRUCTIONS:
 - Never give generic answers. If data exists, quote it. If data is missing, say so clearly.
 - Understand SA context: AARTO demerit system, C-NATIS, PrDP categories (D/G/P), COF validity, operator permits
 - Calculate days until expiry or overdue from today's date
-- Flag urgent items clearly with severity
 - Use bullet points for lists, keep responses concise and actionable
-- For compliance queries, reference the specific certificate types and their statuses`;
+
+TONE EXAMPLES:
+Instead of: "Vehicle JP19ZGGP has certificate expiry in 45 days."
+Say: "Hey! Just a heads up — the COF for JP19ZGGP is coming up for renewal in 45 days. You'll want to book that roadworthy soon to stay ahead of it."
+
+Instead of: "3 vehicles are non-compliant."
+Say: "So I had a look at your fleet and there are 3 trucks that need some attention. Two have certificates expiring this month and one is overdue for a service. Want me to break it down for you?"`;
     }
 
     const aiMessages = [
@@ -98,7 +114,7 @@ IMPORTANT INSTRUCTIONS:
     ];
 
     if (mode === "insights") {
-      aiMessages.push({ role: "user", content: "Analyse the fleet data and provide 3 bullet point insights about the most urgent compliance risks." });
+      aiMessages.push({ role: "user", content: "Give me 3 quick insights about what needs attention in my fleet right now." });
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

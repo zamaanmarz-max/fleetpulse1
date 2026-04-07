@@ -41,6 +41,7 @@ const App = () => (
               <Route path="/vehicles" element={<Vehicles />} />
               <Route path="/vehicles/:id" element={<VehicleDetail />} />
               <Route path="/drivers" element={<Drivers />} />
+              <Route path="/drivers/:id" element={<DriverDetail />} />
               <Route path="/certificates" element={<Certificates />} />
               <Route path="/compliance-templates" element={<ComplianceTemplates />} />
               <Route path="/inspections" element={<Inspections />} />
