@@ -5,8 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
-  DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save,
+  DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save, Trash2,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 const statusStyles: Record<string, string> = {
@@ -71,6 +75,8 @@ export default function VehicleDetail() {
   const [certForm, setCertForm] = useState<Record<string, any>>({});
   const [certFile, setCertFile] = useState<File | null>(null);
   const [certSaving, setCertSaving] = useState(false);
+  const [deleteCertId, setDeleteCertId] = useState<string | null>(null);
+  const [deletingCert, setDeletingCert] = useState(false);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
@@ -226,6 +232,19 @@ export default function VehicleDetail() {
     if (error) { toast.error(error.message); } else {
       toast.success("Certificate updated");
       setEditingCertId(null);
+      queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
+      queryClient.invalidateQueries({ queryKey: ["certificates"] });
+    }
+  };
+
+  const handleDeleteCert = async () => {
+    if (!deleteCertId) return;
+    setDeletingCert(true);
+    const { error } = await supabase.from("certificates").delete().eq("id", deleteCertId);
+    setDeletingCert(false);
+    if (error) { toast.error(error.message); } else {
+      toast.success("Certificate deleted");
+      setDeleteCertId(null);
       queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
     }
@@ -411,6 +430,7 @@ export default function VehicleDetail() {
                             <div className="flex items-center gap-2 justify-center">
                               <button onClick={() => openPdf(cert.file_url)} className="text-muted-foreground hover:text-primary" title="View"><Eye className="w-4 h-4" /></button>
                               <button onClick={() => startEditCert(cert)} className="text-muted-foreground hover:text-primary" title="Edit"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => setDeleteCertId(cert.id)} className="text-muted-foreground hover:text-destructive" title="Delete"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           )}
                         </td>
@@ -537,7 +557,23 @@ export default function VehicleDetail() {
             <iframe src={viewingPdf} className="flex-1 w-full rounded-b-lg" title="PDF Viewer" />
           </div>
         </div>
-      )}
+       )}
+
+      {/* Delete Certificate Confirmation */}
+      <AlertDialog open={!!deleteCertId} onOpenChange={(open) => !open && setDeleteCertId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Certificate</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this certificate? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCert} disabled={deletingCert} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingCert ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

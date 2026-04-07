@@ -1,10 +1,15 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Loader2, Eye, X, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Eye, X, Download, Wrench, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const conditionColors: Record<string, string> = {
   good: "bg-success/20 text-success",
@@ -23,7 +28,13 @@ const severityColors: Record<string, string> = {
 export default function InspectionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const [repairingId, setRepairingId] = useState<string | null>(null);
+  const [repairForm, setRepairForm] = useState({ repair_date: "", repair_cost: "", repaired_by: "" });
+  const [repairSaving, setRepairSaving] = useState(false);
+  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [deletingItem, setDeletingItem] = useState(false);
 
   const { data: inspection, isLoading } = useQuery({
     queryKey: ["inspection_detail", id],
@@ -63,6 +74,37 @@ export default function InspectionDetail() {
     },
     enabled: !!id,
   });
+
+  const handleMarkRepaired = async () => {
+    if (!repairingId) return;
+    setRepairSaving(true);
+    const { error } = await supabase.from("damage_items").update({
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      repair_date: repairForm.repair_date || null,
+      repair_cost: repairForm.repair_cost ? parseFloat(repairForm.repair_cost) : 0,
+      repaired_by: repairForm.repaired_by || null,
+    }).eq("id", repairingId);
+    setRepairSaving(false);
+    if (error) { toast.error(error.message); } else {
+      toast.success("Marked as repaired");
+      setRepairingId(null);
+      setRepairForm({ repair_date: "", repair_cost: "", repaired_by: "" });
+      queryClient.invalidateQueries({ queryKey: ["inspection_damage_items", id] });
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!deleteItemId) return;
+    setDeletingItem(true);
+    const { error } = await supabase.from("damage_items").delete().eq("id", deleteItemId);
+    setDeletingItem(false);
+    if (error) { toast.error(error.message); } else {
+      toast.success("Damage item deleted");
+      setDeleteItemId(null);
+      queryClient.invalidateQueries({ queryKey: ["inspection_damage_items", id] });
+    }
+  };
 
   const generatePDF = () => {
     if (!inspection) return;
@@ -197,10 +239,13 @@ export default function InspectionDetail() {
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${severityColors[item.severity || "minor"]}`}>{item.severity}</span>
                     {item.resolved ? (
-                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-success/20 text-success">Resolved</span>
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-success/20 text-success">Repaired</span>
                     ) : (
-                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-destructive/20 text-destructive">Open</span>
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-warning/20 text-warning">Pending</span>
                     )}
+                    <button onClick={() => setDeleteItemId(item.id)} className="text-muted-foreground hover:text-destructive" title="Delete">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
@@ -210,6 +255,14 @@ export default function InspectionDetail() {
                   <div><span className="text-muted-foreground">New:</span> <span className="text-foreground font-medium">{item.is_new_damage ? "Yes" : "No"}</span></div>
                   <div><span className="text-muted-foreground">Repair:</span> <span className={`font-medium ${item.resolved ? "text-success" : "text-warning"}`}>{item.resolved ? "Repaired" : "Pending"}</span></div>
                 </div>
+
+                {item.resolved && (item.repair_date || item.repair_cost || item.repaired_by) && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-success/5 rounded-lg p-2">
+                    {item.repair_date && <div><span className="text-muted-foreground">Repair Date:</span> <span className="text-foreground font-medium">{item.repair_date}</span></div>}
+                    {item.repair_cost > 0 && <div><span className="text-muted-foreground">Cost:</span> <span className="text-foreground font-medium">R {Number(item.repair_cost).toLocaleString()}</span></div>}
+                    {item.repaired_by && <div><span className="text-muted-foreground">By:</span> <span className="text-foreground font-medium">{item.repaired_by}</span></div>}
+                  </div>
+                )}
 
                 {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
 
@@ -225,11 +278,62 @@ export default function InspectionDetail() {
                     ))}
                   </div>
                 )}
+
+                {/* Mark as Repaired button */}
+                {!item.resolved && (
+                  <div>
+                    {repairingId === item.id ? (
+                      <div className="bg-secondary/50 rounded-lg p-3 space-y-3">
+                        <p className="text-xs font-semibold text-foreground">Repair Details</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs text-muted-foreground mb-1">Repair Date</label>
+                            <input type="date" value={repairForm.repair_date} onChange={e => setRepairForm({ ...repairForm, repair_date: e.target.value })} className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-muted-foreground mb-1">Cost (ZAR)</label>
+                            <input type="number" placeholder="0.00" value={repairForm.repair_cost} onChange={e => setRepairForm({ ...repairForm, repair_cost: e.target.value })} className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-muted-foreground mb-1">Repaired By</label>
+                            <input type="text" placeholder="Provider name" value={repairForm.repaired_by} onChange={e => setRepairForm({ ...repairForm, repaired_by: e.target.value })} className="w-full bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={handleMarkRepaired} disabled={repairSaving} className="flex items-center gap-1.5 bg-success text-success-foreground px-3 py-1.5 rounded text-xs font-semibold hover:opacity-90 disabled:opacity-50">
+                            {repairSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Save Repair
+                          </button>
+                          <button onClick={() => setRepairingId(null)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setRepairingId(item.id); setRepairForm({ repair_date: new Date().toISOString().split("T")[0], repair_cost: "", repaired_by: "" }); }} className="flex items-center gap-1.5 text-xs bg-warning/20 text-warning px-3 py-1.5 rounded-md hover:bg-warning/30 font-medium">
+                        <Wrench className="w-3.5 h-3.5" /> Mark as Repaired
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Delete damage item confirmation */}
+      <AlertDialog open={!!deleteItemId} onOpenChange={(open) => !open && setDeleteItemId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Damage Item</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to permanently delete this damage item? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteItem} disabled={deletingItem} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingItem ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {viewingPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80" onClick={() => setViewingPhoto(null)}>
