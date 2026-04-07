@@ -237,6 +237,19 @@ export default function VehicleDetail() {
     }
   };
 
+  const handleDeleteCert = async () => {
+    if (!deleteCertId) return;
+    setDeletingCert(true);
+    const { error } = await supabase.from("certificates").delete().eq("id", deleteCertId);
+    setDeletingCert(false);
+    if (error) { toast.error(error.message); } else {
+      toast.success("Certificate deleted");
+      setDeleteCertId(null);
+      queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
+      queryClient.invalidateQueries({ queryKey: ["certificates"] });
+    }
+  };
+
   if (isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   if (!vehicle) {
