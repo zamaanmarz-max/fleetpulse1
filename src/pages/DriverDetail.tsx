@@ -1,0 +1,391 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const statusStyles: Record<string, string> = {
+  valid: "bg-success/20 text-success",
+  expiring: "bg-warning/20 text-warning",
+  expired: "bg-destructive/20 text-destructive",
+};
+
+const documentTypes = [
+  "Driver's Licence",
+  "PrDP (Professional Driving Permit)",
+  "Medical Certificate",
+  "Criminal Background Check",
+  "Defensive Driving Certificate",
+  "Dangerous Goods Certificate",
+  "Other",
+];
+
+export default function DriverDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    document_type: "", document_name: "", document_number: "", expiry_date: "",
+  });
+
+  const { data: driver, isLoading } = useQuery({
+    queryKey: ["driver", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("drivers")
+        .select("*")
+        .eq("id", id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: documents } = useQuery({
+    queryKey: ["driver_documents", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("driver_documents")
+        .select("*")
+        .eq("driver_id", id!)
+        .order("expiry_date", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: driverFines } = useQuery({
+    queryKey: ["driver_fines", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fines")
+        .select("*, vehicles(registration_number)")
+        .eq("driver_id", id!)
+        .order("offence_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const now = Date.now();
+
+  const enrichedDocs = (documents || []).map((d) => {
+    const days = d.expiry_date ? Math.ceil((new Date(d.expiry_date).getTime() - now) / 86400000) : 999;
+    const calcStatus = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
+    return { ...d, daysRemaining: days, calcStatus };
+  });
+
+  const alertDocs = enrichedDocs.filter((d) => d.daysRemaining <= 30);
+
+  const handleSave = async () => {
+    if (!form.document_type || !profile?.organisation_id) {
+      toast.error("Document type is required");
+      return;
+    }
+    setSaving(true);
+    let fileUrl: string | null = null;
+    if (file) {
+      const path = `${profile.organisation_id}/drivers/${id}/${Date.now()}_${file.name}`;
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
+      if (upErr) { toast.error("Upload failed: " + upErr.message); setSaving(false); return; }
+      fileUrl = path;
+    }
+    const days = form.expiry_date ? Math.ceil((new Date(form.expiry_date).getTime() - now) / 86400000) : null;
+    const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
+
+    const { error } = await supabase.from("driver_documents").insert({
+      organisation_id: profile.organisation_id,
+      driver_id: id,
+      document_type: form.document_type,
+      document_name: form.document_name || form.document_type,
+      document_number: form.document_number || null,
+      expiry_date: form.expiry_date || null,
+      file_url: fileUrl,
+      uploaded_by: user?.id || null,
+      status,
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); } else {
+      toast.success("Document added");
+      setShowForm(false);
+      setFile(null);
+      setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+      queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  }
+
+  if (!driver) {
+    return (
+      <div className="p-6">
+        <button onClick={() => navigate("/drivers")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4">
+          <ArrowLeft className="w-4 h-4" /> Back to Drivers
+        </button>
+        <p className="text-muted-foreground">Driver not found.</p>
+      </div>
+    );
+  }
+
+  // Licence and PrDP status
+  const licDays = driver.licence_expiry ? Math.ceil((new Date(driver.licence_expiry).getTime() - now) / 86400000) : null;
+  const prdpDays = driver.prdp_expiry ? Math.ceil((new Date(driver.prdp_expiry).getTime() - now) / 86400000) : null;
+
+  const totalDemerits = (driverFines || []).reduce((s, f) => s + (f.demerit_points_applied || 0), 0) + (driver.demerit_points || 0);
+  const totalOutstanding = (driverFines || []).filter(f => f.payment_status !== "paid").reduce((s, f) => s + (Number(f.amount) || 0), 0);
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center gap-4">
+        <button onClick={() => navigate("/drivers")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{driver.full_name}</h1>
+          <p className="text-sm text-muted-foreground">
+            {driver.licence_code || "No licence"} · {driver.employment_status || "active"} · Demerits: {totalDemerits}/12
+          </p>
+        </div>
+      </div>
+
+      {/* Alert banner */}
+      {alertDocs.length > 0 && (
+        <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-warning" />
+            <span className="text-sm font-semibold text-warning">{alertDocs.length} document(s) expiring within 30 days</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {alertDocs.map((d) => (
+              <span key={d.id} className={`text-xs font-semibold px-2 py-1 rounded ${statusStyles[d.calcStatus]}`}>
+                {d.document_type} — {d.daysRemaining <= 0 ? `${Math.abs(d.daysRemaining)}d overdue` : `${d.daysRemaining}d left`}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Driver Info Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="stat-card space-y-2">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Personal Details</h3>
+          <InfoRow label="Full Name" value={driver.full_name} />
+          <InfoRow label="ID Number" value={driver.id_number || "-"} />
+          <InfoRow label="Phone" value={driver.phone || "-"} />
+          <InfoRow label="Email" value={driver.email || "-"} />
+          <InfoRow label="Employment" value={driver.employment_status || "active"} />
+        </div>
+
+        <div className="stat-card space-y-2">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Licence Details</h3>
+          <InfoRow label="Licence Number" value={driver.licence_number || "-"} />
+          <InfoRow label="Licence Code" value={driver.licence_code || "-"} />
+          <div className="flex items-center justify-between py-2 border-b border-border/50">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Licence Expiry</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">{driver.licence_expiry || "-"}</span>
+              {licDays !== null && (
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${licDays <= 0 ? "bg-destructive/20 text-destructive" : licDays <= 30 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
+                  {licDays <= 0 ? `${Math.abs(licDays)}d overdue` : `${licDays}d`}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card space-y-2">
+          <h3 className="text-sm font-semibold text-foreground mb-3">PrDP Details</h3>
+          <InfoRow label="PrDP Number" value={driver.prdp_number || "-"} />
+          <InfoRow label="PrDP Category" value={driver.prdp_category || "-"} />
+          <div className="flex items-center justify-between py-2 border-b border-border/50">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">PrDP Expiry</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">{driver.prdp_expiry || "-"}</span>
+              {prdpDays !== null && (
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${prdpDays <= 0 ? "bg-destructive/20 text-destructive" : prdpDays <= 30 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
+                  {prdpDays <= 0 ? `${Math.abs(prdpDays)}d overdue` : `${prdpDays}d`}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Demerit Points</span>
+            <span className={`text-sm font-bold ${totalDemerits >= 9 ? "text-destructive" : totalDemerits >= 5 ? "text-warning" : "text-foreground"}`}>
+              {totalDemerits}/12
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Documents Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <FileText className="w-5 h-5" /> Documents ({enrichedDocs.length})
+          </h3>
+          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
+            <Plus className="w-4 h-4" /> Add Document
+          </button>
+        </div>
+
+        <div className="glass-card overflow-hidden">
+          {enrichedDocs.length === 0 ? (
+            <p className="text-sm text-muted-foreground p-6 text-center">No documents uploaded yet.</p>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Document Type</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Number</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enrichedDocs.map((doc) => (
+                  <tr key={doc.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                    <td className="px-4 py-3 text-sm font-medium text-foreground">{doc.document_type}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{doc.document_number || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-center text-foreground">{doc.expiry_date || "-"}</td>
+                    <td className="px-4 py-3 text-center">
+                      {doc.expiry_date && (
+                        <span className={`text-sm font-semibold ${doc.daysRemaining <= 0 ? "text-destructive" : doc.daysRemaining <= 30 ? "text-warning" : "text-success"}`}>
+                          {doc.daysRemaining <= 0 ? `${Math.abs(doc.daysRemaining)}d overdue` : `${doc.daysRemaining}d`}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[doc.calcStatus]}`}>
+                        {doc.calcStatus === "valid" ? "Valid" : doc.calcStatus === "expiring" ? "Expiring" : "Expired"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {doc.file_url ? (
+                        <button
+                          onClick={async () => {
+                            const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url!, 3600);
+                            if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                          }}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          View
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Fines Section */}
+      {(driverFines || []).length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-foreground">Fines ({driverFines!.length})</h3>
+            {totalOutstanding > 0 && <span className="text-sm font-bold text-destructive">Outstanding: R {totalOutstanding.toLocaleString()}</span>}
+          </div>
+          <div className="glass-card overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Fine No</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Vehicle</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Offence</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Amount</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Demerits</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {driverFines!.map((f) => (
+                  <tr key={f.id} className="border-b border-border/50">
+                    <td className="px-4 py-3 text-sm font-mono text-foreground">{f.fine_number || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{(f as any).vehicles?.registration_number || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{f.offence_description || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-foreground">R {(Number(f.amount) || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-center font-mono text-warning">{f.demerit_points_applied || 0}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${f.payment_status === "paid" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                        {f.payment_status || "unpaid"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Add Document Form */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-background/50" onClick={() => setShowForm(false)} />
+          <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground">Add Document</h2>
+              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Document Type *</label>
+              <select value={form.document_type} onChange={(e) => setForm({ ...form, document_type: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="">Select type</option>
+                {documentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            {form.document_type === "Other" && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Document Name</label>
+                <input type="text" value={form.document_name} onChange={(e) => setForm({ ...form, document_name: e.target.value })} placeholder="e.g. First Aid Certificate" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Document Number</label>
+              <input type="text" value={form.document_number} onChange={(e) => setForm({ ...form, document_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label>
+              <input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Upload File (PDF/Image)</label>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+            </div>
+            <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Document
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+      <span className="text-xs text-muted-foreground uppercase tracking-wider">{label}</span>
+      <span className="text-sm font-medium text-foreground">{value}</span>
+    </div>
+  );
+}

@@ -1,10 +1,13 @@
-import { Search, Filter, Plus, Download, FileCheck, Calendar, Loader2, X } from "lucide-react";
+import { Search, Plus, Loader2, X, Eye } from "lucide-react";
 import { useState } from "react";
 import { useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 
 const statusStyles: Record<string, string> = {
   valid: "bg-success/20 text-success",
@@ -15,6 +18,8 @@ const statusStyles: Record<string, string> = {
 export default function Certificates() {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
   const { data: certificates, isLoading } = useCertificates();
   const { data: vehicles } = useVehicles();
   const { profile, user } = useAuth();
@@ -78,6 +83,16 @@ export default function Certificates() {
     }
   };
 
+  const viewPdf = async (fileUrlPath: string) => {
+    const { data } = await supabase.storage.from("documents").createSignedUrl(fileUrlPath, 3600);
+    if (data?.signedUrl) {
+      setPdfUrl(data.signedUrl);
+      setPdfOpen(true);
+    } else {
+      toast.error("Could not load document");
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -85,11 +100,9 @@ export default function Certificates() {
           <h1 className="text-2xl font-bold text-foreground">Certificates</h1>
           <p className="text-sm text-muted-foreground">Manage vehicle compliance certificates</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
-            <Plus className="w-4 h-4" /> Upload Certificate
-          </button>
-        </div>
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
+          <Plus className="w-4 h-4" /> Upload Certificate
+        </button>
       </div>
 
       <div className="flex items-center gap-3">
@@ -114,6 +127,7 @@ export default function Certificates() {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Expiry</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Days Left</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Doc</th>
               </tr>
             </thead>
             <tbody>
@@ -129,12 +143,39 @@ export default function Certificates() {
                   <td className="px-4 py-3 text-center">
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[c.calcStatus]}`}>{c.calcStatus}</span>
                   </td>
+                  <td className="px-4 py-3 text-center">
+                    {c.file_url ? (
+                      <button onClick={() => viewPdf(c.file_url!)} className="text-primary hover:text-primary/80">
+                        <Eye className="w-4 h-4 inline" />
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* PDF Viewer Modal */}
+      <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Certificate Document</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {pdfUrl && (
+              <iframe
+                src={pdfUrl}
+                className="w-full h-full rounded-lg border border-border"
+                title="Certificate PDF"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
@@ -172,8 +213,8 @@ export default function Certificates() {
               </div>
             ))}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Document File</label>
-              <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+              <label className="block text-sm font-medium text-foreground mb-1">Document File (PDF)</label>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
             </div>
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Upload Certificate

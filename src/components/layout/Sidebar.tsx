@@ -111,6 +111,11 @@ export function Sidebar() {
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </button>
+        {!collapsed && (
+          <p className="px-3 py-2 text-[10px] text-muted-foreground/60 leading-tight">
+            © 2026 MARZ Technologies (Pty) Ltd.<br />All rights reserved.
+          </p>
+        )}
       </div>
 
       <button

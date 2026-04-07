@@ -11,6 +11,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Vehicles from "./pages/Vehicles";
 import Drivers from "./pages/Drivers";
+import DriverDetail from "./pages/DriverDetail";
 import Certificates from "./pages/Certificates";
 import ComplianceTemplates from "./pages/ComplianceTemplates";
 import Inspections from "./pages/Inspections";
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/vehicles" element={<Vehicles />} />
               <Route path="/vehicles/:id" element={<VehicleDetail />} />
               <Route path="/drivers" element={<Drivers />} />
+              <Route path="/drivers/:id" element={<DriverDetail />} />
               <Route path="/certificates" element={<Certificates />} />
               <Route path="/compliance-templates" element={<ComplianceTemplates />} />
               <Route path="/inspections" element={<Inspections />} />
