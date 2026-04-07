@@ -428,6 +428,7 @@ export default function VehicleDetail() {
                             </div>
                           ) : (
                             <div className="flex items-center gap-2 justify-center">
+                              <button onClick={() => openPdf(cert.file_url)} className="text-muted-foreground hover:text-primary" title="View"><Eye className="w-4 h-4" /></button>
                               <button onClick={() => startEditCert(cert)} className="text-muted-foreground hover:text-primary" title="Edit"><Pencil className="w-4 h-4" /></button>
                               <button onClick={() => setDeleteCertId(cert.id)} className="text-muted-foreground hover:text-destructive" title="Delete"><Trash2 className="w-4 h-4" /></button>
                             </div>
