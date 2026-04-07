@@ -395,6 +395,11 @@ export default function VehicleDetail() {
                             {cert.status || "valid"}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => openPdf(cert.file_url)} className="text-muted-foreground hover:text-primary transition-colors" title="View document">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
