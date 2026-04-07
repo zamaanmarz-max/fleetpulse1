@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
+import { recalculateAllVehicleCompliance } from "@/lib/compliance";
+import { useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 
 const conditionColors: Record<string, string> = {
@@ -27,7 +29,15 @@ export default function Dashboard() {
   const { data: vehicles } = useVehicles();
   const { data: certificates } = useCertificates();
   const { insights, loading: aiLoading, fetchInsights } = useFleetInsights();
+  const queryClient = useQueryClient();
   const [activePanel, setActivePanel] = useState<PanelType>(null);
+
+  useEffect(() => {
+    recalculateAllVehicleCompliance().then(() => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard_stats"] });
+    });
+  }, []);
 
   useEffect(() => {
     fetchInsights();
@@ -95,7 +105,7 @@ export default function Dashboard() {
     const kmUntil = (v.next_service_due_km ?? 0) - (v.current_odometer_km ?? 0);
     let status = v.compliance_status || "compliant";
     if (kmUntil < 0) status = "critical";
-    else if (kmUntil < 500) status = "warning";
+    else if (kmUntil < 2000) status = "warning";
     return { ...v, effectiveStatus: status, kmUntil };
   }).filter(v => v.effectiveStatus !== "compliant").sort((a, b) => a.kmUntil - b.kmUntil);
 

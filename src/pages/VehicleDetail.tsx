@@ -387,6 +387,40 @@ export default function VehicleDetail() {
       {activeTab === "certificates" && (
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Certificates ({(certificates || []).length})</h3>
+          
+          {/* Required certificates from template */}
+          {requiredCerts && requiredCerts.length > 0 && (
+            <div className="stat-card">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-3">Required by Template: {(vehicle as any).compliance_templates?.template_name}</h4>
+              <div className="flex flex-wrap gap-2">
+                {requiredCerts.map((reqCert: string) => {
+                  const existing = (certificates || []).find(c => c.certificate_type.toLowerCase() === reqCert.toLowerCase());
+                  let badgeClass = "bg-destructive/20 text-destructive";
+                  let badgeText = "Missing";
+                  if (existing) {
+                    const days = existing.expiry_date ? Math.ceil((new Date(existing.expiry_date).getTime() - Date.now()) / 86400000) : null;
+                    if (days !== null && days <= 0) {
+                      badgeClass = "bg-destructive/20 text-destructive";
+                      badgeText = "Expired";
+                    } else if (days !== null && days <= 30) {
+                      badgeClass = "bg-warning/20 text-warning";
+                      badgeText = `Expiring (${days}d)`;
+                    } else {
+                      badgeClass = "bg-success/20 text-success";
+                      badgeText = "Valid";
+                    }
+                  }
+                  return (
+                    <div key={reqCert} className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2">
+                      <span className="text-sm text-foreground">{reqCert}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>{badgeText}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {missingCerts.length > 0 && (
             <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2"><AlertTriangle className="w-4 h-4 text-destructive" /><span className="text-sm font-semibold text-destructive">Missing Required Certificates</span></div>

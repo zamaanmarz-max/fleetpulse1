@@ -147,7 +147,7 @@ export function useDashboardStats() {
       const getEffectiveStatus = (v: any) => {
         const kmUntil = (v.next_service_due_km ?? 0) - (v.current_odometer_km ?? 0);
         if (kmUntil < 0) return "critical";
-        if (kmUntil < 500) return "warning";
+        if (kmUntil < 2000) return "warning";
         return v.compliance_status || "compliant";
       };
       const compliant = vehicles.filter((v) => getEffectiveStatus(v) === "compliant").length;
