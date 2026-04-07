@@ -493,6 +493,10 @@ export type Database = {
           location: string | null
           organisation_id: string | null
           photo_urls: Json | null
+          repair_cost: number | null
+          repair_date: string | null
+          repair_notes: string | null
+          repaired_by: string | null
           requires_immediate_action: boolean | null
           resolved: boolean | null
           resolved_at: string | null
@@ -510,6 +514,10 @@ export type Database = {
           location?: string | null
           organisation_id?: string | null
           photo_urls?: Json | null
+          repair_cost?: number | null
+          repair_date?: string | null
+          repair_notes?: string | null
+          repaired_by?: string | null
           requires_immediate_action?: boolean | null
           resolved?: boolean | null
           resolved_at?: string | null
@@ -527,6 +535,10 @@ export type Database = {
           location?: string | null
           organisation_id?: string | null
           photo_urls?: Json | null
+          repair_cost?: number | null
+          repair_date?: string | null
+          repair_notes?: string | null
+          repaired_by?: string | null
           requires_immediate_action?: boolean | null
           resolved?: boolean | null
           resolved_at?: string | null
