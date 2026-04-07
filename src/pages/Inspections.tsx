@@ -51,6 +51,7 @@ type DamageItem = {
 };
 
 export default function Inspections() {
+  const navigate = useNavigate();
   const { data: inspections, isLoading } = useInspections();
   const { data: vehicles } = useVehicles();
   const { data: drivers } = useDrivers();
