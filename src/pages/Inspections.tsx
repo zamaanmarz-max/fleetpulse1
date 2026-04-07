@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, Loader2, X, Plus, Trash2, Upload } from "lucide-react";
 import { useInspections, useVehicles, useDrivers } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
