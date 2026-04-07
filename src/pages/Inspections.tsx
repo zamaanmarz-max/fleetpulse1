@@ -192,7 +192,7 @@ export default function Inspections() {
             </thead>
             <tbody>
               {(inspections || []).map((ins) => (
-                <tr key={ins.id} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                <tr key={ins.id} onClick={() => navigate(`/inspections/${ins.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{(ins as any).vehicles?.registration_number || "N/A"}</td>
                   <td className="px-4 py-3 text-sm text-center text-foreground">{ins.inspection_date}</td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{(ins as any).inspector?.full_name || "N/A"}</td>
