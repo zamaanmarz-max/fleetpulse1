@@ -143,10 +143,17 @@ export function useDashboardStats() {
       const alerts = alertsRes.data || [];
 
       const totalVehicles = vehicles.length;
-      const compliant = vehicles.filter((v) => v.compliance_status === "compliant").length;
-      const warning = vehicles.filter((v) => v.compliance_status === "warning").length;
-      const critical = vehicles.filter((v) => v.compliance_status === "critical").length;
-      const expired = vehicles.filter((v) => v.compliance_status === "expired").length;
+      // Recalculate compliance status based on km_until_service
+      const getEffectiveStatus = (v: any) => {
+        const kmUntil = (v.next_service_due_km ?? 0) - (v.current_odometer_km ?? 0);
+        if (kmUntil < 0) return "critical";
+        if (kmUntil < 500) return "warning";
+        return v.compliance_status || "compliant";
+      };
+      const compliant = vehicles.filter((v) => getEffectiveStatus(v) === "compliant").length;
+      const warning = vehicles.filter((v) => getEffectiveStatus(v) === "warning").length;
+      const critical = vehicles.filter((v) => getEffectiveStatus(v) === "critical").length;
+      const expired = vehicles.filter((v) => getEffectiveStatus(v) === "expired").length;
       const complianceScore = totalVehicles > 0 ? Math.round((compliant / totalVehicles) * 100) : 0;
 
       const now = new Date();
