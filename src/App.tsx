@@ -21,6 +21,7 @@ import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPanel from "./pages/AdminPanel";
 import VehicleDetail from "./pages/VehicleDetail";
+import InspectionDetail from "./pages/InspectionDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
