@@ -79,20 +79,14 @@ export async function recalculateAllVehicleCompliance() {
     certsByVehicle[c.vehicle_id].push(c);
   }
 
-  const updates: Promise<any>[] = [];
   for (const v of vehicles) {
     const vehicleCerts = certsByVehicle[v.id] || [];
     const result = calculateComplianceStatus(v, vehicleCerts);
 
-    // Only update if values changed
-    updates.push(
-      supabase.from("vehicles").update({
-        compliance_status: result.compliance_status,
-        risk_score: result.risk_score,
-        km_until_service: result.km_until_service,
-      }).eq("id", v.id)
-    );
+    await supabase.from("vehicles").update({
+      compliance_status: result.compliance_status,
+      risk_score: result.risk_score,
+      km_until_service: result.km_until_service,
+    }).eq("id", v.id);
   }
-
-  await Promise.all(updates);
 }
