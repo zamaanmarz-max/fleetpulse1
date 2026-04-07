@@ -29,7 +29,15 @@ export default function Dashboard() {
   const { data: vehicles } = useVehicles();
   const { data: certificates } = useCertificates();
   const { insights, loading: aiLoading, fetchInsights } = useFleetInsights();
+  const queryClient = useQueryClient();
   const [activePanel, setActivePanel] = useState<PanelType>(null);
+
+  useEffect(() => {
+    recalculateAllVehicleCompliance().then(() => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard_stats"] });
+    });
+  }, []);
 
   useEffect(() => {
     fetchInsights();
