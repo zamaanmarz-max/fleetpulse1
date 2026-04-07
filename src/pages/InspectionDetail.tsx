@@ -44,19 +44,16 @@ export default function InspectionDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("damage_items")
-        .select("*, drivers:vehicle_id(id)")
+        .select("*")
         .eq("inspection_id", id!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      // Get signed URLs for photos
       const itemsWithUrls = await Promise.all(
         (data || []).map(async (item) => {
           const urls: string[] = [];
           const photoUrls = (item.photo_urls as string[]) || [];
           for (const path of photoUrls) {
-            const { data: signedData } = await supabase.storage
-              .from("documents")
-              .createSignedUrl(path, 3600);
+            const { data: signedData } = await supabase.storage.from("documents").createSignedUrl(path, 3600);
             if (signedData?.signedUrl) urls.push(signedData.signedUrl);
           }
           return { ...item, signedPhotoUrls: urls };
@@ -74,39 +71,56 @@ export default function InspectionDetail() {
 
     doc.setFontSize(18);
     doc.text("Damage Inspection Report", 14, 22);
-    doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text("FleetPulse by MARZ Technologies", 14, 30);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 36);
+    doc.setTextColor(0);
 
-    doc.setFontSize(12);
-    doc.text("Vehicle Details", 14, 42);
+    doc.setFontSize(11);
+    doc.text("Vehicle Details", 14, 48);
     doc.setFontSize(10);
-    doc.text(`Registration: ${v.vehicles?.registration_number || "N/A"}`, 14, 50);
-    doc.text(`Make/Model: ${v.vehicles?.make || ""} ${v.vehicles?.model || ""}`, 14, 56);
-    doc.text(`Fleet No: ${v.vehicles?.fleet_number || "-"}`, 14, 62);
-
-    doc.text(`Inspection Date: ${inspection.inspection_date || "-"}`, 14, 72);
-    doc.text(`Inspector: ${v.inspector?.full_name || "-"}`, 14, 78);
-    doc.text(`Overall Condition: ${inspection.overall_condition || "-"}`, 14, 84);
-    doc.text(`Odometer: ${inspection.odometer_at_inspection?.toLocaleString() || "-"} km`, 14, 90);
+    doc.text(`Registration: ${v.vehicles?.registration_number || "N/A"}`, 14, 56);
+    doc.text(`Make/Model: ${v.vehicles?.make || ""} ${v.vehicles?.model || ""}`, 14, 62);
+    doc.text(`Fleet No: ${v.vehicles?.fleet_number || "-"}`, 14, 68);
+    doc.text(`Inspection Date: ${inspection.inspection_date || "-"}`, 14, 78);
+    doc.text(`Inspector: ${v.inspector?.full_name || "-"}`, 14, 84);
+    doc.text(`Overall Condition: ${(inspection.overall_condition || "-").toUpperCase()}`, 14, 90);
+    doc.text(`Odometer: ${inspection.odometer_at_inspection?.toLocaleString() || "-"} km`, 14, 96);
 
     if ((damageItems || []).length > 0) {
-      doc.setFontSize(12);
-      doc.text("Damage Items", 14, 104);
+      doc.setFontSize(11);
+      doc.text("Damage Items", 14, 110);
 
       autoTable(doc, {
-        startY: 110,
-        head: [["#", "Location", "Type", "Severity", "Immediate?", "Resolved?"]],
+        startY: 116,
+        head: [["#", "Location", "Type", "Severity", "Immediate?", "Resolved?", "Description"]],
         body: (damageItems || []).map((item, i) => [
           String(i + 1),
           item.location || "-",
           item.damage_type || "-",
-          item.severity || "-",
+          (item.severity || "-").toUpperCase(),
           item.requires_immediate_action ? "Yes" : "No",
           item.resolved ? "Yes" : "No",
+          (item.description || "-").substring(0, 60),
         ]),
         theme: "striped",
         headStyles: { fillColor: [41, 128, 185] },
+        didParseCell: (data: any) => {
+          if (data.column.index === 3 && data.section === "body" && ["SEVERE", "CRITICAL"].includes(data.cell.raw)) {
+            data.cell.styles.textColor = [220, 50, 50];
+            data.cell.styles.fontStyle = "bold";
+          }
+        },
       });
+    }
+
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text("© 2026 MARZ Technologies (Pty) Ltd. All rights reserved.", 14, doc.internal.pageSize.height - 10);
     }
 
     doc.save(`inspection_${inspection.inspection_date || "report"}.pdf`);
@@ -144,7 +158,6 @@ export default function InspectionDetail() {
         </button>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="stat-card">
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Condition</p>
@@ -171,7 +184,6 @@ export default function InspectionDetail() {
         </div>
       )}
 
-      {/* Damage Items */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-foreground">Damage Items ({(damageItems || []).length})</h3>
         {(damageItems || []).length === 0 ? (
@@ -196,11 +208,11 @@ export default function InspectionDetail() {
                   <div><span className="text-muted-foreground">Type:</span> <span className="text-foreground font-medium">{item.damage_type || "-"}</span></div>
                   <div><span className="text-muted-foreground">Immediate:</span> <span className={`font-medium ${item.requires_immediate_action ? "text-destructive" : "text-foreground"}`}>{item.requires_immediate_action ? "Yes" : "No"}</span></div>
                   <div><span className="text-muted-foreground">New:</span> <span className="text-foreground font-medium">{item.is_new_damage ? "Yes" : "No"}</span></div>
+                  <div><span className="text-muted-foreground">Repair:</span> <span className={`font-medium ${item.resolved ? "text-success" : "text-warning"}`}>{item.resolved ? "Repaired" : "Pending"}</span></div>
                 </div>
 
                 {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
 
-                {/* Photos */}
                 {item.signedPhotoUrls && item.signedPhotoUrls.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
                     {item.signedPhotoUrls.map((url: string, pi: number) => (
@@ -219,7 +231,6 @@ export default function InspectionDetail() {
         )}
       </div>
 
-      {/* Full size photo viewer */}
       {viewingPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80" onClick={() => setViewingPhoto(null)}>
           <button onClick={() => setViewingPhoto(null)} className="absolute top-4 right-4 text-foreground bg-secondary rounded-full p-2">

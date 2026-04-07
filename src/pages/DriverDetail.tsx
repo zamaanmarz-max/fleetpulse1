@@ -32,9 +32,7 @@ export default function DriverDetail() {
   const [showForm, setShowForm] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    document_type: "", document_name: "", document_number: "", expiry_date: "",
-  });
+  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -42,11 +40,7 @@ export default function DriverDetail() {
   const { data: driver, isLoading } = useQuery({
     queryKey: ["driver", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drivers")
-        .select("*")
-        .eq("id", id!)
-        .maybeSingle();
+      const { data, error } = await supabase.from("drivers").select("*").eq("id", id!).maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -56,11 +50,7 @@ export default function DriverDetail() {
   const { data: documents } = useQuery({
     queryKey: ["driver_documents", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("driver_documents")
-        .select("*")
-        .eq("driver_id", id!)
-        .order("expiry_date", { ascending: true });
+      const { data, error } = await supabase.from("driver_documents").select("*").eq("driver_id", id!).order("expiry_date", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -70,11 +60,7 @@ export default function DriverDetail() {
   const { data: driverFines } = useQuery({
     queryKey: ["driver_fines", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fines")
-        .select("*, vehicles(registration_number)")
-        .eq("driver_id", id!)
-        .order("offence_date", { ascending: false });
+      const { data, error } = await supabase.from("fines").select("*, vehicles(registration_number)").eq("driver_id", id!).order("offence_date", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -83,19 +69,21 @@ export default function DriverDetail() {
 
   const now = Date.now();
 
-  const enrichedDocs = (documents || []).map((d) => {
+  const enrichedDocs = (documents || []).map(d => {
     const days = d.expiry_date ? Math.ceil((new Date(d.expiry_date).getTime() - now) / 86400000) : 999;
     const calcStatus = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
     return { ...d, daysRemaining: days, calcStatus };
   });
 
-  const alertDocs = enrichedDocs.filter((d) => d.daysRemaining <= 30);
+  const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
+
+  // Missing info badges
+  const missingId = !driver?.id_number;
+  const hasMedical = enrichedDocs.some(d => d.document_type === "Medical Certificate" && d.calcStatus !== "expired");
+  const hasPrdp = driver?.prdp_expiry ? Math.ceil((new Date(driver.prdp_expiry).getTime() - now) / 86400000) > 0 : false;
 
   const handleSave = async () => {
-    if (!form.document_type || !profile?.organisation_id) {
-      toast.error("Document type is required");
-      return;
-    }
+    if (!form.document_type || !profile?.organisation_id) { toast.error("Document type is required"); return; }
     setSaving(true);
     let fileUrl: string | null = null;
     if (file) {
@@ -106,23 +94,16 @@ export default function DriverDetail() {
     }
     const days = form.expiry_date ? Math.ceil((new Date(form.expiry_date).getTime() - now) / 86400000) : null;
     const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
-
     const { error } = await supabase.from("driver_documents").insert({
-      organisation_id: profile.organisation_id,
-      driver_id: id,
-      document_type: form.document_type,
-      document_name: form.document_name || form.document_type,
-      document_number: form.document_number || null,
-      expiry_date: form.expiry_date || null,
-      file_url: fileUrl,
-      uploaded_by: user?.id || null,
-      status,
+      organisation_id: profile.organisation_id, driver_id: id,
+      document_type: form.document_type, document_name: form.document_name || form.document_type,
+      document_number: form.document_number || null, expiry_date: form.expiry_date || null,
+      file_url: fileUrl, uploaded_by: user?.id || null, status,
     });
     setSaving(false);
     if (error) { toast.error(error.message); } else {
       toast.success("Document added");
-      setShowForm(false);
-      setFile(null);
+      setShowForm(false); setFile(null);
       setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
       queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
     }
@@ -131,18 +112,13 @@ export default function DriverDetail() {
   const startEditing = () => {
     if (!driver) return;
     setEditForm({
-      full_name: driver.full_name || "",
-      id_number: driver.id_number || "",
-      phone: driver.phone || "",
-      email: driver.email || "",
+      full_name: driver.full_name || "", id_number: driver.id_number || "",
+      phone: driver.phone || "", email: driver.email || "",
       employment_status: driver.employment_status || "active",
-      licence_number: driver.licence_number || "",
-      licence_code: driver.licence_code || "",
+      licence_number: driver.licence_number || "", licence_code: driver.licence_code || "",
       licence_expiry: driver.licence_expiry || "",
-      prdp_number: driver.prdp_number || "",
-      prdp_category: driver.prdp_category || "",
-      prdp_expiry: driver.prdp_expiry || "",
-      shift_type: driver.shift_type || "day",
+      prdp_number: driver.prdp_number || "", prdp_category: driver.prdp_category || "",
+      prdp_expiry: driver.prdp_expiry || "", shift_type: driver.shift_type || "day",
       notes: driver.notes || "",
     });
     setEditing(true);
@@ -150,28 +126,18 @@ export default function DriverDetail() {
 
   const handleSaveEdit = async () => {
     setEditSaving(true);
-    const { error } = await supabase
-      .from("drivers")
-      .update({
-        full_name: editForm.full_name,
-        id_number: editForm.id_number || null,
-        phone: editForm.phone || null,
-        email: editForm.email || null,
-        employment_status: editForm.employment_status || "active",
-        licence_number: editForm.licence_number || null,
-        licence_code: editForm.licence_code || null,
-        licence_expiry: editForm.licence_expiry || null,
-        prdp_number: editForm.prdp_number || null,
-        prdp_category: editForm.prdp_category || null,
-        prdp_expiry: editForm.prdp_expiry || null,
-        shift_type: editForm.shift_type || "day",
-        notes: editForm.notes || null,
-      })
-      .eq("id", id!);
+    const { error } = await supabase.from("drivers").update({
+      full_name: editForm.full_name, id_number: editForm.id_number || null,
+      phone: editForm.phone || null, email: editForm.email || null,
+      employment_status: editForm.employment_status || "active",
+      licence_number: editForm.licence_number || null, licence_code: editForm.licence_code || null,
+      licence_expiry: editForm.licence_expiry || null,
+      prdp_number: editForm.prdp_number || null, prdp_category: editForm.prdp_category || null,
+      prdp_expiry: editForm.prdp_expiry || null, shift_type: editForm.shift_type || "day",
+      notes: editForm.notes || null,
+    }).eq("id", id!);
     setEditSaving(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    if (error) { toast.error(error.message); } else {
       toast.success("Driver updated successfully");
       setEditing(false);
       queryClient.invalidateQueries({ queryKey: ["driver", id] });
@@ -179,16 +145,12 @@ export default function DriverDetail() {
     }
   };
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  }
+  if (isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   if (!driver) {
     return (
       <div className="p-6">
-        <button onClick={() => navigate("/drivers")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4">
-          <ArrowLeft className="w-4 h-4" /> Back to Drivers
-        </button>
+        <button onClick={() => navigate("/drivers")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"><ArrowLeft className="w-4 h-4" /> Back</button>
         <p className="text-muted-foreground">Driver not found.</p>
       </div>
     );
@@ -196,74 +158,59 @@ export default function DriverDetail() {
 
   const licDays = driver.licence_expiry ? Math.ceil((new Date(driver.licence_expiry).getTime() - now) / 86400000) : null;
   const prdpDays = driver.prdp_expiry ? Math.ceil((new Date(driver.prdp_expiry).getTime() - now) / 86400000) : null;
-
   const totalDemerits = (driverFines || []).reduce((s, f) => s + (f.demerit_points_applied || 0), 0) + (driver.demerit_points || 0);
   const totalOutstanding = (driverFines || []).filter(f => f.payment_status !== "paid").reduce((s, f) => s + (Number(f.amount) || 0), 0);
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate("/drivers")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        <button onClick={() => navigate("/drivers")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary"><ArrowLeft className="w-5 h-5" /></button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{driver.full_name}</h1>
-          <p className="text-sm text-muted-foreground">
-            {driver.licence_code || "No licence"} · {driver.employment_status || "active"} · Demerits: {totalDemerits}/12
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl font-bold text-foreground">{driver.full_name}</h1>
+            {missingId && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning uppercase">Missing ID</span>}
+            {!hasMedical && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning uppercase">No Medical</span>}
+            {!hasPrdp && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning uppercase">PrDP Issue</span>}
+          </div>
+          <p className="text-sm text-muted-foreground">{driver.licence_code || "No licence"} · {driver.employment_status || "active"} · Demerits: {totalDemerits}/12</p>
         </div>
         {!editing ? (
-          <button onClick={startEditing} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90">
-            <Pencil className="w-3.5 h-3.5" /> Edit Driver
-          </button>
+          <button onClick={startEditing} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90"><Pencil className="w-3.5 h-3.5" /> Edit Driver</button>
         ) : (
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md border border-border">Cancel</button>
-            <button onClick={handleSaveEdit} disabled={editSaving} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 disabled:opacity-50">
-              {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save Changes
-            </button>
+            <button onClick={handleSaveEdit} disabled={editSaving} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 disabled:opacity-50">{editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save</button>
           </div>
         )}
       </div>
 
-      {/* Alert banner */}
       {alertDocs.length > 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-warning" />
-            <span className="text-sm font-semibold text-warning">{alertDocs.length} document(s) expiring within 30 days</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {alertDocs.map((d) => (
-              <span key={d.id} className={`text-xs font-semibold px-2 py-1 rounded ${statusStyles[d.calcStatus]}`}>
-                {d.document_type} — {d.daysRemaining <= 0 ? `${Math.abs(d.daysRemaining)}d overdue` : `${d.daysRemaining}d left`}
-              </span>
-            ))}
-          </div>
+          <div className="flex items-center gap-2 mb-2"><AlertTriangle className="w-4 h-4 text-warning" /><span className="text-sm font-semibold text-warning">{alertDocs.length} document(s) expiring within 30 days</span></div>
+          <div className="flex flex-wrap gap-2">{alertDocs.map(d => <span key={d.id} className={`text-xs font-semibold px-2 py-1 rounded ${statusStyles[d.calcStatus]}`}>{d.document_type} — {d.daysRemaining <= 0 ? `${Math.abs(d.daysRemaining)}d overdue` : `${d.daysRemaining}d left`}</span>)}</div>
         </div>
       )}
 
-      {/* Driver Info Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="stat-card space-y-2">
           <h3 className="text-sm font-semibold text-foreground mb-3">Personal Details</h3>
           {editing ? (
             <div className="space-y-2">
-              <EditField label="Full Name" value={editForm.full_name} onChange={(v) => setEditForm({ ...editForm, full_name: v })} />
-              <EditField label="ID Number" value={editForm.id_number} onChange={(v) => setEditForm({ ...editForm, id_number: v })} />
-              <EditField label="Phone" value={editForm.phone} onChange={(v) => setEditForm({ ...editForm, phone: v })} />
-              <EditField label="Email" value={editForm.email} onChange={(v) => setEditForm({ ...editForm, email: v })} type="email" />
-              <EditField label="Employment" value={editForm.employment_status} onChange={(v) => setEditForm({ ...editForm, employment_status: v })} />
-              <EditField label="Shift Type" value={editForm.shift_type} onChange={(v) => setEditForm({ ...editForm, shift_type: v })} />
+              <EditField label="Full Name" value={editForm.full_name} onChange={v => setEditForm({ ...editForm, full_name: v })} />
+              <EditField label="ID Number" value={editForm.id_number} onChange={v => setEditForm({ ...editForm, id_number: v })} />
+              <EditField label="Phone" value={editForm.phone} onChange={v => setEditForm({ ...editForm, phone: v })} />
+              <EditField label="Email" value={editForm.email} onChange={v => setEditForm({ ...editForm, email: v })} type="email" />
+              <EditField label="Employment" value={editForm.employment_status} onChange={v => setEditForm({ ...editForm, employment_status: v })} />
+              <EditField label="Shift Type" value={editForm.shift_type} onChange={v => setEditForm({ ...editForm, shift_type: v })} />
             </div>
           ) : (
             <>
               <InfoRow label="Full Name" value={driver.full_name} />
-              <InfoRow label="ID Number" value={driver.id_number || "-"} />
+              <InfoRow label="ID Number" value={driver.id_number || "-"} warn={missingId} />
               <InfoRow label="Phone" value={driver.phone || "-"} />
               <InfoRow label="Email" value={driver.email || "-"} />
               <InfoRow label="Employment" value={driver.employment_status || "active"} />
-              <InfoRow label="Shift Type" value={driver.shift_type || "day"} />
+              <InfoRow label="Shift" value={driver.shift_type || "day"} />
             </>
           )}
         </div>
@@ -272,23 +219,19 @@ export default function DriverDetail() {
           <h3 className="text-sm font-semibold text-foreground mb-3">Licence Details</h3>
           {editing ? (
             <div className="space-y-2">
-              <EditField label="Licence Number" value={editForm.licence_number} onChange={(v) => setEditForm({ ...editForm, licence_number: v })} />
-              <EditField label="Licence Code" value={editForm.licence_code} onChange={(v) => setEditForm({ ...editForm, licence_code: v })} />
-              <EditField label="Licence Expiry" value={editForm.licence_expiry} onChange={(v) => setEditForm({ ...editForm, licence_expiry: v })} type="date" />
+              <EditField label="Licence No" value={editForm.licence_number} onChange={v => setEditForm({ ...editForm, licence_number: v })} />
+              <EditField label="Licence Code" value={editForm.licence_code} onChange={v => setEditForm({ ...editForm, licence_code: v })} />
+              <EditField label="Licence Expiry" value={editForm.licence_expiry} onChange={v => setEditForm({ ...editForm, licence_expiry: v })} type="date" />
             </div>
           ) : (
             <>
-              <InfoRow label="Licence Number" value={driver.licence_number || "-"} />
+              <InfoRow label="Licence No" value={driver.licence_number || "-"} />
               <InfoRow label="Licence Code" value={driver.licence_code || "-"} />
               <div className="flex items-center justify-between py-2 border-b border-border/50">
                 <span className="text-xs text-muted-foreground uppercase tracking-wider">Licence Expiry</span>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">{driver.licence_expiry || "-"}</span>
-                  {licDays !== null && (
-                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${licDays <= 0 ? "bg-destructive/20 text-destructive" : licDays <= 30 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
-                      {licDays <= 0 ? `${Math.abs(licDays)}d overdue` : `${licDays}d`}
-                    </span>
-                  )}
+                  {licDays !== null && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${licDays <= 0 ? "bg-destructive/20 text-destructive" : licDays <= 30 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>{licDays <= 0 ? `${Math.abs(licDays)}d overdue` : `${licDays}d`}</span>}
                 </div>
               </div>
             </>
@@ -299,31 +242,25 @@ export default function DriverDetail() {
           <h3 className="text-sm font-semibold text-foreground mb-3">PrDP Details</h3>
           {editing ? (
             <div className="space-y-2">
-              <EditField label="PrDP Number" value={editForm.prdp_number} onChange={(v) => setEditForm({ ...editForm, prdp_number: v })} />
-              <EditField label="PrDP Category" value={editForm.prdp_category} onChange={(v) => setEditForm({ ...editForm, prdp_category: v })} />
-              <EditField label="PrDP Expiry" value={editForm.prdp_expiry} onChange={(v) => setEditForm({ ...editForm, prdp_expiry: v })} type="date" />
-              <EditField label="Notes" value={editForm.notes} onChange={(v) => setEditForm({ ...editForm, notes: v })} />
+              <EditField label="PrDP No" value={editForm.prdp_number} onChange={v => setEditForm({ ...editForm, prdp_number: v })} />
+              <EditField label="PrDP Category" value={editForm.prdp_category} onChange={v => setEditForm({ ...editForm, prdp_category: v })} />
+              <EditField label="PrDP Expiry" value={editForm.prdp_expiry} onChange={v => setEditForm({ ...editForm, prdp_expiry: v })} type="date" />
+              <EditField label="Notes" value={editForm.notes} onChange={v => setEditForm({ ...editForm, notes: v })} />
             </div>
           ) : (
             <>
-              <InfoRow label="PrDP Number" value={driver.prdp_number || "-"} />
+              <InfoRow label="PrDP No" value={driver.prdp_number || "-"} />
               <InfoRow label="PrDP Category" value={driver.prdp_category || "-"} />
               <div className="flex items-center justify-between py-2 border-b border-border/50">
                 <span className="text-xs text-muted-foreground uppercase tracking-wider">PrDP Expiry</span>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">{driver.prdp_expiry || "-"}</span>
-                  {prdpDays !== null && (
-                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${prdpDays <= 0 ? "bg-destructive/20 text-destructive" : prdpDays <= 30 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
-                      {prdpDays <= 0 ? `${Math.abs(prdpDays)}d overdue` : `${prdpDays}d`}
-                    </span>
-                  )}
+                  {prdpDays !== null && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${prdpDays <= 0 ? "bg-destructive/20 text-destructive" : prdpDays <= 30 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>{prdpDays <= 0 ? `${Math.abs(prdpDays)}d overdue` : `${prdpDays}d`}</span>}
                 </div>
               </div>
               <div className="flex items-center justify-between py-2">
-                <span className="text-xs text-muted-foreground uppercase tracking-wider">Demerit Points</span>
-                <span className={`text-sm font-bold ${totalDemerits >= 9 ? "text-destructive" : totalDemerits >= 5 ? "text-warning" : "text-foreground"}`}>
-                  {totalDemerits}/12
-                </span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider">Demerits</span>
+                <span className={`text-sm font-bold ${totalDemerits >= 9 ? "text-destructive" : totalDemerits >= 5 ? "text-warning" : "text-foreground"}`}>{totalDemerits}/12</span>
               </div>
               {driver.notes && <InfoRow label="Notes" value={driver.notes} />}
             </>
@@ -331,65 +268,34 @@ export default function DriverDetail() {
         </div>
       </div>
 
-      {/* Documents Section */}
+      {/* Documents */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <FileText className="w-5 h-5" /> Documents ({enrichedDocs.length})
-          </h3>
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
-            <Plus className="w-4 h-4" /> Add Document
-          </button>
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2"><FileText className="w-5 h-5" /> Documents ({enrichedDocs.length})</h3>
+          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90"><Plus className="w-4 h-4" /> Add Document</button>
         </div>
-
         <div className="glass-card overflow-hidden">
           {enrichedDocs.length === 0 ? (
             <p className="text-sm text-muted-foreground p-6 text-center">No documents uploaded yet.</p>
           ) : (
             <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Document Type</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Number</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
-                </tr>
-              </thead>
+              <thead><tr className="border-b border-border">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Number</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
+              </tr></thead>
               <tbody>
-                {enrichedDocs.map((doc) => (
-                  <tr key={doc.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                {enrichedDocs.map(doc => (
+                  <tr key={doc.id} className="border-b border-border/50 hover:bg-secondary/30">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{doc.document_type}</td>
                     <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{doc.document_number || "-"}</td>
                     <td className="px-4 py-3 text-sm text-center text-foreground">{doc.expiry_date || "-"}</td>
-                    <td className="px-4 py-3 text-center">
-                      {doc.expiry_date && (
-                        <span className={`text-sm font-semibold ${doc.daysRemaining <= 0 ? "text-destructive" : doc.daysRemaining <= 30 ? "text-warning" : "text-success"}`}>
-                          {doc.daysRemaining <= 0 ? `${Math.abs(doc.daysRemaining)}d overdue` : `${doc.daysRemaining}d`}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[doc.calcStatus]}`}>
-                        {doc.calcStatus === "valid" ? "Valid" : doc.calcStatus === "expiring" ? "Expiring" : "Expired"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {doc.file_url ? (
-                        <button
-                          onClick={async () => {
-                            const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url!, 3600);
-                            if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-                          }}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          View
-                        </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </td>
+                    <td className="px-4 py-3 text-center">{doc.expiry_date && <span className={`text-sm font-semibold ${doc.daysRemaining <= 0 ? "text-destructive" : doc.daysRemaining <= 30 ? "text-warning" : "text-success"}`}>{doc.daysRemaining <= 0 ? `${Math.abs(doc.daysRemaining)}d overdue` : `${doc.daysRemaining}d`}</span>}</td>
+                    <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[doc.calcStatus]}`}>{doc.calcStatus === "valid" ? "Valid" : doc.calcStatus === "expiring" ? "Expiring" : "Expired"}</span></td>
+                    <td className="px-4 py-3 text-center">{doc.file_url ? <button onClick={async () => { const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url!, 3600); if (data?.signedUrl) window.open(data.signedUrl, "_blank"); }} className="text-xs text-primary hover:underline">View</button> : <span className="text-xs text-muted-foreground">-</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -398,7 +304,7 @@ export default function DriverDetail() {
         </div>
       </div>
 
-      {/* Fines Section */}
+      {/* Fines */}
       {(driverFines || []).length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -407,29 +313,21 @@ export default function DriverDetail() {
           </div>
           <div className="glass-card overflow-hidden">
             <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Fine No</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Vehicle</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Offence</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Amount</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Demerits</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
-                </tr>
-              </thead>
+              <thead><tr className="border-b border-border">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Fine No</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Vehicle</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Offence</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Amount</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+              </tr></thead>
               <tbody>
-                {driverFines!.map((f) => (
+                {driverFines!.map(f => (
                   <tr key={f.id} className="border-b border-border/50">
                     <td className="px-4 py-3 text-sm font-mono text-foreground">{f.fine_number || "-"}</td>
                     <td className="px-4 py-3 text-sm text-foreground">{(f as any).vehicles?.registration_number || "-"}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{f.offence_description || "-"}</td>
                     <td className="px-4 py-3 text-sm text-right font-mono text-foreground">R {(Number(f.amount) || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-center font-mono text-warning">{f.demerit_points_applied || 0}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${f.payment_status === "paid" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
-                        {f.payment_status || "unpaid"}
-                      </span>
-                    </td>
+                    <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${f.payment_status === "paid" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>{f.payment_status || "unpaid"}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -449,28 +347,28 @@ export default function DriverDetail() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Document Type *</label>
-              <select value={form.document_type} onChange={(e) => setForm({ ...form, document_type: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+              <select value={form.document_type} onChange={e => setForm({ ...form, document_type: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="">Select type</option>
-                {documentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                {documentTypes.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             {form.document_type === "Other" && (
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Document Name</label>
-                <input type="text" value={form.document_name} onChange={(e) => setForm({ ...form, document_name: e.target.value })} placeholder="e.g. First Aid Certificate" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                <input type="text" value={form.document_name} onChange={e => setForm({ ...form, document_name: e.target.value })} placeholder="e.g. First Aid Certificate" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             )}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Document Number</label>
-              <input type="text" value={form.document_number} onChange={(e) => setForm({ ...form, document_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              <input type="text" value={form.document_number} onChange={e => setForm({ ...form, document_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label>
-              <input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              <input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Upload File (PDF/Image)</label>
-              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
             </div>
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Document
@@ -486,21 +384,16 @@ function EditField({ label, value, onChange, type = "text" }: { label: string; v
   return (
     <div className="flex items-center gap-3 py-1">
       <span className="text-xs text-muted-foreground uppercase tracking-wider w-32 shrink-0">{label}</span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-      />
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} className="flex-1 bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
     </div>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
       <span className="text-xs text-muted-foreground uppercase tracking-wider">{label}</span>
-      <span className="text-sm font-medium text-foreground">{value}</span>
+      <span className={`text-sm font-medium ${warn ? "text-warning" : "text-foreground"}`}>{value}</span>
     </div>
   );
 }

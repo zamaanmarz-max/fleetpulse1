@@ -1,4 +1,4 @@
-import { Search, Filter, Plus, Download, Upload, Loader2, X } from "lucide-react";
+import { Search, Plus, Download, Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useVehicles } from "@/hooks/useOrgData";
@@ -79,6 +79,23 @@ export default function Vehicles() {
     }
   };
 
+  const handleExport = () => {
+    const vList = filtered;
+    if (vList.length === 0) { toast.error("No vehicles to export"); return; }
+    let csv = "Fleet Number,Registration,Make,Model,Year,Current KM,KM Until Service,Compliance Status,Risk Score\n";
+    vList.forEach(v => {
+      csv += `"${v.fleet_number || ""}","${v.registration_number}","${v.make || ""}","${v.model || ""}",${v.year || ""},${v.current_odometer_km ?? 0},${v.km_until_service ?? 0},"${v.compliance_status || "compliant"}",${v.risk_score ?? 0}\n`;
+    });
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fleet_vehicles_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Vehicles exported");
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -87,7 +104,7 @@ export default function Vehicles() {
           <p className="text-sm text-muted-foreground">{filtered.length} vehicles in fleet</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm hover:bg-secondary/80">
+          <button onClick={handleExport} className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm hover:bg-secondary/80">
             <Download className="w-4 h-4" /> Export
           </button>
           <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
@@ -124,7 +141,10 @@ export default function Vehicles() {
               {filtered.map((v) => (
                 <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                   <td className="px-4 py-3 text-sm font-mono text-foreground">{v.fleet_number || "-"}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                    {v.registration_number}
+                    {!v.vin_number && <span className="ml-2 text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
+                  </td>
                   <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
                   <td className={`px-4 py-3 text-sm text-right font-mono ${(v.km_until_service ?? 0) < 0 ? "text-destructive" : (v.km_until_service ?? 0) < 1000 ? "text-warning" : "text-foreground"}`}>
                     {(v.km_until_service ?? 0).toLocaleString()} km
@@ -142,7 +162,6 @@ export default function Vehicles() {
         )}
       </div>
 
-      {/* Add Vehicle Side Panel */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-background/50" onClick={() => setShowForm(false)} />
