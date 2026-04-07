@@ -556,7 +556,23 @@ export default function VehicleDetail() {
             <iframe src={viewingPdf} className="flex-1 w-full rounded-b-lg" title="PDF Viewer" />
           </div>
         </div>
-      )}
+       )}
+
+      {/* Delete Certificate Confirmation */}
+      <AlertDialog open={!!deleteCertId} onOpenChange={(open) => !open && setDeleteCertId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Certificate</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this certificate? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCert} disabled={deletingCert} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingCert ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
