@@ -147,25 +147,44 @@ export default function Vehicles() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((v) => (
-                <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
-                  <td className="px-4 py-3 text-sm font-mono text-foreground">{v.fleet_number || "-"}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-foreground">
-                    {v.registration_number}
-                    {!v.vin_number && <span className="ml-2 text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
-                  <td className={`px-4 py-3 text-sm text-right font-mono ${(v.km_until_service ?? 0) < 0 ? "text-destructive" : (v.km_until_service ?? 0) < 1000 ? "text-warning" : "text-foreground"}`}>
-                    {(v.km_until_service ?? 0).toLocaleString()} km
-                  </td>
-                  <td className={`px-4 py-3 text-sm text-right font-mono ${riskColor(v.risk_score ?? 0)}`}>{v.risk_score ?? 0}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[v.compliance_status || "compliant"]}`}>
-                      {v.compliance_status || "compliant"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((v) => {
+                const kmUntil = v.km_until_service ?? ((v.next_service_due_km ?? 0) - (v.current_odometer_km ?? 0));
+                const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
+                const now = new Date();
+                const hasExpiredCert = vehicleCerts.some(c => c.expiry_date && new Date(c.expiry_date) < now);
+                const hasExpiringCert = vehicleCerts.some(c => {
+                  if (!c.expiry_date) return false;
+                  const days = Math.ceil((new Date(c.expiry_date).getTime() - now.getTime()) / 86400000);
+                  return days > 0 && days <= 30;
+                });
+                const noCerts = vehicleCerts.length === 0;
+
+                return (
+                  <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                    <td className="px-4 py-3 text-sm font-mono text-foreground">{v.fleet_number || "-"}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {v.registration_number}
+                        {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
+                        {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
+                        {noCerts && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">No Certificate</span>}
+                        {hasExpiredCert && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Expired Cert</span>}
+                        {hasExpiringCert && !hasExpiredCert && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Expiring</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
+                    <td className={`px-4 py-3 text-sm text-right font-mono ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
+                      {kmUntil.toLocaleString()} km
+                    </td>
+                    <td className={`px-4 py-3 text-sm text-right font-mono ${riskColor(v.risk_score ?? 0)}`}>{v.risk_score ?? 0}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[v.compliance_status || "compliant"]}`}>
+                        {v.compliance_status || "compliant"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
