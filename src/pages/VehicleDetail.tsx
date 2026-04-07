@@ -66,6 +66,14 @@ export default function VehicleDetail() {
   const [showOdometer, setShowOdometer] = useState(false);
   const [odometerValue, setOdometerValue] = useState("");
   const [savingOdometer, setSavingOdometer] = useState(false);
+  const [viewingPdf, setViewingPdf] = useState<string | null>(null);
+
+  const openPdf = async (fileUrl: string | null) => {
+    if (!fileUrl) { toast.error("No file attached"); return; }
+    const { data } = await supabase.storage.from("documents").createSignedUrl(fileUrl, 3600);
+    if (data?.signedUrl) setViewingPdf(data.signedUrl);
+    else toast.error("Could not load file");
+  };
 
   const { data: vehicle, isLoading } = useQuery({
     queryKey: ["vehicle", id],
