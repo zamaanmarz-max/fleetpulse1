@@ -637,9 +637,11 @@ export type Database = {
           notes: string | null
           organisation_id: string | null
           phone: string | null
+          photo_url: string | null
           prdp_category: string | null
           prdp_expiry: string | null
           prdp_number: string | null
+          shift_type: string | null
           updated_at: string | null
         }
         Insert: {
@@ -657,9 +659,11 @@ export type Database = {
           notes?: string | null
           organisation_id?: string | null
           phone?: string | null
+          photo_url?: string | null
           prdp_category?: string | null
           prdp_expiry?: string | null
           prdp_number?: string | null
+          shift_type?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -677,9 +681,11 @@ export type Database = {
           notes?: string | null
           organisation_id?: string | null
           phone?: string | null
+          photo_url?: string | null
           prdp_category?: string | null
           prdp_expiry?: string | null
           prdp_number?: string | null
+          shift_type?: string | null
           updated_at?: string | null
         }
         Relationships: [
