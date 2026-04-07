@@ -171,7 +171,12 @@ export default function Inspections() {
         {isLoading ? (
           <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (inspections || []).length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">No inspections yet.</div>
+          <div className="text-center py-12 space-y-3">
+            <p className="text-muted-foreground text-sm">No inspections yet.</p>
+            <button onClick={() => { setShowForm(true); setStep(1); }} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90">
+              <ClipboardCheck className="w-5 h-5" /> Start New Inspection
+            </button>
+          </div>
         ) : (
           <table className="w-full">
             <thead>
