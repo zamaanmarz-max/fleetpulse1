@@ -5,11 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
-  DollarSign, History, Loader2, AlertTriangle, Upload, Plus, X, Eye,
+  DollarSign, History, Loader2, AlertTriangle, Upload, Plus, X, Eye, Pencil, Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
-import ReactMarkdown from "react-markdown";
 
 const statusStyles: Record<string, string> = {
   compliant: "bg-success/20 text-success",
@@ -67,6 +66,9 @@ export default function VehicleDetail() {
   const [odometerValue, setOdometerValue] = useState("");
   const [savingOdometer, setSavingOdometer] = useState(false);
   const [viewingPdf, setViewingPdf] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
@@ -170,6 +172,53 @@ export default function VehicleDetail() {
     }
   };
 
+  const startEditing = () => {
+    if (!vehicle) return;
+    setEditForm({
+      registration_number: vehicle.registration_number || "",
+      fleet_number: vehicle.fleet_number || "",
+      make: vehicle.make || "",
+      model: vehicle.model || "",
+      year: vehicle.year?.toString() || "",
+      vin_number: vehicle.vin_number || "",
+      colour: vehicle.colour || "",
+      vehicle_type: vehicle.vehicle_type || "",
+      current_odometer_km: vehicle.current_odometer_km?.toString() || "0",
+      last_service_km: vehicle.last_service_km?.toString() || "0",
+      next_service_due_km: vehicle.next_service_due_km?.toString() || "0",
+    });
+    setEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("vehicles")
+      .update({
+        registration_number: editForm.registration_number,
+        fleet_number: editForm.fleet_number || null,
+        make: editForm.make || null,
+        model: editForm.model || null,
+        year: editForm.year ? parseInt(editForm.year) : null,
+        vin_number: editForm.vin_number || null,
+        colour: editForm.colour || null,
+        vehicle_type: editForm.vehicle_type || null,
+        current_odometer_km: parseInt(editForm.current_odometer_km) || 0,
+        last_service_km: parseInt(editForm.last_service_km) || 0,
+        next_service_due_km: parseInt(editForm.next_service_due_km) || 0,
+      })
+      .eq("id", id!);
+    setSaving(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Vehicle updated successfully");
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["vehicle", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -196,7 +245,6 @@ export default function VehicleDetail() {
   const serviceRange = nextServiceKm - lastServiceKm;
   const serviceProgress = serviceRange > 0 ? Math.min(100, Math.max(0, ((currentKm - lastServiceKm) / serviceRange) * 100)) : 0;
 
-  // Missing certificates check
   const requiredCerts = (vehicle as any).compliance_templates?.required_certificates as string[] | null;
   const existingCertTypes = (certificates || []).map((c) => c.certificate_type.toLowerCase());
   const missingCerts = (requiredCerts || []).filter((r: string) => !existingCertTypes.includes(r.toLowerCase()));
@@ -204,6 +252,8 @@ export default function VehicleDetail() {
   const totalOutstandingFines = (fines || [])
     .filter((f) => f.payment_status !== "paid")
     .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+
+  const missingVin = !vehicle.vin_number;
 
   return (
     <div className="p-6 space-y-6">
@@ -218,6 +268,9 @@ export default function VehicleDetail() {
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[vehicle.compliance_status || "compliant"]}`}>
               {vehicle.compliance_status || "compliant"}
             </span>
+            {missingVin && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">Incomplete</span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}
@@ -248,21 +301,52 @@ export default function VehicleDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Vehicle Info */}
           <div className="stat-card space-y-3">
-            <h3 className="text-sm font-semibold text-foreground mb-4">Vehicle Information</h3>
-            <InfoRow label="Registration" value={vehicle.registration_number} />
-            <InfoRow label="Fleet Number" value={vehicle.fleet_number || "-"} />
-            <InfoRow label="Make" value={vehicle.make || "-"} />
-            <InfoRow label="Model" value={vehicle.model || "-"} />
-            <InfoRow label="Year" value={vehicle.year?.toString() || "-"} />
-            <InfoRow label="VIN" value={vehicle.vin_number || "-"} />
-            <InfoRow label="Colour" value={vehicle.colour || "-"} />
-            <InfoRow label="Vehicle Type" value={vehicle.vehicle_type || "-"} />
-            <InfoRow label="Branch" value={(vehicle as any).branches?.name || "-"} />
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-foreground">Vehicle Information</h3>
+              {!editing ? (
+                <button onClick={startEditing} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90">
+                  <Pencil className="w-3.5 h-3.5" /> Edit Vehicle
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={() => setEditing(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md border border-border">Cancel</button>
+                  <button onClick={handleSaveEdit} disabled={saving} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90 disabled:opacity-50">
+                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save Changes
+                  </button>
+                </div>
+              )}
+            </div>
+            {editing ? (
+              <div className="space-y-3">
+                <EditField label="Registration" value={editForm.registration_number} onChange={(v) => setEditForm({ ...editForm, registration_number: v })} />
+                <EditField label="Fleet Number" value={editForm.fleet_number} onChange={(v) => setEditForm({ ...editForm, fleet_number: v })} />
+                <EditField label="Make" value={editForm.make} onChange={(v) => setEditForm({ ...editForm, make: v })} />
+                <EditField label="Model" value={editForm.model} onChange={(v) => setEditForm({ ...editForm, model: v })} />
+                <EditField label="Year" value={editForm.year} onChange={(v) => setEditForm({ ...editForm, year: v })} type="number" />
+                <EditField label="VIN Number" value={editForm.vin_number} onChange={(v) => setEditForm({ ...editForm, vin_number: v })} />
+                <EditField label="Colour" value={editForm.colour} onChange={(v) => setEditForm({ ...editForm, colour: v })} />
+                <EditField label="Vehicle Type" value={editForm.vehicle_type} onChange={(v) => setEditForm({ ...editForm, vehicle_type: v })} />
+                <EditField label="Current Odometer (km)" value={editForm.current_odometer_km} onChange={(v) => setEditForm({ ...editForm, current_odometer_km: v })} type="number" />
+                <EditField label="Last Service (km)" value={editForm.last_service_km} onChange={(v) => setEditForm({ ...editForm, last_service_km: v })} type="number" />
+                <EditField label="Next Service Due (km)" value={editForm.next_service_due_km} onChange={(v) => setEditForm({ ...editForm, next_service_due_km: v })} type="number" />
+              </div>
+            ) : (
+              <>
+                <InfoRow label="Registration" value={vehicle.registration_number} />
+                <InfoRow label="Fleet Number" value={vehicle.fleet_number || "-"} />
+                <InfoRow label="Make" value={vehicle.make || "-"} />
+                <InfoRow label="Model" value={vehicle.model || "-"} />
+                <InfoRow label="Year" value={vehicle.year?.toString() || "-"} />
+                <InfoRow label="VIN" value={vehicle.vin_number || "-"} warn={missingVin} />
+                <InfoRow label="Colour" value={vehicle.colour || "-"} />
+                <InfoRow label="Vehicle Type" value={vehicle.vehicle_type || "-"} />
+                <InfoRow label="Branch" value={(vehicle as any).branches?.name || "-"} />
+              </>
+            )}
           </div>
 
           {/* Service & Risk */}
           <div className="space-y-4">
-            {/* KM Service Tracker */}
             <div className="stat-card">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-foreground">Service Tracker</h3>
@@ -273,7 +357,6 @@ export default function VehicleDetail() {
                   Update Odometer
                 </button>
               </div>
-
               <div className="space-y-3">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Last Service: {lastServiceKm.toLocaleString()} km</span>
@@ -294,7 +377,6 @@ export default function VehicleDetail() {
               </div>
             </div>
 
-            {/* Risk Score */}
             <div className="stat-card">
               <h3 className="text-sm font-semibold text-foreground mb-3">Risk Assessment</h3>
               <div className="flex items-center gap-4">
@@ -310,7 +392,6 @@ export default function VehicleDetail() {
               </div>
             </div>
 
-            {/* Compliance Status */}
             <div className="stat-card">
               <h3 className="text-sm font-semibold text-foreground mb-3">Compliance Status</h3>
               <div className="flex items-center gap-3">
@@ -336,8 +417,6 @@ export default function VehicleDetail() {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Certificates ({(certificates || []).length})</h3>
           </div>
-
-          {/* Missing certificates */}
           {missingCerts.length > 0 && (
             <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -346,14 +425,11 @@ export default function VehicleDetail() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {missingCerts.map((c: string) => (
-                  <span key={c} className="bg-destructive/20 text-destructive text-xs font-semibold px-2 py-1 rounded">
-                    {c}
-                  </span>
+                  <span key={c} className="bg-destructive/20 text-destructive text-xs font-semibold px-2 py-1 rounded">{c}</span>
                 ))}
               </div>
             </div>
           )}
-
           <div className="glass-card overflow-hidden">
             {(certificates || []).length === 0 ? (
               <p className="text-sm text-muted-foreground p-6 text-center">No certificates found for this vehicle.</p>
@@ -363,10 +439,10 @@ export default function VehicleDetail() {
                   <tr className="border-b border-border">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Number</th>
-                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
-                     <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
-                     <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
-                     <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">View</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">View</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -580,6 +656,7 @@ export default function VehicleDetail() {
           </div>
         </div>
       )}
+
       {/* PDF Viewer Modal */}
       {viewingPdf && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
@@ -598,11 +675,25 @@ export default function VehicleDetail() {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function EditField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <span className="text-xs text-muted-foreground uppercase tracking-wider w-40 shrink-0">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+    </div>
+  );
+}
+
+function InfoRow({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
       <span className="text-xs text-muted-foreground uppercase tracking-wider">{label}</span>
-      <span className="text-sm font-medium text-foreground">{value}</span>
+      <span className={`text-sm font-medium ${warn ? "text-warning" : "text-foreground"}`}>{value}</span>
     </div>
   );
 }
