@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
-  DollarSign, History, Loader2, AlertTriangle, Upload, Plus, X,
+  DollarSign, History, Loader2, AlertTriangle, Upload, Plus, X, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
