@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
+import { recalculateAllVehicleCompliance } from "@/lib/compliance";
+import { useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 
 const conditionColors: Record<string, string> = {
