@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ClipboardCheck, Loader2, X, Plus, Trash2, Upload } from "lucide-react";
+import { ClipboardCheck, Loader2, X, Plus, Trash2 } from "lucide-react";
 import { useInspections, useVehicles, useDrivers } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +48,7 @@ type DamageItem = {
   description: string;
   requires_immediate_action: boolean;
   photos: File[];
+  driver_id: string;
 };
 
 export default function Inspections() {
@@ -66,6 +67,7 @@ export default function Inspections() {
     odometer: "",
     overall_condition: "good",
     notes: "",
+    assigned_driver_id: "",
   });
 
   const [damageItems, setDamageItems] = useState<DamageItem[]>([]);
@@ -73,7 +75,7 @@ export default function Inspections() {
   const addDamageItem = () => {
     setDamageItems([...damageItems, {
       location: "", damage_type: "", severity: "minor",
-      description: "", requires_immediate_action: false, photos: [],
+      description: "", requires_immediate_action: false, photos: [], driver_id: "",
     }]);
   };
 
@@ -109,7 +111,6 @@ export default function Inspections() {
 
     if (insErr) { toast.error(insErr.message); setSaving(false); return; }
 
-    // Insert damage items
     for (const item of damageItems) {
       let photoUrls: string[] = [];
       for (const photo of item.photos) {
@@ -132,7 +133,6 @@ export default function Inspections() {
       });
     }
 
-    // Update vehicle odometer if provided
     if (form.odometer) {
       await supabase.from("vehicles").update({
         current_odometer_km: parseInt(form.odometer),
@@ -143,15 +143,13 @@ export default function Inspections() {
     toast.success("Inspection submitted successfully");
     setShowForm(false);
     setStep(1);
-    setForm({ vehicle_id: "", odometer: "", overall_condition: "good", notes: "" });
+    setForm({ vehicle_id: "", odometer: "", overall_condition: "good", notes: "", assigned_driver_id: "" });
     setDamageItems([]);
     queryClient.invalidateQueries({ queryKey: ["inspections"] });
   };
 
   const canProceed = () => {
     if (step === 1) return !!form.vehicle_id;
-    if (step === 2) return true;
-    if (step === 3) return true;
     return true;
   };
 
@@ -172,6 +170,7 @@ export default function Inspections() {
           <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (inspections || []).length === 0 ? (
           <div className="text-center py-12 space-y-3">
+            <ClipboardCheck className="w-12 h-12 text-muted-foreground mx-auto" />
             <p className="text-muted-foreground text-sm">No inspections yet.</p>
             <button onClick={() => { setShowForm(true); setStep(1); }} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90">
               <ClipboardCheck className="w-5 h-5" /> Start New Inspection
@@ -186,7 +185,6 @@ export default function Inspections() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Inspector</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Condition</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Items</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">New</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
               </tr>
             </thead>
@@ -200,7 +198,6 @@ export default function Inspections() {
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${conditionStyles[ins.overall_condition || "good"]?.replace(/border-\w+/, '')}`}>{ins.overall_condition}</span>
                   </td>
                   <td className="px-4 py-3 text-sm text-center font-mono text-foreground">{ins.total_damage_items ?? 0}</td>
-                  <td className="px-4 py-3 text-sm text-center font-mono">{(ins.new_damage_items ?? 0) > 0 ? <span className="text-warning">{ins.new_damage_items}</span> : <span className="text-muted-foreground">0</span>}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[ins.status || "draft"]}`}>{ins.status}</span>
                   </td>
@@ -221,7 +218,6 @@ export default function Inspections() {
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
 
-            {/* Progress bar */}
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map(s => (
                 <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? "bg-primary" : "bg-secondary"}`} />
@@ -235,6 +231,13 @@ export default function Inspections() {
                   <option value="">Select vehicle</option>
                   {(vehicles || []).map(v => <option key={v.id} value={v.id}>{v.registration_number} {v.fleet_number ? `(${v.fleet_number})` : ""}</option>)}
                 </select>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Assign Driver to Inspection</label>
+                  <select value={form.assigned_driver_id} onChange={(e) => setForm({ ...form, assigned_driver_id: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                    <option value="">Select driver (optional)</option>
+                    {(drivers || []).map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
+                  </select>
+                </div>
               </div>
             )}
 
@@ -264,7 +267,7 @@ export default function Inspections() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                  <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Any general notes about the vehicle condition..." />
+                  <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Any general notes..." />
                 </div>
               </div>
             )}
@@ -314,6 +317,13 @@ export default function Inspections() {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-xs font-medium text-foreground mb-1">Driver Responsible</label>
+                      <select value={item.driver_id} onChange={(e) => updateDamageItem(idx, "driver_id", e.target.value)} className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground">
+                        <option value="">Select driver (optional)</option>
+                        {(drivers || []).map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
+                      </select>
+                    </div>
+                    <div>
                       <label className="block text-xs font-medium text-foreground mb-1">Description</label>
                       <textarea value={item.description} onChange={(e) => updateDamageItem(idx, "description", e.target.value)} rows={2} className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground" />
                     </div>
@@ -335,6 +345,7 @@ export default function Inspections() {
                 <h3 className="text-sm font-semibold text-foreground">Review & Submit</h3>
                 <div className="bg-secondary/50 rounded-lg p-4 space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Vehicle</span><span className="text-foreground font-medium">{(vehicles || []).find(v => v.id === form.vehicle_id)?.registration_number}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Assigned Driver</span><span className="text-foreground font-medium">{(drivers || []).find(d => d.id === form.assigned_driver_id)?.full_name || "None"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Odometer</span><span className="text-foreground font-medium">{form.odometer ? `${parseInt(form.odometer).toLocaleString()} km` : "Not recorded"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Condition</span><span className="text-foreground font-medium capitalize">{form.overall_condition}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Damage Items</span><span className="text-foreground font-medium">{damageItems.length}</span></div>
@@ -345,7 +356,6 @@ export default function Inspections() {
               </div>
             )}
 
-            {/* Navigation */}
             <div className="flex gap-3 pt-4">
               {step > 1 && (
                 <button onClick={() => setStep(step - 1)} className="flex-1 bg-secondary text-secondary-foreground py-2.5 rounded-lg text-sm font-semibold hover:bg-secondary/80">
