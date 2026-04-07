@@ -580,6 +580,20 @@ export default function VehicleDetail() {
           </div>
         </div>
       )}
+      {/* PDF Viewer Modal */}
+      {viewingPdf && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+          <div className="relative w-[90vw] h-[90vh] bg-card border border-border rounded-lg shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Document Viewer</h3>
+              <button onClick={() => setViewingPdf(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <iframe src={viewingPdf} className="flex-1 w-full rounded-b-lg" title="PDF Viewer" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
