@@ -363,9 +363,10 @@ export default function VehicleDetail() {
                   <tr className="border-b border-border">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Type</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Number</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Expiry</th>
+                     <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days Left</th>
+                     <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                     <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">View</th>
                   </tr>
                 </thead>
                 <tbody>
