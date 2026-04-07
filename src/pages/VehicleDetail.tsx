@@ -432,7 +432,7 @@ export default function VehicleDetail() {
                 </thead>
                 <tbody>
                   {(inspections || []).map((insp) => (
-                    <tr key={insp.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                    <tr key={insp.id} onClick={() => navigate(`/inspections/${insp.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                       <td className="px-4 py-3 text-sm text-foreground">{insp.inspection_date}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{(insp as any).inspector?.full_name || "-"}</td>
                       <td className="px-4 py-3 text-center">
