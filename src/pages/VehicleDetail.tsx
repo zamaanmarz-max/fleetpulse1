@@ -71,6 +71,8 @@ export default function VehicleDetail() {
   const [certForm, setCertForm] = useState<Record<string, any>>({});
   const [certFile, setCertFile] = useState<File | null>(null);
   const [certSaving, setCertSaving] = useState(false);
+  const [deleteCertId, setDeleteCertId] = useState<string | null>(null);
+  const [deletingCert, setDeletingCert] = useState(false);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
