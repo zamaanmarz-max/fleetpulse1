@@ -26,8 +26,16 @@ export default function Vehicles() {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const { data: vehicles, isLoading } = useVehicles();
+  const { data: allCerts } = useCertificates();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    recalculateAllVehicleCompliance().then(() => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    });
+  }, []);
   const navigate = useNavigate();
 
   const filtered = (vehicles || []).filter(
