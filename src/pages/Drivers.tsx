@@ -1,5 +1,6 @@
-import { Search, Filter, Plus, Upload, Loader2, X } from "lucide-react";
+import { Search, Plus, Loader2, X } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDrivers } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,7 @@ export default function Drivers() {
   const { data: drivers, isLoading } = useDrivers();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const filtered = (drivers || []).filter(
     (d) =>
@@ -117,7 +119,7 @@ export default function Drivers() {
               {filtered.map((d) => {
                 const status = calcStatus(d.licence_expiry, d.prdp_expiry);
                 return (
-                  <tr key={d.id} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                  <tr key={d.id} onClick={() => navigate(`/drivers/${d.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-foreground">{d.full_name}</td>
                     <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{d.id_number || "-"}</td>
                     <td className="px-4 py-3 text-sm text-center font-semibold text-foreground">{d.licence_code || "-"}</td>

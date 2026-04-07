@@ -154,7 +154,7 @@ export default function Login() {
           </p>
 
           <p className="text-center text-xs text-muted-foreground mt-4">
-            © 2026 FleetPulse. Built for South African fleet compliance.
+            © 2026 MARZ Technologies (Pty) Ltd. All rights reserved.
           </p>
         </div>
       </div>
