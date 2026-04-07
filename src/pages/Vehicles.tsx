@@ -36,7 +36,6 @@ export default function Vehicles() {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
     });
   }, []);
-  const navigate = useNavigate();
 
   const filtered = (vehicles || []).filter(
     (v) =>
