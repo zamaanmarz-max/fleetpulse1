@@ -11,6 +11,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Vehicles from "./pages/Vehicles";
 import Drivers from "./pages/Drivers";
+import DriverDetail from "./pages/DriverDetail";
 import Certificates from "./pages/Certificates";
 import ComplianceTemplates from "./pages/ComplianceTemplates";
 import Inspections from "./pages/Inspections";
