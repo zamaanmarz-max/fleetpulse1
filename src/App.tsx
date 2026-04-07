@@ -46,6 +46,7 @@ const App = () => (
               <Route path="/certificates" element={<Certificates />} />
               <Route path="/compliance-templates" element={<ComplianceTemplates />} />
               <Route path="/inspections" element={<Inspections />} />
+              <Route path="/inspections/:id" element={<InspectionDetail />} />
               <Route path="/fines" element={<Fines />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/alerts" element={<Alerts />} />
