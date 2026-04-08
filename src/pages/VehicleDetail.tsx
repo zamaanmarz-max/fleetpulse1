@@ -135,6 +135,15 @@ export default function VehicleDetail() {
     enabled: !!id,
   });
 
+  const { data: branches } = useQuery({
+    queryKey: ["branches"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("id, name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: auditLogs } = useQuery({
     queryKey: ["vehicle_audit", id],
     queryFn: async () => {
