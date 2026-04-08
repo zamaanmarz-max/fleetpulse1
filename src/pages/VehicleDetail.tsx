@@ -265,6 +265,30 @@ export default function VehicleDetail() {
     }
   };
 
+  const handleTransfer = async () => {
+    if (!transferBranch || !vehicle) return;
+    setTransferring(true);
+    const oldBranchName = (vehicle as any).branches?.name || "None";
+    const newBranch = (branches || []).find(b => b.id === transferBranch);
+    const { error } = await supabase.from("vehicles").update({ branch_id: transferBranch }).eq("id", id!);
+    if (!error) {
+      await supabase.from("audit_log").insert({
+        organisation_id: vehicle.organisation_id,
+        table_name: "vehicles",
+        record_id: id,
+        action: "transfer",
+        user_id: profile?.id,
+        old_values: { branch: oldBranchName },
+        new_values: { branch: newBranch?.name, date: transferDate, reason: transferReason },
+      });
+      toast.success(`Vehicle transferred to ${newBranch?.name}`);
+      setShowTransfer(false);
+      queryClient.invalidateQueries({ queryKey: ["vehicle", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle_audit", id] });
+    } else { toast.error(error.message); }
+    setTransferring(false);
+  };
+
   if (isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   if (!vehicle) {
