@@ -78,6 +78,11 @@ export default function VehicleDetail() {
   const [certSaving, setCertSaving] = useState(false);
   const [deleteCertId, setDeleteCertId] = useState<string | null>(null);
   const [deletingCert, setDeletingCert] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferBranch, setTransferBranch] = useState("");
+  const [transferReason, setTransferReason] = useState("");
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
+  const [transferring, setTransferring] = useState(false);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
