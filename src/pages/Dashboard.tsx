@@ -1,13 +1,17 @@
 import {
   Truck, ShieldCheck, FileWarning, AlertTriangle,
   Sparkles, RefreshCw, Loader2, Users, X, ChevronRight,
+  Wrench, CheckCircle, Upload, Gauge, ArrowRightLeft, Warehouse,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
 import { recalculateAllVehicleCompliance } from "@/lib/compliance";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 
 const conditionColors: Record<string, string> = {
