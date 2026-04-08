@@ -25,6 +25,7 @@ type PanelType = "critical" | "drivers" | "fleet" | "expiring" | null;
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: expiries } = useUpcomingExpiries();
   const { data: inspections } = useRecentInspections();
@@ -35,6 +36,16 @@ export default function Dashboard() {
   const { insights, loading: aiLoading, fetchInsights } = useFleetInsights();
   const queryClient = useQueryClient();
   const [activePanel, setActivePanel] = useState<PanelType>(null);
+
+  const { data: vehicleStatuses } = useQuery({
+    queryKey: ["vehicle_statuses", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_status").select("*").order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
 
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
