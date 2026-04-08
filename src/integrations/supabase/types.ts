@@ -889,6 +889,79 @@ export type Database = {
           },
         ]
       }
+      vehicle_status: {
+        Row: {
+          actual_return_date: string | null
+          comments: string | null
+          date_sent_for_repair: string | null
+          estimated_return_date: string | null
+          id: string
+          organisation_id: string | null
+          repair_cost: number | null
+          repair_description: string | null
+          status: string
+          updated_at: string | null
+          updated_by: string | null
+          vehicle_id: string
+          workshop_contact: string | null
+          workshop_name: string | null
+        }
+        Insert: {
+          actual_return_date?: string | null
+          comments?: string | null
+          date_sent_for_repair?: string | null
+          estimated_return_date?: string | null
+          id?: string
+          organisation_id?: string | null
+          repair_cost?: number | null
+          repair_description?: string | null
+          status?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          vehicle_id: string
+          workshop_contact?: string | null
+          workshop_name?: string | null
+        }
+        Update: {
+          actual_return_date?: string | null
+          comments?: string | null
+          date_sent_for_repair?: string | null
+          estimated_return_date?: string | null
+          id?: string
+          organisation_id?: string | null
+          repair_cost?: number | null
+          repair_description?: string | null
+          status?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          vehicle_id?: string
+          workshop_contact?: string | null
+          workshop_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_status_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_status_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_status_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           branch_id: string | null

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, FileCheck, Shield, ClipboardCheck,
-  AlertTriangle, BarChart3, Settings, ChevronLeft, ChevronRight,
-  Receipt, Bell, UserCog, LogOut
+  BarChart3, Settings, ChevronLeft, ChevronRight,
+  Receipt, Bell, UserCog, LogOut, Upload, Warehouse
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,8 @@ const navItems = [
   { to: "/fines", icon: Receipt, label: "Fines & AARTO" },
   { to: "/reports", icon: BarChart3, label: "Reports" },
   { to: "/alerts", icon: Bell, label: "Alerts" },
+  { to: "/fleet-availability", icon: Warehouse, label: "Availability" },
+  { to: "/import", icon: Upload, label: "Import" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
@@ -97,7 +99,6 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* User info and sign out */}
       <div className="border-t border-sidebar-border p-2">
         {!collapsed && profile && (
           <div className="px-3 py-2 text-xs text-muted-foreground truncate">

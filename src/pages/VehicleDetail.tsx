@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
   DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save, Trash2,
+  ArrowRightLeft,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -62,6 +63,7 @@ const tabs = [
 export default function VehicleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [showOdometer, setShowOdometer] = useState(false);
@@ -77,6 +79,11 @@ export default function VehicleDetail() {
   const [certSaving, setCertSaving] = useState(false);
   const [deleteCertId, setDeleteCertId] = useState<string | null>(null);
   const [deletingCert, setDeletingCert] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferBranch, setTransferBranch] = useState("");
+  const [transferReason, setTransferReason] = useState("");
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
+  const [transferring, setTransferring] = useState(false);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
@@ -127,6 +134,15 @@ export default function VehicleDetail() {
       return data;
     },
     enabled: !!id,
+  });
+
+  const { data: branches } = useQuery({
+    queryKey: ["branches"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("id, name");
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: auditLogs } = useQuery({
@@ -250,6 +266,30 @@ export default function VehicleDetail() {
     }
   };
 
+  const handleTransfer = async () => {
+    if (!transferBranch || !vehicle) return;
+    setTransferring(true);
+    const oldBranchName = (vehicle as any).branches?.name || "None";
+    const newBranch = (branches || []).find(b => b.id === transferBranch);
+    const { error } = await supabase.from("vehicles").update({ branch_id: transferBranch }).eq("id", id!);
+    if (!error) {
+      await supabase.from("audit_log").insert({
+        organisation_id: vehicle.organisation_id,
+        table_name: "vehicles",
+        record_id: id,
+        action: "transfer",
+        user_id: profile?.id,
+        old_values: { branch: oldBranchName },
+        new_values: { branch: newBranch?.name, date: transferDate, reason: transferReason },
+      });
+      toast.success(`Vehicle transferred to ${newBranch?.name}`);
+      setShowTransfer(false);
+      queryClient.invalidateQueries({ queryKey: ["vehicle", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle_audit", id] });
+    } else { toast.error(error.message); }
+    setTransferring(false);
+  };
+
   if (isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   if (!vehicle) {
@@ -289,6 +329,9 @@ export default function VehicleDetail() {
           </div>
           <p className="text-sm text-muted-foreground">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
         </div>
+        <button onClick={() => setShowTransfer(true)} className="flex items-center gap-2 text-sm bg-secondary text-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 border border-border">
+          <ArrowRightLeft className="w-4 h-4" /> Transfer
+        </button>
       </div>
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
@@ -608,6 +651,20 @@ export default function VehicleDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Transfer Vehicle Modal */}
+      {showTransfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50">
+          <div className="bg-card border border-border rounded-lg p-6 w-96 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Transfer Vehicle</h3><button onClick={() => setShowTransfer(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Current Branch</label><p className="text-sm text-muted-foreground bg-secondary px-3 py-2 rounded-lg">{(vehicle as any).branches?.name || "None"}</p></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">New Branch</label><select value={transferBranch} onChange={e => setTransferBranch(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground"><option value="">Select branch...</option>{(branches || []).filter(b => b.id !== vehicle.branch_id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Transfer Date</label><input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground" /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Reason</label><textarea value={transferReason} onChange={e => setTransferReason(e.target.value)} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground resize-none" placeholder="Reason for transfer..." /></div>
+            <button onClick={handleTransfer} disabled={transferring || !transferBranch} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">{transferring && <Loader2 className="w-4 h-4 animate-spin" />} Confirm Transfer</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

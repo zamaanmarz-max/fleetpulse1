@@ -1,13 +1,17 @@
 import {
   Truck, ShieldCheck, FileWarning, AlertTriangle,
   Sparkles, RefreshCw, Loader2, Users, X, ChevronRight,
+  Wrench, CheckCircle, Upload, Gauge, ArrowRightLeft, Warehouse,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
 import { recalculateAllVehicleCompliance } from "@/lib/compliance";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 
 const conditionColors: Record<string, string> = {
@@ -21,6 +25,7 @@ type PanelType = "critical" | "drivers" | "fleet" | "expiring" | null;
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: expiries } = useUpcomingExpiries();
   const { data: inspections } = useRecentInspections();
@@ -31,6 +36,16 @@ export default function Dashboard() {
   const { insights, loading: aiLoading, fetchInsights } = useFleetInsights();
   const queryClient = useQueryClient();
   const [activePanel, setActivePanel] = useState<PanelType>(null);
+
+  const { data: vehicleStatuses } = useQuery({
+    queryKey: ["vehicle_statuses", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_status").select("*").order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
 
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
@@ -320,6 +335,69 @@ export default function Dashboard() {
               </div>
             ))}
             {(!alerts || alerts.length === 0) && <p className="text-sm text-muted-foreground">No recent alerts</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Fleet Availability Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="stat-card">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2"><Warehouse className="w-4 h-4 text-primary" /><h3 className="text-sm font-semibold text-foreground">Fleet Availability</h3></div>
+            <button onClick={() => navigate("/fleet-availability")} className="text-xs text-primary hover:underline">View Full Report</button>
+          </div>
+          {(() => {
+            const statusMap = new Map<string, string>();
+            (vehicleStatuses || []).forEach(s => { if (!statusMap.has(s.vehicle_id)) statusMap.set(s.vehicle_id, s.status); });
+            const total = (vehicles || []).length;
+            const repairList = (vehicles || []).filter(v => statusMap.get(v.id) === "out_for_repair");
+            const available = total - repairList.length;
+            const repairStatuses = (vehicleStatuses || []).filter(s => s.status === "out_for_repair");
+            return (
+              <div className="space-y-3">
+                <div className="flex gap-2 h-4 rounded-full overflow-hidden bg-secondary">
+                  {available > 0 && <div className="bg-success transition-all" style={{ width: `${(available / Math.max(total, 1)) * 100}%` }} />}
+                  {repairList.length > 0 && <div className="bg-destructive transition-all" style={{ width: `${(repairList.length / Math.max(total, 1)) * 100}%` }} />}
+                </div>
+                <div className="flex gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-success" /> Available: {available}</span>
+                  <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-destructive" /> Repair: {repairList.length}</span>
+                </div>
+                {repairList.length > 0 && (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {repairList.map(v => {
+                      const st = repairStatuses.find(s => s.vehicle_id === v.id);
+                      const daysOut = st?.date_sent_for_repair ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000) : "-";
+                      return (
+                        <div key={v.id} className="flex items-center justify-between py-1.5 px-2 bg-destructive/5 rounded-lg text-sm">
+                          <div><span className="font-mono font-medium text-foreground">{v.registration_number}</span><span className="text-xs text-muted-foreground ml-2">{st?.workshop_name || ""}</span></div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground"><span>{daysOut}d out</span><span>{st?.estimated_return_date || "No ETA"}</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="stat-card">
+          <h3 className="text-sm font-semibold text-foreground mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Mark Available", icon: CheckCircle, color: "text-success", action: () => navigate("/fleet-availability") },
+              { label: "Send for Repair", icon: Wrench, color: "text-destructive", action: () => navigate("/fleet-availability") },
+              { label: "Transfer Vehicle", icon: ArrowRightLeft, color: "text-primary", action: () => navigate("/vehicles") },
+              { label: "Update Odometer", icon: Gauge, color: "text-warning", action: () => navigate("/vehicles") },
+              { label: "Upload Certificate", icon: Upload, color: "text-primary", action: () => navigate("/certificates") },
+              { label: "Import Data", icon: Upload, color: "text-muted-foreground", action: () => navigate("/import") },
+            ].map(q => (
+              <button key={q.label} onClick={q.action} className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors text-left">
+                <q.icon className={`w-4 h-4 ${q.color}`} /> {q.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>

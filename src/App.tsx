@@ -22,6 +22,8 @@ import SettingsPage from "./pages/SettingsPage";
 import AdminPanel from "./pages/AdminPanel";
 import VehicleDetail from "./pages/VehicleDetail";
 import InspectionDetail from "./pages/InspectionDetail";
+import DataImport from "./pages/DataImport";
+import FleetAvailability from "./pages/FleetAvailability";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +52,8 @@ const App = () => (
               <Route path="/fines" element={<Fines />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/fleet-availability" element={<FleetAvailability />} />
+              <Route path="/import" element={<DataImport />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/admin" element={<AdminPanel />} />
             </Route>
