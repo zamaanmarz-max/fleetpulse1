@@ -63,6 +63,7 @@ const tabs = [
 export default function VehicleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [showOdometer, setShowOdometer] = useState(false);
