@@ -651,6 +651,20 @@ export default function VehicleDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Transfer Vehicle Modal */}
+      {showTransfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50">
+          <div className="bg-card border border-border rounded-lg p-6 w-96 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Transfer Vehicle</h3><button onClick={() => setShowTransfer(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Current Branch</label><p className="text-sm text-muted-foreground bg-secondary px-3 py-2 rounded-lg">{(vehicle as any).branches?.name || "None"}</p></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">New Branch</label><select value={transferBranch} onChange={e => setTransferBranch(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground"><option value="">Select branch...</option>{(branches || []).filter(b => b.id !== vehicle.branch_id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Transfer Date</label><input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground" /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Reason</label><textarea value={transferReason} onChange={e => setTransferReason(e.target.value)} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground resize-none" placeholder="Reason for transfer..." /></div>
+            <button onClick={handleTransfer} disabled={transferring || !transferBranch} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">{transferring && <Loader2 className="w-4 h-4 animate-spin" />} Confirm Transfer</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
