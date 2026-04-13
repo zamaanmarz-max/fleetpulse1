@@ -4,14 +4,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save,
+  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { checkDriverCompliance } from "@/lib/driverCompliance";
 
 const statusStyles: Record<string, string> = {
   valid: "bg-success/20 text-success",
   expiring: "bg-warning/20 text-warning",
   expired: "bg-destructive/20 text-destructive",
+  missing: "bg-destructive/20 text-destructive",
 };
 
 const documentTypes = [
@@ -30,9 +32,13 @@ export default function DriverDetail() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [showTalkForm, setShowTalkForm] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [talkFile, setTalkFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingTalk, setSavingTalk] = useState(false);
   const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+  const [talkForm, setTalkForm] = useState({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -57,6 +63,16 @@ export default function DriverDetail() {
     enabled: !!id,
   });
 
+  const { data: toolboxTalks } = useQuery({
+    queryKey: ["toolbox_talks", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("toolbox_talks").select("*").eq("driver_id", id!).order("date_conducted", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
   const { data: driverFines } = useQuery({
     queryKey: ["driver_fines", id],
     queryFn: async () => {
@@ -75,12 +91,14 @@ export default function DriverDetail() {
     return { ...d, daysRemaining: days, calcStatus };
   });
 
-  const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
+  // Compute full driver compliance
+  const compliance = driver ? checkDriverCompliance(
+    { licence_expiry: driver.licence_expiry, prdp_expiry: driver.prdp_expiry },
+    enrichedDocs,
+    toolboxTalks || []
+  ) : null;
 
-  // Missing info badges
-  const missingId = !driver?.id_number;
-  const hasMedical = enrichedDocs.some(d => d.document_type === "Medical Certificate" && d.calcStatus !== "expired");
-  const hasPrdp = driver?.prdp_expiry ? Math.ceil((new Date(driver.prdp_expiry).getTime() - now) / 86400000) > 0 : false;
+  const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
 
   const handleSave = async () => {
     if (!form.document_type || !profile?.organisation_id) { toast.error("Document type is required"); return; }
@@ -106,6 +124,30 @@ export default function DriverDetail() {
       setShowForm(false); setFile(null);
       setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
       queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
+    }
+  };
+
+  const handleSaveTalk = async () => {
+    if (!talkForm.topic || !profile?.organisation_id) { toast.error("Topic is required"); return; }
+    setSavingTalk(true);
+    let fileUrl: string | null = null;
+    if (talkFile) {
+      const path = `${profile.organisation_id}/drivers/${id}/toolbox/${Date.now()}_${talkFile.name}`;
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, talkFile);
+      if (upErr) { toast.error("Upload failed: " + upErr.message); setSavingTalk(false); return; }
+      fileUrl = path;
+    }
+    const { error } = await supabase.from("toolbox_talks").insert({
+      organisation_id: profile.organisation_id, driver_id: id,
+      topic: talkForm.topic, date_conducted: talkForm.date_conducted,
+      conducted_by: talkForm.conducted_by || null, file_url: fileUrl,
+    });
+    setSavingTalk(false);
+    if (error) { toast.error(error.message); } else {
+      toast.success("Toolbox talk added");
+      setShowTalkForm(false); setTalkFile(null);
+      setTalkForm({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
+      queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
     }
   };
 
@@ -161,6 +203,10 @@ export default function DriverDetail() {
   const totalDemerits = (driverFines || []).reduce((s, f) => s + (f.demerit_points_applied || 0), 0) + (driver.demerit_points || 0);
   const totalOutstanding = (driverFines || []).filter(f => f.payment_status !== "paid").reduce((s, f) => s + (Number(f.amount) || 0), 0);
 
+  // Latest toolbox talk
+  const latestTalk = (toolboxTalks || [])[0];
+  const talkDays = latestTalk ? Math.ceil((now - new Date(latestTalk.date_conducted).getTime()) / 86400000) : null;
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -168,9 +214,11 @@ export default function DriverDetail() {
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-foreground">{driver.full_name}</h1>
-            {missingId && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning uppercase">Missing ID</span>}
-            {!hasMedical && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning uppercase">No Medical</span>}
-            {!hasPrdp && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning uppercase">PrDP Issue</span>}
+            {compliance && (
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${compliance.status === "compliant" ? "bg-success/20 text-success" : compliance.status === "warning" ? "bg-warning/20 text-warning" : "bg-destructive/20 text-destructive"}`}>
+                {compliance.status === "compliant" ? "Compliant" : compliance.status === "warning" ? "Warning" : "Non-Compliant"}
+              </span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">{driver.licence_code || "No licence"} · {driver.employment_status || "active"} · Demerits: {totalDemerits}/12</p>
         </div>
@@ -183,6 +231,20 @@ export default function DriverDetail() {
           </div>
         )}
       </div>
+
+      {/* Compliance Issues Banner */}
+      {compliance && compliance.issues.length > 0 && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2"><AlertTriangle className="w-4 h-4 text-destructive" /><span className="text-sm font-semibold text-destructive">Compliance Issues ({compliance.issues.length})</span></div>
+          <div className="flex flex-wrap gap-2">
+            {compliance.issues.map((issue, i) => (
+              <span key={i} className={`text-xs font-semibold px-2 py-1 rounded ${statusStyles[issue.status]}`}>
+                {issue.field} — {issue.status === "missing" ? "Missing" : issue.status === "expired" ? "Expired" : "Expiring Soon"}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {alertDocs.length > 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
@@ -206,7 +268,7 @@ export default function DriverDetail() {
           ) : (
             <>
               <InfoRow label="Full Name" value={driver.full_name} />
-              <InfoRow label="ID Number" value={driver.id_number || "-"} warn={missingId} />
+              <InfoRow label="ID Number" value={driver.id_number || "-"} warn={!driver.id_number} />
               <InfoRow label="Phone" value={driver.phone || "-"} />
               <InfoRow label="Email" value={driver.email || "-"} />
               <InfoRow label="Employment" value={driver.employment_status || "active"} />
@@ -304,6 +366,45 @@ export default function DriverDetail() {
         </div>
       </div>
 
+      {/* Toolbox Talks */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" /> Toolbox Talks ({(toolboxTalks || []).length})
+            {talkDays !== null && (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${talkDays <= 30 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                {talkDays <= 30 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
+              </span>
+            )}
+          </h3>
+          <button onClick={() => setShowTalkForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90"><Plus className="w-4 h-4" /> Add Talk</button>
+        </div>
+        <div className="glass-card overflow-hidden">
+          {(toolboxTalks || []).length === 0 ? (
+            <p className="text-sm text-muted-foreground p-6 text-center">No toolbox talks recorded yet.</p>
+          ) : (
+            <table className="w-full">
+              <thead><tr className="border-b border-border">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Topic</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Date</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Conducted By</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
+              </tr></thead>
+              <tbody>
+                {(toolboxTalks || []).map(talk => (
+                  <tr key={talk.id} className="border-b border-border/50 hover:bg-secondary/30">
+                    <td className="px-4 py-3 text-sm font-medium text-foreground">{talk.topic}</td>
+                    <td className="px-4 py-3 text-sm text-center text-foreground">{talk.date_conducted}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{talk.conducted_by || "-"}</td>
+                    <td className="px-4 py-3 text-center">{talk.file_url ? <button onClick={async () => { const { data } = await supabase.storage.from("documents").createSignedUrl(talk.file_url!, 3600); if (data?.signedUrl) window.open(data.signedUrl, "_blank"); }} className="text-xs text-primary hover:underline">View</button> : <span className="text-xs text-muted-foreground">-</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
       {/* Fines */}
       {(driverFines || []).length > 0 && (
         <div className="space-y-4">
@@ -372,6 +473,38 @@ export default function DriverDetail() {
             </div>
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Document
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Toolbox Talk Form */}
+      {showTalkForm && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-background/50" onClick={() => setShowTalkForm(false)} />
+          <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground">Add Toolbox Talk</h2>
+              <button onClick={() => setShowTalkForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Topic/Title *</label>
+              <input type="text" value={talkForm.topic} onChange={e => setTalkForm({ ...talkForm, topic: e.target.value })} placeholder="e.g. Vehicle Pre-Trip Inspection" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Date Conducted</label>
+              <input type="date" value={talkForm.date_conducted} onChange={e => setTalkForm({ ...talkForm, date_conducted: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Conducted By</label>
+              <input type="text" value={talkForm.conducted_by} onChange={e => setTalkForm({ ...talkForm, conducted_by: e.target.value })} placeholder="Name of person" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Upload Attendance Sheet (PDF/Image)</label>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setTalkFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+            </div>
+            <button onClick={handleSaveTalk} disabled={savingTalk} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+              {savingTalk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Toolbox Talk
             </button>
           </div>
         </div>
