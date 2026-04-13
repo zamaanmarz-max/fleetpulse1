@@ -115,7 +115,7 @@ export default function InspectionDetail() {
     doc.text("Damage Inspection Report", 14, 22);
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text("FleetPulse by MARZ Technologies", 14, 30);
+    doc.text("MARZ Fleet by MARZ Technologies", 14, 30);
     doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 36);
     doc.setTextColor(0);
 
