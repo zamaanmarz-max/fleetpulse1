@@ -30,7 +30,7 @@ export default function Reports() {
     doc.setFontSize(9);
     doc.setTextColor(100);
     doc.text(`Generated: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, 14, 30);
-    doc.text("FleetPulse by MARZ Technologies", 14, 36);
+    doc.text("MARZ Fleet by MARZ Technologies", 14, 36);
     doc.setTextColor(0);
     return 44;
   };

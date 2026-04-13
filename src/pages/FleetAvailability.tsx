@@ -116,7 +116,7 @@ export default function FleetAvailability() {
     doc.setFontSize(18);
     doc.text("Fleet Availability Report", 14, 22);
     doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleDateString()} | FleetPulse by MARZ Technologies`, 14, 30);
+    doc.text(`Generated: ${new Date().toLocaleDateString()} | MARZ Fleet by MARZ Technologies`, 14, 30);
 
     doc.setFontSize(12);
     doc.text("Summary", 14, 42);
@@ -158,7 +158,7 @@ export default function FleetAvailability() {
     }
 
     doc.setFontSize(8);
-    doc.text("FleetPulse by MARZ Technologies (Pty) Ltd. © 2026", 14, doc.internal.pageSize.height - 10);
+    doc.text("MARZ Fleet by MARZ Technologies (Pty) Ltd. © 2026", 14, doc.internal.pageSize.height - 10);
     doc.save("Fleet_Availability_Report.pdf");
     toast.success("PDF exported");
   };

@@ -63,7 +63,7 @@ export default function SettingsPage() {
           <div>
             <p className="text-foreground font-medium mb-1">Current Plan: Standard</p>
             <p className="text-muted-foreground text-sm mb-4">Status: Active</p>
-            <p className="text-muted-foreground text-sm">Contact FleetPulse to upgrade your plan.</p>
+            <p className="text-muted-foreground text-sm">Contact MARZ Fleet to upgrade your plan.</p>
           </div>
         )}
       </div>
