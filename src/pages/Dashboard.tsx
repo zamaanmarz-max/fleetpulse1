@@ -264,7 +264,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">AI Fleet Intelligence</h3>
+              <h3 className="text-sm font-semibold text-foreground">MARZ Fleet AI</h3>
             </div>
             <button onClick={fetchInsights} disabled={aiLoading} className="text-muted-foreground hover:text-foreground">
               <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />

@@ -52,7 +52,7 @@ export function Sidebar() {
           </div>
           {!collapsed && (
             <span className="text-lg font-bold text-foreground whitespace-nowrap">
-              Fleet<span className="text-primary">Pulse</span>
+              MARZ <span className="text-primary">Fleet</span>
             </span>
           )}
         </div>

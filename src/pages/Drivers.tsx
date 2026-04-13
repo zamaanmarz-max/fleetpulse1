@@ -5,29 +5,14 @@ import { useDrivers } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { checkDriverCompliance } from "@/lib/driverCompliance";
 
-const statusStyles: Record<string, string> = {
-  GREEN: "bg-success/20 text-success",
-  AMBER: "bg-warning/20 text-warning",
-  RED: "bg-destructive/20 text-destructive",
+const complianceStyles: Record<string, string> = {
+  compliant: "bg-success/20 text-success",
+  warning: "bg-warning/20 text-warning",
+  critical: "bg-destructive/20 text-destructive",
 };
-
-function calcStatus(licenceExpiry: string | null, prdpExpiry: string | null): string {
-  const now = Date.now();
-  const check = (d: string | null) => {
-    if (!d) return "GREEN";
-    const diff = (new Date(d).getTime() - now) / 86400000;
-    if (diff <= 7) return "RED";
-    if (diff <= 30) return "AMBER";
-    return "GREEN";
-  };
-  const l = check(licenceExpiry);
-  const p = check(prdpExpiry);
-  if (l === "RED" || p === "RED") return "RED";
-  if (l === "AMBER" || p === "AMBER") return "AMBER";
-  return "GREEN";
-}
 
 export default function Drivers() {
   const [search, setSearch] = useState("");
@@ -37,7 +22,45 @@ export default function Drivers() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const filtered = (drivers || []).filter(
+  // Fetch all driver documents for compliance calculation
+  const { data: allDocuments } = useQuery({
+    queryKey: ["all_driver_documents", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("driver_documents").select("*").order("expiry_date");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  // Fetch all toolbox talks
+  const { data: allToolboxTalks } = useQuery({
+    queryKey: ["all_toolbox_talks", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("toolbox_talks").select("*").order("date_conducted", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const now = Date.now();
+
+  const driversWithCompliance = (drivers || []).map(d => {
+    const docs = (allDocuments || []).filter(doc => doc.driver_id === d.id).map(doc => {
+      const days = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date).getTime() - now) / 86400000) : 999;
+      return { ...doc, calcStatus: days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid" };
+    });
+    const talks = (allToolboxTalks || []).filter(t => t.driver_id === d.id);
+    const compliance = checkDriverCompliance(
+      { licence_expiry: d.licence_expiry, prdp_expiry: d.prdp_expiry },
+      docs,
+      talks
+    );
+    return { ...d, compliance };
+  });
+
+  const filtered = driversWithCompliance.filter(
     (d) =>
       d.full_name.toLowerCase().includes(search.toLowerCase()) ||
       (d.id_number || "").includes(search) ||
@@ -112,32 +135,29 @@ export default function Drivers() {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Licence Expiry</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">PrDP Expiry</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Demerits</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Compliance</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((d) => {
-                const status = calcStatus(d.licence_expiry, d.prdp_expiry);
-                return (
-                  <tr key={d.id} onClick={() => navigate(`/drivers/${d.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium text-foreground">{d.full_name}</td>
-                    <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{d.id_number || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-center font-semibold text-foreground">{d.licence_code || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-center text-foreground">{d.licence_expiry || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-center text-foreground">{d.prdp_expiry || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-center">
-                      <span className={`font-mono ${(d.demerit_points ?? 0) >= 9 ? "text-destructive font-bold" : (d.demerit_points ?? 0) >= 5 ? "text-warning" : "text-foreground"}`}>
-                        {d.demerit_points ?? 0}/12
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyles[status]}`}>
-                        {status === "GREEN" ? "Valid" : status === "AMBER" ? "Expiring" : "Critical"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filtered.map((d) => (
+                <tr key={d.id} onClick={() => navigate(`/drivers/${d.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-foreground">{d.full_name}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{d.id_number || "-"}</td>
+                  <td className="px-4 py-3 text-sm text-center font-semibold text-foreground">{d.licence_code || "-"}</td>
+                  <td className="px-4 py-3 text-sm text-center text-foreground">{d.licence_expiry || "-"}</td>
+                  <td className="px-4 py-3 text-sm text-center text-foreground">{d.prdp_expiry || "-"}</td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    <span className={`font-mono ${(d.demerit_points ?? 0) >= 9 ? "text-destructive font-bold" : (d.demerit_points ?? 0) >= 5 ? "text-warning" : "text-foreground"}`}>
+                      {d.demerit_points ?? 0}/12
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${complianceStyles[d.compliance.status]}`}>
+                      {d.compliance.status === "compliant" ? "Compliant" : d.compliance.status === "warning" ? "Warning" : "Non-Compliant"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
