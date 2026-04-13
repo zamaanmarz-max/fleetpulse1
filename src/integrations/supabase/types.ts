@@ -835,6 +835,54 @@ export type Database = {
         }
         Relationships: []
       }
+      toolbox_talks: {
+        Row: {
+          conducted_by: string | null
+          created_at: string | null
+          date_conducted: string
+          driver_id: string
+          file_url: string | null
+          id: string
+          organisation_id: string | null
+          topic: string
+        }
+        Insert: {
+          conducted_by?: string | null
+          created_at?: string | null
+          date_conducted?: string
+          driver_id: string
+          file_url?: string | null
+          id?: string
+          organisation_id?: string | null
+          topic: string
+        }
+        Update: {
+          conducted_by?: string | null
+          created_at?: string | null
+          date_conducted?: string
+          driver_id?: string
+          file_url?: string | null
+          id?: string
+          organisation_id?: string | null
+          topic?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "toolbox_talks_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "toolbox_talks_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           branch_id: string | null
@@ -970,6 +1018,7 @@ export type Database = {
           compliance_template_id: string | null
           created_at: string | null
           current_odometer_km: number | null
+          equipment: Json | null
           fleet_number: string | null
           id: string
           is_active: boolean | null
@@ -994,6 +1043,7 @@ export type Database = {
           compliance_template_id?: string | null
           created_at?: string | null
           current_odometer_km?: number | null
+          equipment?: Json | null
           fleet_number?: string | null
           id?: string
           is_active?: boolean | null
@@ -1018,6 +1068,7 @@ export type Database = {
           compliance_template_id?: string | null
           created_at?: string | null
           current_odometer_km?: number | null
+          equipment?: Json | null
           fleet_number?: string | null
           id?: string
           is_active?: boolean | null

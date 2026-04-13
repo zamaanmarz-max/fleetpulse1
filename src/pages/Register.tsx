@@ -64,7 +64,7 @@ export default function Register() {
             <Truck className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-3">
-            Fleet<span className="text-primary">Pulse</span>
+            MARZ <span className="text-primary">Fleet</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-md">
             Get your fleet compliant in minutes. AI-powered compliance for South African fleets.
@@ -79,7 +79,7 @@ export default function Register() {
               <Truck className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="text-2xl font-bold text-foreground">
-              Fleet<span className="text-primary">Pulse</span>
+              MARZ <span className="text-primary">Fleet</span>
             </span>
           </div>
 

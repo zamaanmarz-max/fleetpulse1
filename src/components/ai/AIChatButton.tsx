@@ -14,12 +14,13 @@ export function AIChatButton() {
   const handleSend = () => {
     if (!input.trim()) return;
     send(input).then(() => {
-      // Refresh all data after AI response (in case AI made updates)
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard_stats"] });
       queryClient.invalidateQueries({ queryKey: ["inspections"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle_statuses"] });
+      queryClient.invalidateQueries({ queryKey: ["toolbox_talks"] });
     });
     setInput("");
   };
@@ -41,7 +42,7 @@ export function AIChatButton() {
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
-              <span className="font-semibold text-foreground">FleetPulse AI</span>
+              <span className="font-semibold text-foreground">MARZ Fleet AI</span>
             </div>
             <div className="flex items-center gap-1">
               <button onClick={clear} className="p-2 text-muted-foreground hover:text-foreground rounded-md">
@@ -57,7 +58,7 @@ export function AIChatButton() {
             {messages.length === 0 && (
               <div className="text-center text-muted-foreground text-sm mt-8">
                 <Sparkles className="w-8 h-8 mx-auto mb-3 text-primary opacity-50" />
-                <p>Ask me anything about your fleet.</p>
+                <p>Hey! Ask me anything about your fleet.</p>
                 <p className="mt-1 text-xs">I understand AARTO, COF, PrDP, and SA compliance.</p>
               </div>
             )}

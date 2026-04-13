@@ -22,7 +22,6 @@ export default function Login() {
     setLoading(true);
     try {
       await signIn(email, password);
-      // Fetch profile to determine role-based redirect
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
@@ -55,7 +54,7 @@ export default function Login() {
             <Truck className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-4xl font-bold text-foreground mb-3">
-            Fleet<span className="text-primary">Pulse</span>
+            MARZ <span className="text-primary">Fleet</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-md">
             AI-powered fleet compliance & inspection management for South Africa
@@ -82,7 +81,7 @@ export default function Login() {
               <Truck className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="text-2xl font-bold text-foreground">
-              Fleet<span className="text-primary">Pulse</span>
+              MARZ <span className="text-primary">Fleet</span>
             </span>
           </div>
 
