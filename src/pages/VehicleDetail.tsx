@@ -189,6 +189,7 @@ export default function VehicleDetail() {
       last_service_km: vehicle.last_service_km?.toString() || "0",
       next_service_due_km: vehicle.next_service_due_km?.toString() || "0",
     });
+    setEditEquipment((vehicle.equipment as string[]) || []);
     setEditing(true);
   };
 
@@ -206,6 +207,7 @@ export default function VehicleDetail() {
       current_odometer_km: parseInt(editForm.current_odometer_km) || 0,
       last_service_km: parseInt(editForm.last_service_km) || 0,
       next_service_due_km: parseInt(editForm.next_service_due_km) || 0,
+      equipment: editEquipment,
     }).eq("id", id!);
     setSaving(false);
     if (error) { toast.error(error.message); } else {
