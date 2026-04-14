@@ -380,6 +380,7 @@ export default function VehicleDetail() {
                 ].map(f => (
                   <EditField key={f.key} label={f.label} value={editForm[f.key]} onChange={v => setEditForm({ ...editForm, [f.key]: v })} type={f.type} />
                 ))}
+                <EquipmentChecklist selected={editEquipment} onChange={setEditEquipment} />
               </div>
             ) : (
               <>
