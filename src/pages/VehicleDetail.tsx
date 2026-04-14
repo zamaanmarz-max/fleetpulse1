@@ -88,6 +88,7 @@ export default function VehicleDetail() {
   const [transferReason, setTransferReason] = useState("");
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
   const [transferring, setTransferring] = useState(false);
+  const [editEquipment, setEditEquipment] = useState<string[]>([]);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
