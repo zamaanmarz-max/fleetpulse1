@@ -61,8 +61,13 @@ export default function Vehicles() {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!form.registration_number || !profile?.organisation_id) {
+    const regNum = form.registration_number.trim();
+    if (!regNum) {
       toast.error("Registration number is required");
+      return;
+    }
+    if (!profile?.organisation_id) {
+      toast.error("Organisation not found. Please log out and log in again.");
       return;
     }
     setSaving(true);
