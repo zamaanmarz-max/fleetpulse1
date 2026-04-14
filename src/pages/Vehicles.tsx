@@ -61,8 +61,13 @@ export default function Vehicles() {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!form.registration_number || !profile?.organisation_id) {
+    const regNum = form.registration_number.trim();
+    if (!regNum) {
       toast.error("Registration number is required");
+      return;
+    }
+    if (!profile?.organisation_id) {
+      toast.error("Organisation not found. Please log out and log in again.");
       return;
     }
     setSaving(true);
@@ -70,7 +75,7 @@ export default function Vehicles() {
     const kmNext = parseInt(form.next_service_due_km) || 0;
     const { error } = await supabase.from("vehicles").insert({
       organisation_id: profile.organisation_id,
-      registration_number: form.registration_number,
+      registration_number: regNum,
       fleet_number: form.fleet_number || null,
       make: form.make || null,
       model: form.model || null,
