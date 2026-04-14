@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
+import { BranchFilter } from "@/components/filters/BranchFilter";
 
 const complianceStyles: Record<string, string> = {
   compliant: "bg-success/20 text-success",
@@ -16,13 +17,13 @@ const complianceStyles: Record<string, string> = {
 
 export default function Drivers() {
   const [search, setSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const { data: drivers, isLoading } = useDrivers();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // Fetch all driver documents for compliance calculation
   const { data: allDocuments } = useQuery({
     queryKey: ["all_driver_documents", profile?.organisation_id],
     queryFn: async () => {
@@ -33,7 +34,6 @@ export default function Drivers() {
     enabled: !!profile?.organisation_id,
   });
 
-  // Fetch all toolbox talks
   const { data: allToolboxTalks } = useQuery({
     queryKey: ["all_toolbox_talks", profile?.organisation_id],
     queryFn: async () => {
@@ -62,9 +62,10 @@ export default function Drivers() {
 
   const filtered = driversWithCompliance.filter(
     (d) =>
-      d.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      (d.full_name.toLowerCase().includes(search.toLowerCase()) ||
       (d.id_number || "").includes(search) ||
-      (d.licence_code || "").toLowerCase().includes(search.toLowerCase())
+      (d.licence_code || "").toLowerCase().includes(search.toLowerCase())) &&
+      (!branchFilter || d.branch_id === branchFilter)
   );
 
   const [form, setForm] = useState({
@@ -118,6 +119,7 @@ export default function Drivers() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, ID, or licence..." className="w-full bg-secondary border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
+        <BranchFilter value={branchFilter} onChange={setBranchFilter} />
       </div>
 
       <div className="glass-card overflow-hidden">
