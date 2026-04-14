@@ -10,14 +10,15 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [brn, setBrn] = useState("");
+  const [phone, setPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !email || !password || !companyName || !brn) {
-      toast.error("Please fill in all fields");
+    if (!fullName || !email || !password || !companyName) {
+      toast.error("Please fill in all required fields");
       return;
     }
     if (password.length < 6) {
@@ -26,21 +27,36 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
             company_name: companyName,
-            brn,
+            brn: brn || null,
+            phone: phone || null,
             role: "clientadmin",
           },
         },
       });
       if (error) throw error;
-      toast.success("Account created! Redirecting...");
-      navigate("/dashboard");
+
+      // If email confirmation is disabled, user is auto-logged in
+      if (data.session) {
+        toast.success("Account created! Redirecting to dashboard...");
+        navigate("/dashboard");
+      } else {
+        // If email confirmation required, sign in immediately
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          toast.success("Account created! Please check your email to confirm, then log in.");
+          navigate("/login");
+        } else {
+          toast.success("Account created! Redirecting to dashboard...");
+          navigate("/dashboard");
+        }
+      }
     } catch (err: any) {
       toast.error(err.message || "Registration failed");
     } finally {
@@ -49,10 +65,11 @@ export default function Register() {
   };
 
   const fields = [
-    { label: "Full name", value: fullName, set: setFullName, type: "text", placeholder: "John Doe" },
-    { label: "Email address", value: email, set: setEmail, type: "email", placeholder: "name@company.co.za" },
-    { label: "Company name", value: companyName, set: setCompanyName, type: "text", placeholder: "Acme Logistics" },
-    { label: "BRN number", value: brn, set: setBrn, type: "text", placeholder: "2026/123456/07" },
+    { label: "Full name *", value: fullName, set: setFullName, type: "text", placeholder: "John Doe" },
+    { label: "Email address *", value: email, set: setEmail, type: "email", placeholder: "name@company.co.za" },
+    { label: "Company name *", value: companyName, set: setCompanyName, type: "text", placeholder: "Acme Logistics" },
+    { label: "Company registration number", value: brn, set: setBrn, type: "text", placeholder: "2026/123456/07" },
+    { label: "Phone number", value: phone, set: setPhone, type: "tel", placeholder: "+27 82 123 4567" },
   ];
 
   return (
@@ -101,7 +118,7 @@ export default function Register() {
             ))}
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Password *</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
