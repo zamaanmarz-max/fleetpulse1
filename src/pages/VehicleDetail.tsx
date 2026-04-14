@@ -6,8 +6,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
   DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save, Trash2,
-  ArrowRightLeft,
+  ArrowRightLeft, Wrench,
 } from "lucide-react";
+import { ComplianceRequirements } from "@/components/vehicle/ComplianceRequirements";
+import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
+import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -55,6 +58,7 @@ function kmProgressColor(km: number) {
 const tabs = [
   { id: "overview", label: "Overview", icon: Truck },
   { id: "certificates", label: "Certificates", icon: FileText },
+  { id: "jobcards", label: "Job Cards", icon: Wrench },
   { id: "inspections", label: "Inspections", icon: ClipboardCheck },
   { id: "fines", label: "Fines", icon: DollarSign },
   { id: "history", label: "History", icon: History },
