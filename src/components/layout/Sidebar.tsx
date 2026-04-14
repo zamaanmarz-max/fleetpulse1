@@ -113,9 +113,12 @@ export function Sidebar() {
           {!collapsed && <span>Sign Out</span>}
         </button>
         {!collapsed && (
-          <p className="px-3 py-2 text-[10px] text-muted-foreground/60 leading-tight">
-            © 2026 MARZ Technologies (Pty) Ltd.<br />All rights reserved.
-          </p>
+          <div className="px-3 py-2">
+            <a href="/privacy" className="text-[10px] text-primary/60 hover:text-primary">Privacy Policy</a>
+            <p className="text-[10px] text-muted-foreground/60 leading-tight mt-1">
+              © 2026 MARZ Technologies (Pty) Ltd.<br />All rights reserved.
+            </p>
+          </div>
         )}
       </div>
 
