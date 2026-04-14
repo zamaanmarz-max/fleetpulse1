@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { recalculateAllVehicleCompliance } from "@/lib/compliance";
+import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
+import { BranchFilter } from "@/components/filters/BranchFilter";
 
 const statusStyles: Record<string, string> = {
   compliant: "bg-success/20 text-success",
@@ -24,6 +26,7 @@ function riskColor(score: number) {
 
 export default function Vehicles() {
   const [search, setSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const { data: vehicles, isLoading } = useVehicles();
   const { data: allCerts } = useCertificates();
@@ -39,9 +42,10 @@ export default function Vehicles() {
 
   const filtered = (vehicles || []).filter(
     (v) =>
-      v.registration_number.toLowerCase().includes(search.toLowerCase()) ||
+      (v.registration_number.toLowerCase().includes(search.toLowerCase()) ||
       (v.fleet_number || "").toLowerCase().includes(search.toLowerCase()) ||
-      (v.make || "").toLowerCase().includes(search.toLowerCase())
+      (v.make || "").toLowerCase().includes(search.toLowerCase())) &&
+      (!branchFilter || v.branch_id === branchFilter)
   ).sort((a, b) => {
     const numA = parseInt(a.fleet_number || "0", 10) || 0;
     const numB = parseInt(b.fleet_number || "0", 10) || 0;
@@ -53,6 +57,7 @@ export default function Vehicles() {
     year: "", vehicle_type: "truck", vin_number: "", colour: "",
     current_odometer_km: "", next_service_due_km: "",
   });
+  const [equipment, setEquipment] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -75,6 +80,7 @@ export default function Vehicles() {
       colour: form.colour || null,
       current_odometer_km: kmNow,
       next_service_due_km: kmNext,
+      equipment: equipment,
     });
     setSaving(false);
     if (error) {
@@ -83,6 +89,7 @@ export default function Vehicles() {
       toast.success("Vehicle added successfully");
       setShowForm(false);
       setForm({ registration_number: "", fleet_number: "", make: "", model: "", year: "", vehicle_type: "truck", vin_number: "", colour: "", current_odometer_km: "", next_service_due_km: "" });
+      setEquipment([]);
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
     }
   };
@@ -126,6 +133,7 @@ export default function Vehicles() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by reg, fleet no, or make..." className="w-full bg-secondary border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
+        <BranchFilter value={branchFilter} onChange={setBranchFilter} />
       </div>
 
       <div className="glass-card overflow-x-auto">
@@ -227,6 +235,9 @@ export default function Vehicles() {
                 ))}
               </select>
             </div>
+
+            <EquipmentChecklist selected={equipment} onChange={setEquipment} />
+
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Save Vehicle

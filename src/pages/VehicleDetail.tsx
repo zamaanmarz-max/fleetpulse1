@@ -6,8 +6,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
   DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save, Trash2,
-  ArrowRightLeft,
+  ArrowRightLeft, Wrench,
 } from "lucide-react";
+import { ComplianceRequirements } from "@/components/vehicle/ComplianceRequirements";
+import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
+import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -55,6 +58,7 @@ function kmProgressColor(km: number) {
 const tabs = [
   { id: "overview", label: "Overview", icon: Truck },
   { id: "certificates", label: "Certificates", icon: FileText },
+  { id: "jobcards", label: "Job Cards", icon: Wrench },
   { id: "inspections", label: "Inspections", icon: ClipboardCheck },
   { id: "fines", label: "Fines", icon: DollarSign },
   { id: "history", label: "History", icon: History },
@@ -84,6 +88,7 @@ export default function VehicleDetail() {
   const [transferReason, setTransferReason] = useState("");
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
   const [transferring, setTransferring] = useState(false);
+  const [editEquipment, setEditEquipment] = useState<string[]>([]);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
@@ -184,6 +189,7 @@ export default function VehicleDetail() {
       last_service_km: vehicle.last_service_km?.toString() || "0",
       next_service_due_km: vehicle.next_service_due_km?.toString() || "0",
     });
+    setEditEquipment((vehicle.equipment as string[]) || []);
     setEditing(true);
   };
 
@@ -201,6 +207,7 @@ export default function VehicleDetail() {
       current_odometer_km: parseInt(editForm.current_odometer_km) || 0,
       last_service_km: parseInt(editForm.last_service_km) || 0,
       next_service_due_km: parseInt(editForm.next_service_due_km) || 0,
+      equipment: editEquipment,
     }).eq("id", id!);
     setSaving(false);
     if (error) { toast.error(error.message); } else {
@@ -373,6 +380,7 @@ export default function VehicleDetail() {
                 ].map(f => (
                   <EditField key={f.key} label={f.label} value={editForm[f.key]} onChange={v => setEditForm({ ...editForm, [f.key]: v })} type={f.type} />
                 ))}
+                <EquipmentChecklist selected={editEquipment} onChange={setEditEquipment} />
               </div>
             ) : (
               <>
@@ -423,8 +431,17 @@ export default function VehicleDetail() {
                 </div>
               </div>
             </div>
+
+            <ComplianceRequirements
+              equipment={(vehicle.equipment as string[]) || []}
+              certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
+            />
           </div>
         </div>
+      )}
+
+      {activeTab === "jobcards" && (
+        <JobCardsTab vehicleId={id!} organisationId={vehicle.organisation_id} />
       )}
 
       {activeTab === "certificates" && (
