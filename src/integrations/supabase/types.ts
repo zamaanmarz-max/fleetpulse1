@@ -796,6 +796,90 @@ export type Database = {
           },
         ]
       }
+      job_cards: {
+        Row: {
+          completed_date: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          invoice_file_url: string | null
+          invoice_number: string | null
+          job_card_number: string | null
+          job_type: string
+          labour_cost: number | null
+          odometer_reading: number | null
+          organisation_id: string | null
+          parts_cost: number | null
+          parts_replaced: string | null
+          status: string
+          total_cost: number | null
+          updated_at: string | null
+          vehicle_id: string
+          work_date: string
+          workshop_contact: string | null
+          workshop_name: string | null
+        }
+        Insert: {
+          completed_date?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          invoice_file_url?: string | null
+          invoice_number?: string | null
+          job_card_number?: string | null
+          job_type?: string
+          labour_cost?: number | null
+          odometer_reading?: number | null
+          organisation_id?: string | null
+          parts_cost?: number | null
+          parts_replaced?: string | null
+          status?: string
+          total_cost?: number | null
+          updated_at?: string | null
+          vehicle_id: string
+          work_date?: string
+          workshop_contact?: string | null
+          workshop_name?: string | null
+        }
+        Update: {
+          completed_date?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          invoice_file_url?: string | null
+          invoice_number?: string | null
+          job_card_number?: string | null
+          job_type?: string
+          labour_cost?: number | null
+          odometer_reading?: number | null
+          organisation_id?: string | null
+          parts_cost?: number | null
+          parts_replaced?: string | null
+          status?: string
+          total_cost?: number | null
+          updated_at?: string | null
+          vehicle_id?: string
+          work_date?: string
+          workshop_contact?: string | null
+          workshop_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_cards_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_cards_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organisations: {
         Row: {
           created_at: string | null
