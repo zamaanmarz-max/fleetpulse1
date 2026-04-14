@@ -1,4 +1,4 @@
-import { Building2, GitBranch, Users, Bell, CreditCard, Plus, Loader2, X, Trash2, Pencil, Save, UserPlus } from "lucide-react";
+import { Building2, GitBranch, Users, Bell, Plus, Loader2, X, Trash2, Pencil, Save, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,7 +12,6 @@ const tabs = [
   { id: "branches", icon: GitBranch, label: "Branches" },
   { id: "users", icon: Users, label: "Users" },
   { id: "notifications", icon: Bell, label: "Notifications" },
-  { id: "billing", icon: CreditCard, label: "Billing" },
 ];
 
 export default function SettingsPage() {
@@ -40,13 +39,6 @@ export default function SettingsPage() {
         {activeTab === "branches" && <BranchesTab />}
         {activeTab === "users" && <UsersTab />}
         {activeTab === "notifications" && <p className="text-muted-foreground text-sm">Notification settings coming soon.</p>}
-        {activeTab === "billing" && (
-          <div>
-            <p className="text-foreground font-medium mb-1">Current Plan: Standard</p>
-            <p className="text-muted-foreground text-sm mb-4">Status: Active</p>
-            <p className="text-muted-foreground text-sm">Contact MARZ Fleet to upgrade your plan.</p>
-          </div>
-        )}
       </div>
 
       <div className="text-center text-xs text-muted-foreground pt-4">

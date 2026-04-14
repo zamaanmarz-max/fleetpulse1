@@ -13,13 +13,11 @@ export default function AdminPanel() {
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
     company_name: "", brn: "", contact_name: "", contact_email: "",
-    contact_phone: "", subscription_plan: "standard",
+    contact_phone: "",
   });
 
   const statusStyles: Record<string, string> = {
     active: "bg-success/20 text-success",
-    trial: "bg-primary/20 text-primary",
-    paused: "bg-warning/20 text-warning",
     suspended: "bg-destructive/20 text-destructive",
   };
 
@@ -42,7 +40,6 @@ export default function AdminPanel() {
         primary_contact_name: form.contact_name || null,
         primary_contact_email: form.contact_email,
         primary_contact_phone: form.contact_phone || null,
-        subscription_plan: form.subscription_plan,
         subscription_status: "active",
       }).select().single();
       if (orgErr) throw orgErr;
@@ -64,7 +61,7 @@ export default function AdminPanel() {
 
       toast.success(`Client "${form.company_name}" created. Temp password: ${tempPassword}`);
       setShowAddClient(false);
-      setForm({ company_name: "", brn: "", contact_name: "", contact_email: "", contact_phone: "", subscription_plan: "standard" });
+      setForm({ company_name: "", brn: "", contact_name: "", contact_email: "", contact_phone: "" });
       queryClient.invalidateQueries({ queryKey: ["organisations"] });
     } catch (err: any) {
       toast.error(err.message || "Failed to create client");
@@ -105,11 +102,10 @@ export default function AdminPanel() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="stat-card"><p className="text-xs text-muted-foreground uppercase tracking-wider">Total Clients</p><p className="text-2xl font-bold text-foreground mt-1">{(orgs || []).length}</p></div>
         <div className="stat-card"><p className="text-xs text-muted-foreground uppercase tracking-wider">Active</p><p className="text-2xl font-bold text-success mt-1">{(orgs || []).filter(o => o.subscription_status === "active").length}</p></div>
-        <div className="stat-card"><p className="text-xs text-muted-foreground uppercase tracking-wider">Suspended</p><p className="text-2xl font-bold text-destructive mt-1">{(orgs || []).filter(o => o.subscription_status === "suspended" || o.subscription_status === "paused").length}</p></div>
-        <div className="stat-card"><p className="text-xs text-muted-foreground uppercase tracking-wider">Trial</p><p className="text-2xl font-bold text-primary mt-1">{(orgs || []).filter(o => o.subscription_status === "trial").length}</p></div>
+        <div className="stat-card"><p className="text-xs text-muted-foreground uppercase tracking-wider">Suspended</p><p className="text-2xl font-bold text-destructive mt-1">{(orgs || []).filter(o => o.subscription_status === "suspended").length}</p></div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -131,7 +127,6 @@ export default function AdminPanel() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Organisation</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">BRN</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Plan</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
@@ -142,9 +137,8 @@ export default function AdminPanel() {
                   <td className="px-4 py-3 text-sm font-semibold text-foreground">{org.name}</td>
                   <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{org.registration_number || "-"}</td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{org.primary_contact_email || "-"}</td>
-                  <td className="px-4 py-3 text-sm text-center capitalize text-foreground">{org.subscription_plan || "-"}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[org.subscription_status || "trial"]}`}>{org.subscription_status || "trial"}</span>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[org.subscription_status || "active"] || statusStyles.active}`}>{org.subscription_status === "suspended" ? "Suspended" : "Active"}</span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -184,15 +178,6 @@ export default function AdminPanel() {
                 <input value={(form as any)[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Subscription Plan</label>
-              <select value={form.subscription_plan} onChange={e => setForm({ ...form, subscription_plan: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                <option value="starter">Starter</option>
-                <option value="standard">Standard</option>
-                <option value="premium">Premium</option>
-                <option value="enterprise">Enterprise</option>
-              </select>
-            </div>
             <button onClick={handleAddClient} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />} Create Client
             </button>
