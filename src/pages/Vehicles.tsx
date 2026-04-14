@@ -75,7 +75,7 @@ export default function Vehicles() {
     const kmNext = parseInt(form.next_service_due_km) || 0;
     const { error } = await supabase.from("vehicles").insert({
       organisation_id: profile.organisation_id,
-      registration_number: form.registration_number,
+      registration_number: regNum,
       fleet_number: form.fleet_number || null,
       make: form.make || null,
       model: form.model || null,
