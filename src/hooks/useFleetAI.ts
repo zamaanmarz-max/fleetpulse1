@@ -2,19 +2,22 @@ import { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fleet-ai`;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 type Msg = { role: "user" | "assistant"; content: string };
 
 async function streamChat({
-  messages,
+  message,
+  organisationId,
+  conversationHistory,
   mode,
-  token,
   onDelta,
   onDone,
 }: {
-  messages: Msg[];
+  message?: string;
+  organisationId: string;
+  conversationHistory: Msg[];
   mode: "chat" | "insights";
-  token: string;
   onDelta: (text: string) => void;
   onDone: () => void;
 }) {
@@ -22,10 +25,14 @@ async function streamChat({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${ANON_KEY}`,
     },
-    body: JSON.stringify({ messages, mode }),
+    body: JSON.stringify({
+      message: message || undefined,
+      organisationId,
+      conversationHistory,
+      mode,
+    }),
   });
 
   if (!resp.ok) {
@@ -63,20 +70,21 @@ async function streamChat({
 }
 
 export function useFleetInsights() {
-  const { session } = useAuth();
+  const { profile } = useAuth();
   const [insights, setInsights] = useState("");
   const [loading, setLoading] = useState(false);
 
   const fetchInsights = useCallback(async () => {
-    if (!session?.access_token) return;
+    const orgId = profile?.organisation_id;
+    if (!orgId) return;
     setLoading(true);
     setInsights("");
     let result = "";
     try {
       await streamChat({
-        messages: [],
+        organisationId: orgId,
+        conversationHistory: [],
         mode: "insights",
-        token: session.access_token,
         onDelta: (chunk) => { result += chunk; setInsights(result); },
         onDone: () => setLoading(false),
       });
@@ -85,18 +93,19 @@ export function useFleetInsights() {
       setInsights("Unable to load AI insights. Please try again.");
       setLoading(false);
     }
-  }, [session?.access_token]);
+  }, [profile?.organisation_id]);
 
   return { insights, loading, fetchInsights };
 }
 
 export function useFleetChat() {
-  const { session } = useAuth();
+  const { profile } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(false);
 
   const send = async (input: string) => {
-    if (!session?.access_token || !input.trim()) return;
+    const orgId = profile?.organisation_id;
+    if (!orgId || !input.trim()) return;
     const userMsg: Msg = { role: "user", content: input };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -116,9 +125,10 @@ export function useFleetChat() {
 
     try {
       await streamChat({
-        messages: newMessages,
+        message: input,
+        organisationId: orgId,
+        conversationHistory: messages, // previous messages (before this one)
         mode: "chat",
-        token: session.access_token,
         onDelta: upsert,
         onDone: () => setLoading(false),
       });

@@ -245,7 +245,6 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
       if (args.estimated_return_date) statusData.estimated_return_date = args.estimated_return_date;
       if (args.status === "out_for_repair") statusData.date_sent_for_repair = new Date().toISOString().split("T")[0];
       if (args.status === "available") statusData.actual_return_date = new Date().toISOString().split("T")[0];
-      // Upsert by checking if exists
       const { data: existing } = await supabase.from("vehicle_status")
         .select("id").eq("vehicle_id", vehicle.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
       let error;
@@ -269,42 +268,76 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const authHeader = req.headers.get("Authorization");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader || "" } },
-    });
+    // Parse request body - support both old and new formats
+    const body = await req.json();
+    const message = body.message as string | undefined;
+    const organisationId = body.organisationId as string | undefined;
+    const conversationHistory = (body.conversationHistory || []) as Array<{ role: string; content: string }>;
+    // Legacy support
+    const legacyMessages = body.messages as Array<{ role: string; content: string }> | undefined;
+    const mode = body.mode as string | undefined;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Use service role key to bypass RLS and query by org ID directly
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Determine the organisation ID and user name
+    let orgId = organisationId;
+    let userName = "Fleet Manager";
+
+    // If organisationId provided, use it directly; otherwise try auth header
+    if (!orgId) {
+      const authHeader = req.headers.get("Authorization");
+      const authSupabase = createClient(supabaseUrl, supabaseKey, {
+        global: { headers: { Authorization: authHeader || "" } },
       });
+      const { data: { user }, error: authError } = await authSupabase.auth.getUser();
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized — no organisationId or valid auth token provided." }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: profile } = await supabase.from("users").select("organisation_id, full_name").eq("id", user.id).maybeSingle();
+      if (!profile?.organisation_id) {
+        return new Response(JSON.stringify({ error: "No organisation linked to your account." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      orgId = profile.organisation_id;
+      userName = profile.full_name || user.email || "Fleet Manager";
+    } else {
+      // Fetch user name from org if possible
+      const { data: orgUsers } = await supabase.from("users").select("full_name").eq("organisation_id", orgId).limit(1).maybeSingle();
+      if (orgUsers?.full_name) userName = orgUsers.full_name;
     }
 
-    const { messages, mode } = await req.json();
-
-    const { data: profile } = await supabase.from("users").select("organisation_id, full_name").eq("id", user.id).maybeSingle();
-    if (!profile?.organisation_id) {
-      return new Response(JSON.stringify({ error: "No organisation linked to your account." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Build chat messages from new or legacy format
+    let chatMessages: Array<{ role: string; content: string }> = [];
+    if (message) {
+      // New format: single message + conversation history
+      chatMessages = [...conversationHistory, { role: "user", content: message }];
+    } else if (legacyMessages) {
+      chatMessages = legacyMessages;
     }
 
-    // Fetch ALL org data
-    const [vehiclesRes, certsRes, driversRes, finesRes, inspectionsRes, damageRes, statusRes, driverDocsRes, toolboxRes, branchesRes] = await Promise.all([
-      supabase.from("vehicles").select("*"),
-      supabase.from("certificates").select("*, vehicles(registration_number)").order("expiry_date"),
-      supabase.from("drivers").select("*"),
-      supabase.from("fines").select("*, vehicles(registration_number), drivers(full_name)").order("offence_date", { ascending: false }),
-      supabase.from("damage_inspections").select("*, vehicles(registration_number)").order("inspection_date", { ascending: false }).limit(50),
-      supabase.from("damage_items").select("*, vehicles(registration_number)").eq("resolved", false),
-      supabase.from("vehicle_status").select("*, vehicles(registration_number)").order("updated_at", { ascending: false }),
-      supabase.from("driver_documents").select("*, drivers(full_name)").order("expiry_date"),
-      supabase.from("toolbox_talks").select("*, drivers(full_name)").order("date_conducted", { ascending: false }),
-      supabase.from("branches").select("*"),
+    const isInsightsMode = mode === "insights";
+
+    // Fetch ALL org data using service role (no RLS issues)
+    const [vehiclesRes, certsRes, driversRes, finesRes, inspectionsRes, damageRes, statusRes, driverDocsRes, toolboxRes, branchesRes, jobCardsRes] = await Promise.all([
+      supabase.from("vehicles").select("*").eq("organisation_id", orgId),
+      supabase.from("certificates").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("expiry_date"),
+      supabase.from("drivers").select("*").eq("organisation_id", orgId),
+      supabase.from("fines").select("*, vehicles(registration_number), drivers(full_name)").eq("organisation_id", orgId).order("offence_date", { ascending: false }),
+      supabase.from("damage_inspections").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("inspection_date", { ascending: false }).limit(50),
+      supabase.from("damage_items").select("*, vehicles(registration_number)").eq("organisation_id", orgId).eq("resolved", false),
+      supabase.from("vehicle_status").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("updated_at", { ascending: false }),
+      supabase.from("driver_documents").select("*, drivers(full_name)").eq("organisation_id", orgId).order("expiry_date"),
+      supabase.from("toolbox_talks").select("*, drivers(full_name)").eq("organisation_id", orgId).order("date_conducted", { ascending: false }),
+      supabase.from("branches").select("*").eq("organisation_id", orgId),
+      supabase.from("job_cards").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("work_date", { ascending: false }),
     ]);
 
     const fleetData = JSON.stringify({
@@ -318,6 +351,7 @@ serve(async (req) => {
       driver_documents: driverDocsRes.data || [],
       toolbox_talks: toolboxRes.data || [],
       branches: branchesRes.data || [],
+      job_cards: jobCardsRes.data || [],
       today: new Date().toISOString().split("T")[0],
     });
 
@@ -339,7 +373,7 @@ CRITICAL RULES:
 - Vehicle compliance requires: service not overdue (km_until_service >= 0), all required certificates valid, equipment-specific certificates present`;
 
     let systemPrompt: string;
-    if (mode === "insights") {
+    if (isInsightsMode) {
       systemPrompt = `You are MARZ Fleet AI, the fleet compliance assistant for a South African fleet company. Today is ${new Date().toISOString().split("T")[0]}.
 
 ${saPersonality}
@@ -353,7 +387,7 @@ If no issues found, say something like "Looking good! Your fleet is running clea
 Fleet data:
 ${fleetData}`;
     } else {
-      systemPrompt = `You are MARZ Fleet AI, a warm and sharp fleet compliance assistant for South African businesses. Today is ${new Date().toISOString().split("T")[0]}. The logged-in user is ${profile.full_name || user.email}.
+      systemPrompt = `You are MARZ Fleet AI, a warm and sharp fleet compliance assistant for South African businesses. Today is ${new Date().toISOString().split("T")[0]}. The logged-in user is ${userName}.
 
 ${saPersonality}
 
@@ -380,10 +414,10 @@ CRITICAL RULES FOR UPDATES:
 
     const aiMessages: any[] = [
       { role: "system", content: systemPrompt },
-      ...(messages || []),
+      ...chatMessages,
     ];
 
-    if (mode === "insights") {
+    if (isInsightsMode && chatMessages.length === 0) {
       aiMessages.push({ role: "user", content: "Give me 3 quick insights about what needs attention in my fleet right now." });
     }
 
@@ -393,7 +427,7 @@ CRITICAL RULES FOR UPDATES:
       stream: true,
     };
 
-    if (mode === "chat") {
+    if (!isInsightsMode) {
       requestBody.tools = tools;
     }
 
@@ -422,7 +456,7 @@ CRITICAL RULES FOR UPDATES:
       throw new Error("AI gateway error");
     }
 
-    if (mode === "chat") {
+    if (!isInsightsMode) {
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
