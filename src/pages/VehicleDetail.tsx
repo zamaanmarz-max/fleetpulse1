@@ -341,6 +341,47 @@ export default function VehicleDetail() {
     }
   };
 
+  const handleUploadCert = async () => {
+    if (!vehicle || !id) return;
+    const finalType = uploadCertForm.certificate_type === "Other"
+      ? uploadCertForm.certificate_type_other.trim()
+      : uploadCertForm.certificate_type;
+    if (!finalType) { toast.error("Certificate type is required"); return; }
+    setUploadingCert(true);
+    let fileUrl: string | null = null;
+    if (uploadCertFile) {
+      const path = `${vehicle.organisation_id}/${id}/${Date.now()}_${uploadCertFile.name}`;
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, uploadCertFile);
+      if (upErr) { toast.error("File upload failed: " + upErr.message); setUploadingCert(false); return; }
+      fileUrl = path;
+    }
+    const days = uploadCertForm.expiry_date
+      ? Math.ceil((new Date(uploadCertForm.expiry_date).getTime() - Date.now()) / 86400000)
+      : null;
+    const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
+    const { error } = await supabase.from("certificates").insert({
+      organisation_id: vehicle.organisation_id,
+      vehicle_id: id,
+      certificate_type: finalType,
+      certificate_number: uploadCertForm.certificate_number || null,
+      issue_date: uploadCertForm.issue_date || null,
+      expiry_date: uploadCertForm.expiry_date || null,
+      issuing_authority: uploadCertForm.issuing_authority || null,
+      file_url: fileUrl,
+      uploaded_by: profile?.id || null,
+      status,
+      days_until_expiry: days,
+    });
+    setUploadingCert(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Certificate uploaded");
+    setShowUploadCert(false);
+    setUploadCertForm({ certificate_type: "COF Certificate", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "" });
+    setUploadCertFile(null);
+    queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
+    queryClient.invalidateQueries({ queryKey: ["certificates"] });
+  };
+
   const handleTransfer = async () => {
     if (!transferBranch || !vehicle) return;
     setTransferring(true);
