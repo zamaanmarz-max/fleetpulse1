@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getRequiredCertificates } from "@/lib/vehicleEquipment";
+import { getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
 
 interface VehicleComplianceInput {
   id: string;
