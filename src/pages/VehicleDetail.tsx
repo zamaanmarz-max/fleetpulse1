@@ -571,7 +571,8 @@ export default function VehicleDetail() {
                     onChange={(e) => setUploadCertForm({ ...uploadCertForm, certificate_type: e.target.value })}
                     className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    <option value="COF Certificate">COF Certificate</option>
+                    <option value="COF & Vehicle Licence">COF & Vehicle Licence</option>
+                    <option value="Operator Card">Operator Card</option>
                     <option value="Other">Other (specify)</option>
                   </select>
                   {uploadCertForm.certificate_type === "Other" && (
