@@ -117,6 +117,20 @@ export default function DriverDetail() {
 
   const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
 
+  // Map a document_type to driver-table fields to keep in sync
+  const driverFieldsForDocType = (docType: string, expiryDate: string | null, docNumber: string | null) => {
+    const t = docType.toLowerCase().replace(/[^a-z]/g, "");
+    const update: Record<string, any> = {};
+    if (t.includes("prdp") || t.includes("professionaldriving")) {
+      if (expiryDate) update.prdp_expiry = expiryDate;
+      if (docNumber) update.prdp_number = docNumber;
+    } else if (t.includes("licence") || t.includes("license")) {
+      if (expiryDate) update.licence_expiry = expiryDate;
+      if (docNumber) update.licence_number = docNumber;
+    }
+    return update;
+  };
+
   const handleSave = async () => {
     if (!form.document_type || !profile?.organisation_id) { toast.error("Document type is required"); return; }
     setSaving(true);
@@ -151,9 +165,19 @@ export default function DriverDetail() {
       if (error) { toast.error(error.message); return; }
       toast.success("Document added");
     }
+
+    // Sync licence/PrDP fields back to drivers table so compliance reflects upload immediately
+    const driverUpdate = driverFieldsForDocType(form.document_type, form.expiry_date || null, form.document_number || null);
+    if (Object.keys(driverUpdate).length > 0) {
+      await supabase.from("drivers").update(driverUpdate as any).eq("id", id!);
+    }
+
     setShowForm(false); setFile(null); setEditingDocId(null);
     setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
     queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
+    queryClient.invalidateQueries({ queryKey: ["driver", id] });
+    queryClient.invalidateQueries({ queryKey: ["drivers"] });
+    queryClient.invalidateQueries({ queryKey: ["all_driver_documents"] });
   };
 
   const handleEditDoc = (doc: any) => {

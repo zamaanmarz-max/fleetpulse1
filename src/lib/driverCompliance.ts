@@ -22,6 +22,32 @@ export interface DriverComplianceResult {
  *     -20 no toolbox talk in 30 days
  *   Status bands: >=80 compliant, 50-79 warning, <50 critical
  */
+// Match doc types loosely (e.g. "Driver's Licence", "drivers_licence", "licence")
+const matchesType = (docType: string | null | undefined, keywords: string[]) => {
+  if (!docType) return false;
+  const t = docType.toLowerCase().replace(/[^a-z]/g, "");
+  return keywords.some(k => t.includes(k));
+};
+
+const futureValidDoc = (
+  documents: { document_type: string | null; expiry_date: string | null }[],
+  keywords: string[],
+  now: number
+) =>
+  documents.find(d =>
+    matchesType(d.document_type, keywords) &&
+    d.expiry_date &&
+    new Date(d.expiry_date).getTime() > now
+  );
+
+const latestExpiryDoc = (
+  documents: { document_type: string | null; expiry_date: string | null }[],
+  keywords: string[]
+) =>
+  documents
+    .filter(d => matchesType(d.document_type, keywords) && d.expiry_date)
+    .sort((a, b) => new Date(b.expiry_date!).getTime() - new Date(a.expiry_date!).getTime())[0];
+
 export function checkDriverCompliance(
   driver: {
     licence_expiry: string | null;
@@ -29,7 +55,7 @@ export function checkDriverCompliance(
     licence_number?: string | null;
     prdp_number?: string | null;
   },
-  documents: { document_type: string; expiry_date: string | null; calcStatus: string }[],
+  documents: { document_type: string | null; expiry_date: string | null; calcStatus: string }[],
   toolboxTalks: { date_conducted: string }[]
 ): DriverComplianceResult {
   const now = Date.now();
@@ -37,39 +63,63 @@ export function checkDriverCompliance(
   const breakdown: DriverComplianceResult["breakdown"] = [];
   let score = 100;
 
-  // Licence — needs both number AND valid (future) expiry
-  if (!driver.licence_number || driver.licence_number.trim() === "") {
-    issues.push({ field: "Driver's Licence", status: "missing" });
-    score -= 25; breakdown.push({ label: "No licence number on file", deduction: 25, severity: "critical" });
-  } else if (!driver.licence_expiry) {
-    issues.push({ field: "Driver's Licence", status: "missing" });
-    score -= 25; breakdown.push({ label: "No licence expiry on file", deduction: 25, severity: "critical" });
+  // ---- Licence: check drivers table OR driver_documents ----
+  const licenceKeywords = ["licence", "license"]; // matches "drivers_licence", "Driver's Licence", "license"
+  const licenceFromDoc = futureValidDoc(documents, licenceKeywords, now);
+  const driverLicenceFuture = driver.licence_expiry && new Date(driver.licence_expiry).getTime() > now;
+
+  if (licenceFromDoc || driverLicenceFuture) {
+    // Compliant — but still flag "expiring soon" using whichever expiry is latest
+    const effectiveExpiry = [
+      driver.licence_expiry,
+      latestExpiryDoc(documents, licenceKeywords)?.expiry_date,
+    ].filter(Boolean).sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0];
+    if (effectiveExpiry) {
+      const days = Math.ceil((new Date(effectiveExpiry).getTime() - now) / 86400000);
+      if (days <= 30 && days > 0) {
+        issues.push({ field: "Driver's Licence", status: "expiring" });
+        score -= 5; breakdown.push({ label: `Licence expiring in ${days}d`, deduction: 5, severity: "warning" });
+      }
+    }
   } else {
-    const days = Math.ceil((new Date(driver.licence_expiry).getTime() - now) / 86400000);
-    if (days <= 0) {
+    // Not compliant: missing or expired
+    const anyLicenceDoc = latestExpiryDoc(documents, licenceKeywords);
+    const hasAnyExpiry = driver.licence_expiry || anyLicenceDoc?.expiry_date;
+    if (!hasAnyExpiry || (!driver.licence_number && !anyLicenceDoc)) {
+      issues.push({ field: "Driver's Licence", status: "missing" });
+      score -= 25; breakdown.push({ label: "No driver's licence on file", deduction: 25, severity: "critical" });
+    } else {
       issues.push({ field: "Driver's Licence", status: "expired" });
-      score -= 30; breakdown.push({ label: `Licence expired (${Math.abs(days)}d ago)`, deduction: 30, severity: "critical" });
-    } else if (days <= 30) {
-      issues.push({ field: "Driver's Licence", status: "expiring" });
-      score -= 5; breakdown.push({ label: `Licence expiring in ${days}d`, deduction: 5, severity: "warning" });
+      score -= 30; breakdown.push({ label: "Driver's licence expired", deduction: 30, severity: "critical" });
     }
   }
 
-  // PrDP — same logic
-  if (!driver.prdp_number || driver.prdp_number.trim() === "") {
-    issues.push({ field: "PrDP", status: "missing" });
-    score -= 20; breakdown.push({ label: "No PrDP number on file", deduction: 20, severity: "critical" });
-  } else if (!driver.prdp_expiry) {
-    issues.push({ field: "PrDP", status: "missing" });
-    score -= 20; breakdown.push({ label: "No PrDP expiry on file", deduction: 20, severity: "critical" });
+  // ---- PrDP: check drivers table OR driver_documents ----
+  const prdpKeywords = ["prdp", "professionaldriving"];
+  const prdpFromDoc = futureValidDoc(documents, prdpKeywords, now);
+  const driverPrdpFuture = driver.prdp_expiry && new Date(driver.prdp_expiry).getTime() > now;
+
+  if (prdpFromDoc || driverPrdpFuture) {
+    const effectiveExpiry = [
+      driver.prdp_expiry,
+      latestExpiryDoc(documents, prdpKeywords)?.expiry_date,
+    ].filter(Boolean).sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0];
+    if (effectiveExpiry) {
+      const days = Math.ceil((new Date(effectiveExpiry).getTime() - now) / 86400000);
+      if (days <= 30 && days > 0) {
+        issues.push({ field: "PrDP", status: "expiring" });
+        score -= 5; breakdown.push({ label: `PrDP expiring in ${days}d`, deduction: 5, severity: "warning" });
+      }
+    }
   } else {
-    const days = Math.ceil((new Date(driver.prdp_expiry).getTime() - now) / 86400000);
-    if (days <= 0) {
+    const anyPrdpDoc = latestExpiryDoc(documents, prdpKeywords);
+    const hasAnyExpiry = driver.prdp_expiry || anyPrdpDoc?.expiry_date;
+    if (!hasAnyExpiry || (!driver.prdp_number && !anyPrdpDoc)) {
+      issues.push({ field: "PrDP", status: "missing" });
+      score -= 20; breakdown.push({ label: "No PrDP on file", deduction: 20, severity: "critical" });
+    } else {
       issues.push({ field: "PrDP", status: "expired" });
-      score -= 25; breakdown.push({ label: `PrDP expired (${Math.abs(days)}d ago)`, deduction: 25, severity: "critical" });
-    } else if (days <= 30) {
-      issues.push({ field: "PrDP", status: "expiring" });
-      score -= 5; breakdown.push({ label: `PrDP expiring in ${days}d`, deduction: 5, severity: "warning" });
+      score -= 25; breakdown.push({ label: "PrDP expired", deduction: 25, severity: "critical" });
     }
   }
 
