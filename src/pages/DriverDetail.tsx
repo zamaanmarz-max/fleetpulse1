@@ -4,10 +4,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save, MessageSquare, Trash2, RefreshCw,
+  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save, MessageSquare, Trash2, RefreshCw, FileDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
+import { generateDriverComplianceReport } from "@/lib/driverPdfReport";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -332,7 +333,19 @@ export default function DriverDetail() {
           <p className="text-sm text-muted-foreground">{driver.licence_code || "No licence"} · {driver.employment_status || "active"} · Demerits: {totalDemerits}/12</p>
         </div>
         {!editing ? (
-          <button onClick={startEditing} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90"><Pencil className="w-3.5 h-3.5" /> Edit Driver</button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => generateDriverComplianceReport({
+                driver: driver as any,
+                documents: (documents || []) as any,
+                toolboxTalks: (toolboxTalks || []) as any,
+              })}
+              className="flex items-center gap-1.5 text-xs bg-secondary text-secondary-foreground px-3 py-1.5 rounded-md hover:bg-secondary/80"
+            >
+              <FileDown className="w-3.5 h-3.5" /> Download Report
+            </button>
+            <button onClick={startEditing} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90"><Pencil className="w-3.5 h-3.5" /> Edit Driver</button>
+          </div>
         ) : (
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-md border border-border">Cancel</button>

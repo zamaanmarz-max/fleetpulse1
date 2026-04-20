@@ -17,6 +17,7 @@ import ComplianceTemplates from "./pages/ComplianceTemplates";
 import Inspections from "./pages/Inspections";
 import Fines from "./pages/Fines";
 import Reports from "./pages/Reports";
+import DriverComplianceReport from "./pages/DriverComplianceReport";
 import Alerts from "./pages/Alerts";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPanel from "./pages/AdminPanel";
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/inspections/:id" element={<InspectionDetail />} />
               <Route path="/fines" element={<Fines />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/reports/driver-compliance" element={<DriverComplianceReport />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/fleet-availability" element={<FleetAvailability />} />
               <Route path="/import" element={<DataImport />} />

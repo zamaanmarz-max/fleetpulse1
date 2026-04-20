@@ -1,5 +1,6 @@
-import { BarChart3, FileDown, Loader2 } from "lucide-react";
+import { BarChart3, FileDown, Loader2, ArrowRight } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVehicles, useCertificates, useDrivers, useInspections, useFines } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,6 +22,7 @@ const reportTypes = [
 ];
 
 export default function Reports() {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: vehicles } = useVehicles();
   const { data: certificates } = useCertificates();
@@ -412,33 +414,45 @@ export default function Reports() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {reportTypes.map((report) => (
-          <div key={report.id} className="stat-card flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                <h3 className="font-semibold text-foreground text-sm">{report.name}</h3>
+        {reportTypes.map((report) => {
+          const isDriver = report.id === "driver";
+          return (
+            <div key={report.id} className="stat-card flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground text-sm">{report.name}</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">{report.desc}</p>
               </div>
-              <p className="text-xs text-muted-foreground mb-4">{report.desc}</p>
+              {isDriver ? (
+                <button
+                  onClick={() => navigate("/reports/driver-compliance")}
+                  className="w-full flex items-center justify-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-md text-xs hover:opacity-90"
+                >
+                  Open Report <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleGenerate(report.id, "pdf")}
+                    disabled={generating === `${report.id}-pdf`}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-secondary text-secondary-foreground px-3 py-2 rounded-md text-xs hover:bg-secondary/80 disabled:opacity-50"
+                  >
+                    {generating === `${report.id}-pdf` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />} PDF
+                  </button>
+                  <button
+                    onClick={() => handleGenerate(report.id, "csv")}
+                    disabled={generating === `${report.id}-csv`}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-secondary text-secondary-foreground px-3 py-2 rounded-md text-xs hover:bg-secondary/80 disabled:opacity-50"
+                  >
+                    {generating === `${report.id}-csv` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />} CSV
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleGenerate(report.id, "pdf")}
-                disabled={generating === `${report.id}-pdf`}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-secondary text-secondary-foreground px-3 py-2 rounded-md text-xs hover:bg-secondary/80 disabled:opacity-50"
-              >
-                {generating === `${report.id}-pdf` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />} PDF
-              </button>
-              <button
-                onClick={() => handleGenerate(report.id, "csv")}
-                disabled={generating === `${report.id}-csv`}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-secondary text-secondary-foreground px-3 py-2 rounded-md text-xs hover:bg-secondary/80 disabled:opacity-50"
-              >
-                {generating === `${report.id}-csv` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />} CSV
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
