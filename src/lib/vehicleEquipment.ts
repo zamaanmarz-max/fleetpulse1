@@ -82,7 +82,7 @@ export function getEquipmentComplianceStatus(
   const status: Record<string, "valid" | "expiring" | "expired" | "missing"> = {};
 
   for (const certType of required) {
-    const match = certificates.find(c => c.certificate_type.toLowerCase() === certType.toLowerCase());
+    const match = certificates.find(c => matchesCert(certType, c.certificate_type));
     if (!match) {
       status[certType] = "missing";
     } else if (!match.expiry_date) {
