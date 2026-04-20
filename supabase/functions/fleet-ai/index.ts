@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022";
+const ANTHROPIC_MODEL = "claude-3-5-sonnet-latest";
 
 // Anthropic-format tool definitions (input_schema not parameters)
 const tools = [
