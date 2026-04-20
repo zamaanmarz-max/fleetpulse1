@@ -124,19 +124,54 @@ export default function DriverDetail() {
     }
     const days = form.expiry_date ? Math.ceil((new Date(form.expiry_date).getTime() - now) / 86400000) : null;
     const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
-    const { error } = await supabase.from("driver_documents").insert({
-      organisation_id: profile.organisation_id, driver_id: id,
-      document_type: form.document_type, document_name: form.document_name || form.document_type,
-      document_number: form.document_number || null, expiry_date: form.expiry_date || null,
-      file_url: fileUrl, uploaded_by: user?.id || null, status,
-    });
-    setSaving(false);
-    if (error) { toast.error(error.message); } else {
+
+    if (editingDocId) {
+      const updatePayload: any = {
+        document_type: form.document_type, document_name: form.document_name || form.document_type,
+        document_number: form.document_number || null, expiry_date: form.expiry_date || null, status,
+      };
+      if (fileUrl) updatePayload.file_url = fileUrl;
+      const { error } = await supabase.from("driver_documents").update(updatePayload).eq("id", editingDocId);
+      setSaving(false);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Document updated");
+    } else {
+      const { error } = await supabase.from("driver_documents").insert({
+        organisation_id: profile.organisation_id, driver_id: id,
+        document_type: form.document_type, document_name: form.document_name || form.document_type,
+        document_number: form.document_number || null, expiry_date: form.expiry_date || null,
+        file_url: fileUrl, uploaded_by: user?.id || null, status,
+      });
+      setSaving(false);
+      if (error) { toast.error(error.message); return; }
       toast.success("Document added");
-      setShowForm(false); setFile(null);
-      setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
-      queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
     }
+    setShowForm(false); setFile(null); setEditingDocId(null);
+    setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+    queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
+  };
+
+  const handleEditDoc = (doc: any) => {
+    setEditingDocId(doc.id);
+    setForm({
+      document_type: doc.document_type || "",
+      document_name: doc.document_name || "",
+      document_number: doc.document_number || "",
+      expiry_date: doc.expiry_date || "",
+    });
+    setFile(null);
+    setShowForm(true);
+  };
+
+  const handleDeleteDoc = async () => {
+    if (!deleteDocId) return;
+    setDeletingDoc(true);
+    const { error } = await supabase.from("driver_documents").delete().eq("id", deleteDocId);
+    setDeletingDoc(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Document deleted");
+    setDeleteDocId(null);
+    queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
   };
 
   const handleSaveTalk = async () => {
@@ -149,18 +184,51 @@ export default function DriverDetail() {
       if (upErr) { toast.error("Upload failed: " + upErr.message); setSavingTalk(false); return; }
       fileUrl = path;
     }
-    const { error } = await supabase.from("toolbox_talks").insert({
-      organisation_id: profile.organisation_id, driver_id: id,
-      topic: talkForm.topic, date_conducted: talkForm.date_conducted,
-      conducted_by: talkForm.conducted_by || null, file_url: fileUrl,
-    });
-    setSavingTalk(false);
-    if (error) { toast.error(error.message); } else {
+    if (editingTalkId) {
+      const updatePayload: any = {
+        topic: talkForm.topic, date_conducted: talkForm.date_conducted,
+        conducted_by: talkForm.conducted_by || null,
+      };
+      if (fileUrl) updatePayload.file_url = fileUrl;
+      const { error } = await supabase.from("toolbox_talks").update(updatePayload).eq("id", editingTalkId);
+      setSavingTalk(false);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Toolbox talk updated");
+    } else {
+      const { error } = await supabase.from("toolbox_talks").insert({
+        organisation_id: profile.organisation_id, driver_id: id,
+        topic: talkForm.topic, date_conducted: talkForm.date_conducted,
+        conducted_by: talkForm.conducted_by || null, file_url: fileUrl,
+      });
+      setSavingTalk(false);
+      if (error) { toast.error(error.message); return; }
       toast.success("Toolbox talk added");
-      setShowTalkForm(false); setTalkFile(null);
-      setTalkForm({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
-      queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
     }
+    setShowTalkForm(false); setTalkFile(null); setEditingTalkId(null);
+    setTalkForm({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
+    queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
+  };
+
+  const handleEditTalk = (talk: any) => {
+    setEditingTalkId(talk.id);
+    setTalkForm({
+      topic: talk.topic || "",
+      date_conducted: talk.date_conducted || new Date().toISOString().split("T")[0],
+      conducted_by: talk.conducted_by || "",
+    });
+    setTalkFile(null);
+    setShowTalkForm(true);
+  };
+
+  const handleDeleteTalk = async () => {
+    if (!deleteTalkId) return;
+    setDeletingTalk(true);
+    const { error } = await supabase.from("toolbox_talks").delete().eq("id", deleteTalkId);
+    setDeletingTalk(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Toolbox talk deleted");
+    setDeleteTalkId(null);
+    queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
   };
 
   const startEditing = () => {
