@@ -53,8 +53,34 @@ export default function Dashboard() {
     recalculateAllVehicleCompliance().then(() => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard_stats"] });
+      queryClient.invalidateQueries({ queryKey: ["action_required"] });
     });
   }, []);
+
+  // Real-time subscriptions: refresh dashboard whenever vehicles, certificates,
+  // drivers, or driver_documents change anywhere in the app.
+  useEffect(() => {
+    if (!profile?.organisation_id) return;
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard_stats"] });
+      queryClient.invalidateQueries({ queryKey: ["action_required"] });
+      queryClient.invalidateQueries({ queryKey: ["certificates"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming_expiries"] });
+      queryClient.invalidateQueries({ queryKey: ["hs_score"] });
+    };
+    const channel = supabase
+      .channel("dashboard-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vehicles" }, invalidate)
+      .on("postgres_changes", { event: "*", schema: "public", table: "certificates" }, invalidate)
+      .on("postgres_changes", { event: "*", schema: "public", table: "drivers" }, invalidate)
+      .on("postgres_changes", { event: "*", schema: "public", table: "driver_documents" }, invalidate)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.organisation_id, queryClient]);
 
   useEffect(() => {
     fetchInsights();

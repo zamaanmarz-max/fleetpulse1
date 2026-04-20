@@ -16,6 +16,9 @@ export function useVehicles() {
       return data;
     },
     enabled: !!profile?.organisation_id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -133,7 +136,7 @@ export function useDashboardStats() {
     queryKey: ["dashboard_stats", profile?.organisation_id],
     queryFn: async () => {
       const [vehiclesRes, certsRes, alertsRes] = await Promise.all([
-        supabase.from("vehicles").select("id, compliance_status, is_active, current_odometer_km, next_service_due_km").eq("is_active", true),
+        supabase.from("vehicles").select("id, compliance_status, is_active, current_odometer_km, next_service_due_km, updated_at").eq("is_active", true),
         supabase.from("certificates").select("id, expiry_date, status"),
         supabase.from("alerts_log").select("id, resolved").eq("resolved", false),
       ]);
@@ -176,6 +179,9 @@ export function useDashboardStats() {
       };
     },
     enabled: !!profile?.organisation_id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 

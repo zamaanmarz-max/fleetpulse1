@@ -19,9 +19,12 @@ export function ActionRequired() {
   const { data } = useQuery({
     queryKey: ["action_required", profile?.organisation_id],
     enabled: !!profile?.organisation_id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const [v, c, t, j, i, st] = await Promise.all([
-        supabase.from("vehicles").select("id, registration_number, last_odometer_update").eq("is_active", true),
+        supabase.from("vehicles").select("id, registration_number, updated_at").eq("is_active", true),
         supabase.from("certificates").select("id, certificate_type, expiry_date, vehicles(registration_number, id)"),
         supabase.from("toolbox_talks").select("driver_id, date_conducted").order("date_conducted", { ascending: false }),
         supabase.from("job_cards").select("id, vehicle_id, status, work_date, vehicles(registration_number)").in("status", ["open", "in_progress"]),
@@ -42,10 +45,13 @@ export function ActionRequired() {
   const now = Date.now();
   const items: Item[] = [];
 
-  // KM not updated 7+ days
+  // KM not updated 7+ days (or never updated)
   for (const v of data?.vehicles || []) {
-    if (!v.last_odometer_update) continue;
-    const days = Math.floor((now - new Date(v.last_odometer_update).getTime()) / 86400000);
+    if (!v.updated_at) {
+      items.push({ type: "km", label: "KM Never Updated", detail: `${v.registration_number} — never updated`, link: `/vehicles/${v.id}`, severity: 9999 });
+      continue;
+    }
+    const days = Math.floor((now - new Date(v.updated_at).getTime()) / 86400000);
     if (days >= 7) {
       items.push({ type: "km", label: "KM Not Updated", detail: `${v.registration_number} — last updated ${days}d ago`, link: `/vehicles/${v.id}`, severity: days });
     }
