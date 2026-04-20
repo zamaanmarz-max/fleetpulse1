@@ -1,4 +1,4 @@
-import { Search, Plus, Loader2, X } from "lucide-react";
+import { Search, Plus, Loader2, X, IdCard, Stethoscope, BadgeCheck, MessageSquare } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDrivers } from "@/hooks/useOrgData";
@@ -142,11 +142,19 @@ export default function Drivers() {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Licence Expiry</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">PrDP Expiry</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Demerits</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Issues</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Compliance</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((d) => (
+              {filtered.map((d) => {
+                const issueFields = new Set(d.compliance.issues.filter(i => i.status !== "expiring").map(i => i.field));
+                const licenceIssue = issueFields.has("Driver's Licence");
+                const prdpIssue = issueFields.has("PrDP");
+                const medicalIssue = issueFields.has("Medical Certificate");
+                const toolboxIssue = issueFields.has("Toolbox Talk");
+                return (
                 <tr key={d.id} onClick={() => navigate(`/drivers/${d.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
                   <td className="px-4 py-3 text-sm font-medium text-foreground">{d.full_name}</td>
                   <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{d.id_number || "-"}</td>
@@ -158,13 +166,27 @@ export default function Drivers() {
                       {d.demerit_points ?? 0}/12
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <IdCard className={`w-4 h-4 ${licenceIssue ? "text-destructive" : "text-muted-foreground/30"}`} aria-label={licenceIssue ? "Licence issue" : "Licence OK"} />
+                      <BadgeCheck className={`w-4 h-4 ${prdpIssue ? "text-destructive" : "text-muted-foreground/30"}`} aria-label={prdpIssue ? "PrDP issue" : "PrDP OK"} />
+                      <Stethoscope className={`w-4 h-4 ${medicalIssue ? "text-destructive" : "text-muted-foreground/30"}`} aria-label={medicalIssue ? "Medical issue" : "Medical OK"} />
+                      <MessageSquare className={`w-4 h-4 ${toolboxIssue ? "text-destructive" : "text-muted-foreground/30"}`} aria-label={toolboxIssue ? "Toolbox overdue" : "Toolbox OK"} />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-sm font-bold ${d.compliance.score >= 80 ? "text-success" : d.compliance.score >= 50 ? "text-warning" : "text-destructive"}`}>
+                      {d.compliance.score}%
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${complianceStyles[d.compliance.status]}`}>
                       {d.compliance.status === "compliant" ? "Compliant" : d.compliance.status === "warning" ? "Warning" : "Non-Compliant"}
                     </span>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
