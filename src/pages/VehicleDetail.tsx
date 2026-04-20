@@ -470,29 +470,27 @@ export default function VehicleDetail() {
               </div>
             </div>
 
-            <div className="stat-card">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Risk Assessment</h3>
-              <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold ${riskBg(vehicle.risk_score ?? 0)}`}>{vehicle.risk_score ?? 0}</div>
-                <div>
-                  <p className={`text-lg font-semibold ${riskColor(vehicle.risk_score ?? 0)}`}>{(vehicle.risk_score ?? 0) <= 25 ? "Low Risk" : (vehicle.risk_score ?? 0) <= 50 ? "Medium Risk" : "High Risk"}</p>
-                  <p className="text-xs text-muted-foreground">Based on compliance, service, fines & damage</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Compliance Status</h3>
-              <div className="flex items-center gap-3">
-                <ShieldCheck className={`w-8 h-8 ${riskColor(vehicle.risk_score ?? 0)}`} />
-                <div>
-                  <span className={`text-sm font-semibold px-3 py-1 rounded-full uppercase ${statusStyles[vehicle.compliance_status || "compliant"]}`}>{vehicle.compliance_status || "compliant"}</span>
-                  {(vehicle as any).compliance_templates?.template_name && <p className="text-xs text-muted-foreground mt-1">Template: {(vehicle as any).compliance_templates.template_name}</p>}
-                </div>
-              </div>
-            </div>
+            {(() => {
+              const compliance = calculateVehicleComplianceScore(
+                vehicle as any,
+                (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
+                (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracking_type: t.tracking_type, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
+              );
+              return <ComplianceScoreCard score={compliance.score} status={compliance.status} breakdown={compliance.breakdown} />;
+            })()}
 
             <ComplianceRequirements
+              equipment={(vehicle.equipment as string[]) || []}
+              certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
+            />
+          </div>
+        </div>
+      )}
+
+      {activeTab === "trackers" && (
+        <ServiceTrackersTab vehicleId={id!} organisationId={vehicle.organisation_id} currentKm={currentKm} />
+      )}
               equipment={(vehicle.equipment as string[]) || []}
               certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
             />
