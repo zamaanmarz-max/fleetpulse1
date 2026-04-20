@@ -23,7 +23,12 @@ export interface DriverComplianceResult {
  *   Status bands: >=80 compliant, 50-79 warning, <50 critical
  */
 export function checkDriverCompliance(
-  driver: { licence_expiry: string | null; prdp_expiry: string | null },
+  driver: {
+    licence_expiry: string | null;
+    prdp_expiry: string | null;
+    licence_number?: string | null;
+    prdp_number?: string | null;
+  },
   documents: { document_type: string; expiry_date: string | null; calcStatus: string }[],
   toolboxTalks: { date_conducted: string }[]
 ): DriverComplianceResult {
@@ -32,10 +37,13 @@ export function checkDriverCompliance(
   const breakdown: DriverComplianceResult["breakdown"] = [];
   let score = 100;
 
-  // Licence
-  if (!driver.licence_expiry) {
+  // Licence — needs both number AND valid (future) expiry
+  if (!driver.licence_number || driver.licence_number.trim() === "") {
     issues.push({ field: "Driver's Licence", status: "missing" });
-    score -= 25; breakdown.push({ label: "No driver's licence", deduction: 25, severity: "critical" });
+    score -= 25; breakdown.push({ label: "No licence number on file", deduction: 25, severity: "critical" });
+  } else if (!driver.licence_expiry) {
+    issues.push({ field: "Driver's Licence", status: "missing" });
+    score -= 25; breakdown.push({ label: "No licence expiry on file", deduction: 25, severity: "critical" });
   } else {
     const days = Math.ceil((new Date(driver.licence_expiry).getTime() - now) / 86400000);
     if (days <= 0) {
@@ -47,10 +55,13 @@ export function checkDriverCompliance(
     }
   }
 
-  // PrDP
-  if (!driver.prdp_expiry) {
+  // PrDP — same logic
+  if (!driver.prdp_number || driver.prdp_number.trim() === "") {
     issues.push({ field: "PrDP", status: "missing" });
-    score -= 20; breakdown.push({ label: "No PrDP", deduction: 20, severity: "critical" });
+    score -= 20; breakdown.push({ label: "No PrDP number on file", deduction: 20, severity: "critical" });
+  } else if (!driver.prdp_expiry) {
+    issues.push({ field: "PrDP", status: "missing" });
+    score -= 20; breakdown.push({ label: "No PrDP expiry on file", deduction: 20, severity: "critical" });
   } else {
     const days = Math.ceil((new Date(driver.prdp_expiry).getTime() - now) / 86400000);
     if (days <= 0) {

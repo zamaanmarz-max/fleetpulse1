@@ -53,7 +53,12 @@ export default function Drivers() {
     });
     const talks = (allToolboxTalks || []).filter(t => t.driver_id === d.id);
     const compliance = checkDriverCompliance(
-      { licence_expiry: d.licence_expiry, prdp_expiry: d.prdp_expiry },
+      {
+        licence_expiry: d.licence_expiry,
+        prdp_expiry: d.prdp_expiry,
+        licence_number: d.licence_number,
+        prdp_number: d.prdp_number,
+      },
       docs,
       talks
     );

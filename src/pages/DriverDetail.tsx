@@ -105,7 +105,12 @@ export default function DriverDetail() {
 
   // Compute full driver compliance
   const compliance = driver ? checkDriverCompliance(
-    { licence_expiry: driver.licence_expiry, prdp_expiry: driver.prdp_expiry },
+    {
+      licence_expiry: driver.licence_expiry,
+      prdp_expiry: driver.prdp_expiry,
+      licence_number: driver.licence_number,
+      prdp_number: driver.prdp_number,
+    },
     enrichedDocs,
     toolboxTalks || []
   ) : null;
