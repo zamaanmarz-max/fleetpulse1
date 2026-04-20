@@ -29,6 +29,7 @@ export default function Vehicles() {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [updateKmFor, setUpdateKmFor] = useState<{ id: string; reg: string; km: number } | null>(null);
   const { data: vehicles, isLoading } = useVehicles();
   const { data: allCerts } = useCertificates();
   const { profile } = useAuth();
