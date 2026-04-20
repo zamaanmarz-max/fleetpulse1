@@ -63,6 +63,7 @@ function kmProgressColor(km: number) {
 const tabs = [
   { id: "overview", label: "Overview", icon: Truck },
   { id: "certificates", label: "Certificates", icon: FileText },
+  { id: "trackers", label: "Service Trackers", icon: ClipboardList },
   { id: "jobcards", label: "Job Cards", icon: Wrench },
   { id: "inspections", label: "Inspections", icon: ClipboardCheck },
   { id: "fines", label: "Fines", icon: DollarSign },
