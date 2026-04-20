@@ -16,6 +16,9 @@ export function useVehicles() {
       return data;
     },
     enabled: !!profile?.organisation_id,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
