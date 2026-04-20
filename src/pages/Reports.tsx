@@ -1,7 +1,10 @@
 import { BarChart3, FileDown, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useVehicles, useCertificates, useDrivers, useInspections, useFines } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { BranchFilter } from "@/components/filters/BranchFilter";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -12,16 +15,100 @@ const reportTypes = [
   { id: "service", name: "KM Service Schedule Report", desc: "Vehicles with KM readings and service schedule" },
   { id: "damage", name: "Damage Inspection Report", desc: "Inspections with condition and damage counts" },
   { id: "fines", name: "AARTO and Fines Report", desc: "Traffic fines and demerit summary" },
+  { id: "hs", name: "H&S Compliance Report", desc: "Health & safety: medicals, toolbox talks, inspections, repairs" },
+  { id: "maintenance", name: "Maintenance Cost Report", desc: "Job cards, parts, labour costs per vehicle" },
+  { id: "trackers", name: "Service Trackers Report", desc: "Custom service trackers with due dates and KM" },
 ];
 
 export default function Reports() {
+  const { profile } = useAuth();
   const { data: vehicles } = useVehicles();
   const { data: certificates } = useCertificates();
   const { data: drivers } = useDrivers();
   const { data: inspections } = useInspections();
   const { data: fines } = useFines();
-  const { profile } = useAuth();
   const [generating, setGenerating] = useState<string | null>(null);
+  const [branchId, setBranchId] = useState<string>("");
+
+  const { data: jobCards } = useQuery({
+    queryKey: ["job_cards_report", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("job_cards")
+        .select("*, vehicles(registration_number, fleet_number, branch_id)")
+        .order("work_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: trackers } = useQuery({
+    queryKey: ["trackers_report", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_service_trackers")
+        .select("*, vehicles(registration_number, fleet_number, branch_id, current_odometer_km)")
+        .order("tracker_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: toolboxTalks } = useQuery({
+    queryKey: ["toolbox_talks_report", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("toolbox_talks")
+        .select("*, drivers(full_name, branch_id)")
+        .order("date_conducted", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: driverDocs } = useQuery({
+    queryKey: ["driver_docs_report", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("driver_documents")
+        .select("*, drivers(full_name, branch_id)");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: damageItems } = useQuery({
+    queryKey: ["damage_items_report", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("damage_items")
+        .select("*, vehicles(registration_number, branch_id)");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  // Branch-filtered datasets
+  const filtered = useMemo(() => {
+    const fb = (item: any, key = "branch_id") => !branchId || item?.[key] === branchId || item?.vehicles?.branch_id === branchId || item?.drivers?.branch_id === branchId;
+    return {
+      vehicles: (vehicles || []).filter(v => fb(v)),
+      certificates: (certificates || []).filter(c => fb(c)),
+      drivers: (drivers || []).filter(d => fb(d)),
+      inspections: (inspections || []).filter(i => fb(i)),
+      fines: (fines || []).filter(f => fb(f)),
+      jobCards: (jobCards || []).filter(j => fb(j)),
+      trackers: (trackers || []).filter(t => fb(t)),
+      toolboxTalks: (toolboxTalks || []).filter(t => fb(t)),
+      driverDocs: (driverDocs || []).filter(d => fb(d)),
+      damageItems: (damageItems || []).filter(d => fb(d)),
+    };
+  }, [branchId, vehicles, certificates, drivers, inspections, fines, jobCards, trackers, toolboxTalks, driverDocs, damageItems]);
 
   const pdfHeader = (doc: jsPDF, title: string) => {
     const now = new Date();
@@ -31,8 +118,9 @@ export default function Reports() {
     doc.setTextColor(100);
     doc.text(`Generated: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, 14, 30);
     doc.text("MARZ Fleet by MARZ Technologies", 14, 36);
+    if (branchId) doc.text("Filtered by selected branch", 14, 42);
     doc.setTextColor(0);
-    return 44;
+    return branchId ? 50 : 44;
   };
 
   const pdfFooter = (doc: jsPDF) => {
@@ -48,11 +136,16 @@ export default function Reports() {
 
   const generatePDF = (reportId: string) => {
     const doc = new jsPDF();
-    const vList = vehicles || [];
-    const cList = certificates || [];
-    const dList = drivers || [];
-    const iList = inspections || [];
-    const fList = fines || [];
+    const vList = filtered.vehicles;
+    const cList = filtered.certificates;
+    const dList = filtered.drivers;
+    const iList = filtered.inspections;
+    const fList = filtered.fines;
+    const jList = filtered.jobCards;
+    const tList = filtered.trackers;
+    const ttList = filtered.toolboxTalks;
+    const ddList = filtered.driverDocs;
+    const diList = filtered.damageItems;
     const now = new Date();
 
     if (reportId === "fleet") {
@@ -127,6 +220,113 @@ export default function Reports() {
         body: fList.map(f => [f.fine_number || "-", (f as any).vehicles?.registration_number || "-", (f as any).drivers?.full_name || "-", `R ${(Number(f.amount) || 0).toLocaleString()}`, f.demerit_points_applied ?? 0, f.offence_date || "-", f.payment_status || "unpaid"]),
         theme: "striped", headStyles: { fillColor: [41, 128, 185] },
       });
+    } else if (reportId === "hs") {
+      let y = pdfHeader(doc, "H&S Compliance Report");
+      // Score breakdown
+      const driversWithMedical = dList.filter(d => ddList.some(doc => doc.driver_id === d.id && /medical/i.test(doc.document_type || "") && doc.expiry_date && new Date(doc.expiry_date) > now)).length;
+      const driversWithRecentTalk = dList.filter(d => ttList.some(t => t.driver_id === d.id && (now.getTime() - new Date(t.date_conducted).getTime()) / 86400000 <= 30)).length;
+      const driversWithCriminal = dList.filter(d => ddList.some(doc => doc.driver_id === d.id && /criminal/i.test(doc.document_type || ""))).length;
+      const ninetyDays = 90 * 86400000;
+      const vehiclesWithRecentInsp = vList.filter(v => iList.some(i => i.vehicle_id === v.id && (now.getTime() - new Date(i.inspection_date || 0).getTime()) <= ninetyDays)).length;
+      const totalDamages = diList.length;
+      const resolvedDamages = diList.filter(d => d.resolved).length;
+      const damagePct = totalDamages > 0 ? (resolvedDamages / totalDamages) * 100 : 100;
+      const dCount = dList.length || 1;
+      const vCount = vList.length || 1;
+      const overall = Math.round(((driversWithMedical / dCount) * 20 + (driversWithRecentTalk / dCount) * 20 + (driversWithCriminal / dCount) * 20 + (vehiclesWithRecentInsp / vCount) * 20 + (damagePct / 100) * 20));
+
+      doc.setFontSize(12); doc.text(`Overall H&S Score: ${overall}%`, 14, y);
+      autoTable(doc, {
+        startY: y + 8,
+        head: [["Metric", "Status", "%"]],
+        body: [
+          ["Drivers with valid medical certs", `${driversWithMedical}/${dList.length}`, `${Math.round((driversWithMedical / dCount) * 100)}%`],
+          ["Drivers with toolbox talk (30d)", `${driversWithRecentTalk}/${dList.length}`, `${Math.round((driversWithRecentTalk / dCount) * 100)}%`],
+          ["Drivers with criminal check", `${driversWithCriminal}/${dList.length}`, `${Math.round((driversWithCriminal / dCount) * 100)}%`],
+          ["Vehicles inspected (90d)", `${vehiclesWithRecentInsp}/${vList.length}`, `${Math.round((vehiclesWithRecentInsp / vCount) * 100)}%`],
+          ["Damages resolved", `${resolvedDamages}/${totalDamages}`, `${Math.round(damagePct)}%`],
+        ],
+        theme: "striped", headStyles: { fillColor: [41, 128, 185] },
+      });
+
+      const lastY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(11); doc.text("Outstanding Repairs", 14, lastY);
+      const unresolvedDamages = diList.filter(d => !d.resolved);
+      if (unresolvedDamages.length > 0) {
+        autoTable(doc, {
+          startY: lastY + 4,
+          head: [["Vehicle", "Location", "Severity", "Type"]],
+          body: unresolvedDamages.map(d => [(d as any).vehicles?.registration_number || "-", d.location || "-", (d.severity || "-").toUpperCase(), d.damage_type || "-"]),
+          theme: "striped", headStyles: { fillColor: [41, 128, 185] },
+        });
+      } else {
+        doc.setFontSize(10); doc.text("None — all damages resolved.", 14, lastY + 8);
+      }
+
+      const recY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : lastY + 20;
+      doc.setFontSize(11); doc.text("Recommendations", 14, recY);
+      const recs: string[] = [];
+      if (driversWithMedical < dList.length) recs.push(`• Schedule medical checks for ${dList.length - driversWithMedical} driver(s)`);
+      if (driversWithRecentTalk < dList.length) recs.push(`• Conduct toolbox talks for ${dList.length - driversWithRecentTalk} driver(s) within 30 days`);
+      if (vehiclesWithRecentInsp < vList.length) recs.push(`• Inspect ${vList.length - vehiclesWithRecentInsp} vehicle(s) — last inspection > 90 days`);
+      if (unresolvedDamages.length > 0) recs.push(`• Resolve ${unresolvedDamages.length} outstanding damage repair(s)`);
+      if (recs.length === 0) recs.push("• Excellent — no immediate H&S actions required.");
+      doc.setFontSize(10);
+      recs.forEach((r, i) => doc.text(r, 14, recY + 8 + i * 6));
+    } else if (reportId === "maintenance") {
+      let y = pdfHeader(doc, "Maintenance Cost Report");
+      const totalSpend = jList.reduce((s, j) => s + (Number(j.total_cost) || 0), 0);
+      const totalLabour = jList.reduce((s, j) => s + (Number(j.labour_cost) || 0), 0);
+      const totalParts = jList.reduce((s, j) => s + (Number(j.parts_cost) || 0), 0);
+      doc.setFontSize(10);
+      doc.text(`Total Job Cards: ${jList.length} | Total Spend: R ${totalSpend.toLocaleString()} | Labour: R ${totalLabour.toLocaleString()} | Parts: R ${totalParts.toLocaleString()}`, 14, y);
+      autoTable(doc, {
+        startY: y + 8,
+        head: [["Date", "Vehicle", "Type", "Workshop", "Labour", "Parts", "Total", "Status"]],
+        body: jList.map(j => [j.work_date || "-", (j as any).vehicles?.registration_number || "-", j.job_type, j.workshop_name || "-", `R ${(Number(j.labour_cost) || 0).toLocaleString()}`, `R ${(Number(j.parts_cost) || 0).toLocaleString()}`, `R ${(Number(j.total_cost) || 0).toLocaleString()}`, (j.status || "open").toUpperCase()]),
+        theme: "striped", headStyles: { fillColor: [41, 128, 185] },
+      });
+
+      // Per-vehicle aggregation
+      const byVehicle: Record<string, number> = {};
+      jList.forEach(j => {
+        const reg = (j as any).vehicles?.registration_number || "Unknown";
+        byVehicle[reg] = (byVehicle[reg] || 0) + (Number(j.total_cost) || 0);
+      });
+      const lastY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(11); doc.text("Spend by Vehicle", 14, lastY);
+      autoTable(doc, {
+        startY: lastY + 4,
+        head: [["Vehicle", "Total Spend"]],
+        body: Object.entries(byVehicle).sort((a, b) => b[1] - a[1]).map(([reg, total]) => [reg, `R ${total.toLocaleString()}`]),
+        theme: "striped", headStyles: { fillColor: [41, 128, 185] },
+      });
+    } else if (reportId === "trackers") {
+      let y = pdfHeader(doc, "Service Trackers Report");
+      autoTable(doc, {
+        startY: y,
+        head: [["Vehicle", "Tracker", "Type", "Interval", "Last Done", "Next Due", "Status"]],
+        body: tList.map(t => {
+          let status = "OK";
+          let nextDueDisplay = "-";
+          if (t.tracking_type === "km") {
+            const currentKm = (t as any).vehicles?.current_odometer_km ?? 0;
+            const remaining = (t.next_due_value ?? 0) - currentKm;
+            nextDueDisplay = `${(t.next_due_value ?? 0).toLocaleString()} km`;
+            if (remaining < 0) status = "OVERDUE"; else if (remaining < 500) status = "DUE SOON";
+          } else if (t.tracking_type === "days" && t.next_due_date) {
+            const days = Math.ceil((new Date(t.next_due_date).getTime() - now.getTime()) / 86400000);
+            nextDueDisplay = t.next_due_date;
+            if (days < 0) status = "OVERDUE"; else if (days < 14) status = "DUE SOON";
+          } else if (t.tracking_type === "hours") {
+            nextDueDisplay = `${(t.next_due_value ?? 0).toLocaleString()} hrs`;
+          }
+          const lastDone = t.tracking_type === "days" ? (t.last_done_date || "-") : `${(t.last_done_value ?? 0).toLocaleString()} ${t.tracking_type}`;
+          return [(t as any).vehicles?.registration_number || "-", t.tracker_name, t.tracking_type, `${t.interval_value} ${t.tracking_type}`, lastDone, nextDueDisplay, status];
+        }),
+        theme: "striped", headStyles: { fillColor: [41, 128, 185] },
+        didParseCell: (data: any) => { if (data.column.index === 6 && data.section === "body" && data.cell.raw === "OVERDUE") { data.cell.styles.textColor = [220, 50, 50]; data.cell.styles.fontStyle = "bold"; } },
+      });
     }
 
     pdfFooter(doc);
@@ -136,11 +336,13 @@ export default function Reports() {
   const generateCSV = (reportId: string) => {
     let csv = "";
     const now = new Date();
-    const vList = vehicles || [];
-    const cList = certificates || [];
-    const dList = drivers || [];
-    const iList = inspections || [];
-    const fList = fines || [];
+    const vList = filtered.vehicles;
+    const cList = filtered.certificates;
+    const dList = filtered.drivers;
+    const iList = filtered.inspections;
+    const fList = filtered.fines;
+    const jList = filtered.jobCards;
+    const tList = filtered.trackers;
 
     if (reportId === "fleet") {
       csv = "Registration,Fleet No,Make,Model,Status,Current KM,KM to Service\n";
@@ -160,6 +362,24 @@ export default function Reports() {
     } else if (reportId === "fines") {
       csv = "Fine No,Vehicle,Driver,Amount,Demerits,Date,Status\n";
       fList.forEach(f => { csv += `"${f.fine_number || ""}","${(f as any).vehicles?.registration_number || ""}","${(f as any).drivers?.full_name || ""}",${Number(f.amount) || 0},${f.demerit_points_applied ?? 0},"${f.offence_date || ""}","${f.payment_status || "unpaid"}"\n`; });
+    } else if (reportId === "maintenance") {
+      csv = "Date,Vehicle,Type,Workshop,Labour,Parts,Total,Status\n";
+      jList.forEach(j => { csv += `"${j.work_date || ""}","${(j as any).vehicles?.registration_number || ""}","${j.job_type}","${j.workshop_name || ""}",${Number(j.labour_cost) || 0},${Number(j.parts_cost) || 0},${Number(j.total_cost) || 0},"${j.status || "open"}"\n`; });
+    } else if (reportId === "trackers") {
+      csv = "Vehicle,Tracker,Type,Interval,Last Done,Next Due\n";
+      tList.forEach(t => {
+        const lastDone = t.tracking_type === "days" ? (t.last_done_date || "") : (t.last_done_value ?? 0);
+        const nextDue = t.tracking_type === "days" ? (t.next_due_date || "") : (t.next_due_value ?? 0);
+        csv += `"${(t as any).vehicles?.registration_number || ""}","${t.tracker_name}","${t.tracking_type}",${t.interval_value},"${lastDone}","${nextDue}"\n`;
+      });
+    } else if (reportId === "hs") {
+      csv = "Driver,Medical,Toolbox 30d,Criminal Check\n";
+      dList.forEach(d => {
+        const med = (driverDocs || []).some((doc: any) => doc.driver_id === d.id && /medical/i.test(doc.document_type || "") && doc.expiry_date && new Date(doc.expiry_date) > now) ? "Yes" : "No";
+        const tb = (toolboxTalks || []).some((t: any) => t.driver_id === d.id && (now.getTime() - new Date(t.date_conducted).getTime()) / 86400000 <= 30) ? "Yes" : "No";
+        const crim = (driverDocs || []).some((doc: any) => doc.driver_id === d.id && /criminal/i.test(doc.document_type || "")) ? "Yes" : "No";
+        csv += `"${d.full_name}","${med}","${tb}","${crim}"\n`;
+      });
     }
 
     const blob = new Blob([csv], { type: "text/csv" });
@@ -183,9 +403,12 @@ export default function Reports() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Reports</h1>
-        <p className="text-sm text-muted-foreground">Generate and export compliance reports</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Reports</h1>
+          <p className="text-sm text-muted-foreground">Generate and export compliance reports</p>
+        </div>
+        <BranchFilter value={branchId} onChange={setBranchId} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

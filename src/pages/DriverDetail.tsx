@@ -4,10 +4,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save, MessageSquare,
+  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save, MessageSquare, Trash2, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const statusStyles: Record<string, string> = {
   valid: "bg-success/20 text-success",
@@ -42,6 +46,14 @@ export default function DriverDetail() {
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  // Doc edit/delete
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
+  // Talk edit/delete
+  const [editingTalkId, setEditingTalkId] = useState<string | null>(null);
+  const [deleteTalkId, setDeleteTalkId] = useState<string | null>(null);
+  const [deletingTalk, setDeletingTalk] = useState(false);
 
   const { data: driver, isLoading } = useQuery({
     queryKey: ["driver", id],
@@ -112,19 +124,54 @@ export default function DriverDetail() {
     }
     const days = form.expiry_date ? Math.ceil((new Date(form.expiry_date).getTime() - now) / 86400000) : null;
     const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
-    const { error } = await supabase.from("driver_documents").insert({
-      organisation_id: profile.organisation_id, driver_id: id,
-      document_type: form.document_type, document_name: form.document_name || form.document_type,
-      document_number: form.document_number || null, expiry_date: form.expiry_date || null,
-      file_url: fileUrl, uploaded_by: user?.id || null, status,
-    });
-    setSaving(false);
-    if (error) { toast.error(error.message); } else {
+
+    if (editingDocId) {
+      const updatePayload: any = {
+        document_type: form.document_type, document_name: form.document_name || form.document_type,
+        document_number: form.document_number || null, expiry_date: form.expiry_date || null, status,
+      };
+      if (fileUrl) updatePayload.file_url = fileUrl;
+      const { error } = await supabase.from("driver_documents").update(updatePayload).eq("id", editingDocId);
+      setSaving(false);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Document updated");
+    } else {
+      const { error } = await supabase.from("driver_documents").insert({
+        organisation_id: profile.organisation_id, driver_id: id,
+        document_type: form.document_type, document_name: form.document_name || form.document_type,
+        document_number: form.document_number || null, expiry_date: form.expiry_date || null,
+        file_url: fileUrl, uploaded_by: user?.id || null, status,
+      });
+      setSaving(false);
+      if (error) { toast.error(error.message); return; }
       toast.success("Document added");
-      setShowForm(false); setFile(null);
-      setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
-      queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
     }
+    setShowForm(false); setFile(null); setEditingDocId(null);
+    setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+    queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
+  };
+
+  const handleEditDoc = (doc: any) => {
+    setEditingDocId(doc.id);
+    setForm({
+      document_type: doc.document_type || "",
+      document_name: doc.document_name || "",
+      document_number: doc.document_number || "",
+      expiry_date: doc.expiry_date || "",
+    });
+    setFile(null);
+    setShowForm(true);
+  };
+
+  const handleDeleteDoc = async () => {
+    if (!deleteDocId) return;
+    setDeletingDoc(true);
+    const { error } = await supabase.from("driver_documents").delete().eq("id", deleteDocId);
+    setDeletingDoc(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Document deleted");
+    setDeleteDocId(null);
+    queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
   };
 
   const handleSaveTalk = async () => {
@@ -137,18 +184,51 @@ export default function DriverDetail() {
       if (upErr) { toast.error("Upload failed: " + upErr.message); setSavingTalk(false); return; }
       fileUrl = path;
     }
-    const { error } = await supabase.from("toolbox_talks").insert({
-      organisation_id: profile.organisation_id, driver_id: id,
-      topic: talkForm.topic, date_conducted: talkForm.date_conducted,
-      conducted_by: talkForm.conducted_by || null, file_url: fileUrl,
-    });
-    setSavingTalk(false);
-    if (error) { toast.error(error.message); } else {
+    if (editingTalkId) {
+      const updatePayload: any = {
+        topic: talkForm.topic, date_conducted: talkForm.date_conducted,
+        conducted_by: talkForm.conducted_by || null,
+      };
+      if (fileUrl) updatePayload.file_url = fileUrl;
+      const { error } = await supabase.from("toolbox_talks").update(updatePayload).eq("id", editingTalkId);
+      setSavingTalk(false);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Toolbox talk updated");
+    } else {
+      const { error } = await supabase.from("toolbox_talks").insert({
+        organisation_id: profile.organisation_id, driver_id: id,
+        topic: talkForm.topic, date_conducted: talkForm.date_conducted,
+        conducted_by: talkForm.conducted_by || null, file_url: fileUrl,
+      });
+      setSavingTalk(false);
+      if (error) { toast.error(error.message); return; }
       toast.success("Toolbox talk added");
-      setShowTalkForm(false); setTalkFile(null);
-      setTalkForm({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
-      queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
     }
+    setShowTalkForm(false); setTalkFile(null); setEditingTalkId(null);
+    setTalkForm({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
+    queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
+  };
+
+  const handleEditTalk = (talk: any) => {
+    setEditingTalkId(talk.id);
+    setTalkForm({
+      topic: talk.topic || "",
+      date_conducted: talk.date_conducted || new Date().toISOString().split("T")[0],
+      conducted_by: talk.conducted_by || "",
+    });
+    setTalkFile(null);
+    setShowTalkForm(true);
+  };
+
+  const handleDeleteTalk = async () => {
+    if (!deleteTalkId) return;
+    setDeletingTalk(true);
+    const { error } = await supabase.from("toolbox_talks").delete().eq("id", deleteTalkId);
+    setDeletingTalk(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Toolbox talk deleted");
+    setDeleteTalkId(null);
+    queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
   };
 
   const startEditing = () => {
@@ -348,6 +428,7 @@ export default function DriverDetail() {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Actions</th>
               </tr></thead>
               <tbody>
                 {enrichedDocs.map(doc => (
@@ -358,6 +439,16 @@ export default function DriverDetail() {
                     <td className="px-4 py-3 text-center">{doc.expiry_date && <span className={`text-sm font-semibold ${doc.daysRemaining <= 0 ? "text-destructive" : doc.daysRemaining <= 30 ? "text-warning" : "text-success"}`}>{doc.daysRemaining <= 0 ? `${Math.abs(doc.daysRemaining)}d overdue` : `${doc.daysRemaining}d`}</span>}</td>
                     <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[doc.calcStatus]}`}>{doc.calcStatus === "valid" ? "Valid" : doc.calcStatus === "expiring" ? "Expiring" : "Expired"}</span></td>
                     <td className="px-4 py-3 text-center">{doc.file_url ? <button onClick={async () => { const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url!, 3600); if (data?.signedUrl) window.open(data.signedUrl, "_blank"); }} className="text-xs text-primary hover:underline">View</button> : <span className="text-xs text-muted-foreground">-</span>}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => handleEditDoc(doc)} className="text-muted-foreground hover:text-primary" title={doc.file_url ? "Edit / Replace file" : "Edit"}>
+                          {doc.file_url ? <RefreshCw className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => setDeleteDocId(doc.id)} className="text-muted-foreground hover:text-destructive" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -389,6 +480,7 @@ export default function DriverDetail() {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Date</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Conducted By</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Actions</th>
               </tr></thead>
               <tbody>
                 {(toolboxTalks || []).map(talk => (
@@ -397,6 +489,16 @@ export default function DriverDetail() {
                     <td className="px-4 py-3 text-sm text-center text-foreground">{talk.date_conducted}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{talk.conducted_by || "-"}</td>
                     <td className="px-4 py-3 text-center">{talk.file_url ? <button onClick={async () => { const { data } = await supabase.storage.from("documents").createSignedUrl(talk.file_url!, 3600); if (data?.signedUrl) window.open(data.signedUrl, "_blank"); }} className="text-xs text-primary hover:underline">View</button> : <span className="text-xs text-muted-foreground">-</span>}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => handleEditTalk(talk)} className="text-muted-foreground hover:text-primary" title={talk.file_url ? "Edit / Replace file" : "Edit"}>
+                          {talk.file_url ? <RefreshCw className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => setDeleteTalkId(talk.id)} className="text-muted-foreground hover:text-destructive" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -437,14 +539,14 @@ export default function DriverDetail() {
         </div>
       )}
 
-      {/* Add Document Form */}
+      {/* Add/Edit Document Form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-background/50" onClick={() => setShowForm(false)} />
+          <div className="flex-1 bg-background/50" onClick={() => { setShowForm(false); setEditingDocId(null); setFile(null); }} />
           <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">Add Document</h2>
-              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              <h2 className="text-lg font-bold text-foreground">{editingDocId ? "Edit Document" : "Add Document"}</h2>
+              <button onClick={() => { setShowForm(false); setEditingDocId(null); setFile(null); }} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Document Type *</label>
@@ -468,24 +570,25 @@ export default function DriverDetail() {
               <input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Upload File (PDF/Image)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">{editingDocId ? "Replace File (optional)" : "Upload File (PDF/Image)"}</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+              {editingDocId && <p className="text-xs text-muted-foreground mt-1">Leave empty to keep existing file</p>}
             </div>
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Document
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {editingDocId ? "Update Document" : "Save Document"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Add Toolbox Talk Form */}
+      {/* Add/Edit Toolbox Talk Form */}
       {showTalkForm && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-background/50" onClick={() => setShowTalkForm(false)} />
+          <div className="flex-1 bg-background/50" onClick={() => { setShowTalkForm(false); setEditingTalkId(null); setTalkFile(null); }} />
           <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">Add Toolbox Talk</h2>
-              <button onClick={() => setShowTalkForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              <h2 className="text-lg font-bold text-foreground">{editingTalkId ? "Edit Toolbox Talk" : "Add Toolbox Talk"}</h2>
+              <button onClick={() => { setShowTalkForm(false); setEditingTalkId(null); setTalkFile(null); }} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Topic/Title *</label>
@@ -500,15 +603,48 @@ export default function DriverDetail() {
               <input type="text" value={talkForm.conducted_by} onChange={e => setTalkForm({ ...talkForm, conducted_by: e.target.value })} placeholder="Name of person" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Upload Attendance Sheet (PDF/Image)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">{editingTalkId ? "Replace Attendance Sheet (optional)" : "Upload Attendance Sheet (PDF/Image)"}</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setTalkFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+              {editingTalkId && <p className="text-xs text-muted-foreground mt-1">Leave empty to keep existing file</p>}
             </div>
             <button onClick={handleSaveTalk} disabled={savingTalk} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {savingTalk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Toolbox Talk
+              {savingTalk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {editingTalkId ? "Update Toolbox Talk" : "Save Toolbox Talk"}
             </button>
           </div>
         </div>
       )}
+
+      {/* Delete document confirmation */}
+      <AlertDialog open={!!deleteDocId} onOpenChange={(open) => !open && setDeleteDocId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>Permanently delete this driver document? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteDoc} disabled={deletingDoc} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingDoc ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete toolbox talk confirmation */}
+      <AlertDialog open={!!deleteTalkId} onOpenChange={(open) => !open && setDeleteTalkId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Toolbox Talk</AlertDialogTitle>
+            <AlertDialogDescription>Permanently delete this toolbox talk? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTalk} disabled={deletingTalk} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingTalk ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

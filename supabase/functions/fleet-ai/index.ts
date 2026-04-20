@@ -139,7 +139,36 @@ const tools = [
       },
     },
   },
-];
+  {
+    type: "function",
+    function: {
+      name: "get_certificate_link",
+      description: "Get a secure 1-hour download link for a vehicle's certificate file (COF, licence disc, roadworthy, etc.). Returns a markdown link.",
+      parameters: {
+        type: "object",
+        properties: {
+          registration_number: { type: "string" },
+          certificate_type: { type: "string", description: "e.g. 'COF', 'Licence Disc', 'Roadworthy'" },
+        },
+        required: ["registration_number", "certificate_type"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_driver_document_link",
+      description: "Get a secure 1-hour download link for a driver's document file (Licence, PrDP, Medical, etc.). Returns a markdown link.",
+      parameters: {
+        type: "object",
+        properties: {
+          driver_name: { type: "string" },
+          document_type: { type: "string", description: "e.g. 'Licence', 'PrDP', 'Medical'" },
+        },
+        required: ["driver_name", "document_type"],
+      },
+    },
+  },
 
 async function executeTool(supabase: any, toolName: string, args: any): Promise<string> {
   switch (toolName) {
