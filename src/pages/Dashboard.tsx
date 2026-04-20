@@ -13,6 +13,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
+import { ActionRequired } from "@/components/dashboard/ActionRequired";
+import { HSScoreCard } from "@/components/dashboard/HSScoreCard";
 
 const conditionColors: Record<string, string> = {
   good: "bg-success/20 text-success",
