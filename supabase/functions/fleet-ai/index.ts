@@ -286,6 +286,36 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
       if (error) return JSON.stringify({ error: error.message });
       return JSON.stringify({ success: true, message: `${args.registration_number} status updated to ${args.status}.` });
     }
+    case "get_certificate_link": {
+      const { data: vehicle } = await supabase.from("vehicles")
+        .select("id").ilike("registration_number", args.registration_number).maybeSingle();
+      if (!vehicle) return JSON.stringify({ error: `Vehicle ${args.registration_number} not found` });
+      const { data: cert } = await supabase.from("certificates")
+        .select("file_url, certificate_type, expiry_date")
+        .eq("vehicle_id", vehicle.id)
+        .ilike("certificate_type", `%${args.certificate_type}%`)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!cert) return JSON.stringify({ error: `No ${args.certificate_type} certificate found for ${args.registration_number}` });
+      if (!cert.file_url) return JSON.stringify({ error: `${args.certificate_type} for ${args.registration_number} has no file uploaded` });
+      const { data: signed, error: signErr } = await supabase.storage.from("documents").createSignedUrl(cert.file_url, 3600);
+      if (signErr || !signed?.signedUrl) return JSON.stringify({ error: `Failed to generate download link: ${signErr?.message || "unknown error"}` });
+      return JSON.stringify({ success: true, message: `Here is the secure 1-hour download link for the **${cert.certificate_type}** of **${args.registration_number}** (expires ${cert.expiry_date || "n/a"}): [Download certificate](${signed.signedUrl})` });
+    }
+    case "get_driver_document_link": {
+      const { data: driver } = await supabase.from("drivers")
+        .select("id, full_name").ilike("full_name", `%${args.driver_name}%`).limit(1).maybeSingle();
+      if (!driver) return JSON.stringify({ error: `Driver '${args.driver_name}' not found` });
+      const { data: doc } = await supabase.from("driver_documents")
+        .select("file_url, document_type, document_name, expiry_date")
+        .eq("driver_id", driver.id)
+        .ilike("document_type", `%${args.document_type}%`)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!doc) return JSON.stringify({ error: `No ${args.document_type} document found for ${driver.full_name}` });
+      if (!doc.file_url) return JSON.stringify({ error: `${args.document_type} for ${driver.full_name} has no file uploaded` });
+      const { data: signed, error: signErr } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 3600);
+      if (signErr || !signed?.signedUrl) return JSON.stringify({ error: `Failed to generate download link: ${signErr?.message || "unknown error"}` });
+      return JSON.stringify({ success: true, message: `Here is the secure 1-hour download link for **${driver.full_name}**'s **${doc.document_type}** (expires ${doc.expiry_date || "n/a"}): [Download document](${signed.signedUrl})` });
+    }
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
