@@ -46,6 +46,14 @@ export default function DriverDetail() {
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  // Doc edit/delete
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
+  // Talk edit/delete
+  const [editingTalkId, setEditingTalkId] = useState<string | null>(null);
+  const [deleteTalkId, setDeleteTalkId] = useState<string | null>(null);
+  const [deletingTalk, setDeletingTalk] = useState(false);
 
   const { data: driver, isLoading } = useQuery({
     queryKey: ["driver", id],
