@@ -14,11 +14,9 @@ export const EQUIPMENT_OPTIONS = [
   "Skip/Waste",
 ] as const;
 
-// Default certificates ALL vehicles require
+// Default certificates ALL vehicles require (only COF is mandatory by default)
 export const DEFAULT_REQUIRED_CERTS = [
   "COF Certificate",
-  "Licence Disc",
-  "Operator Card",
 ];
 
 // Mapping from equipment → required certificates

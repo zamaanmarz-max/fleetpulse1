@@ -19,12 +19,8 @@ const statusStyles: Record<string, string> = {
   expired: "bg-destructive/20 text-destructive",
 };
 
-const certTypes = [
-  "COF Certificate", "Licence Disc", "Operator Permit", "Refrigeration Certificate",
-  "Fuel Certificate", "Fire Extinguisher Certificate", "Dangerous Goods Permit",
-  "Cross-Border Permit", "Abnormal Load Permit", "Crane and Lifting Certificate",
-  "Fumigation Certificate", "Temperature Log Compliance",
-];
+// Only COF is preset. Users select "Other" to enter a custom certificate name.
+const certTypes = ["COF Certificate", "Other"];
 
 export default function Certificates() {
   const [search, setSearch] = useState("");
