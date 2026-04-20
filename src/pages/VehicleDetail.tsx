@@ -91,7 +91,7 @@ export default function VehicleDetail() {
   const [deletingCert, setDeletingCert] = useState(false);
   const [showUploadCert, setShowUploadCert] = useState(false);
   const [uploadCertForm, setUploadCertForm] = useState({
-    certificate_type: "COF Certificate",
+    certificate_type: "COF & Vehicle Licence",
     certificate_type_other: "",
     certificate_number: "",
     issue_date: "",
