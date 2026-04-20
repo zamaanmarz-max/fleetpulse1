@@ -550,7 +550,71 @@ export default function VehicleDetail() {
 
       {activeTab === "certificates" && (
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">Certificates ({(certificates || []).length})</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Certificates ({(certificates || []).length})</h3>
+            <button
+              onClick={() => setShowUploadCert(v => !v)}
+              className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90"
+            >
+              {showUploadCert ? "Cancel" : "+ Upload Certificate"}
+            </button>
+          </div>
+
+          {showUploadCert && (
+            <div className="stat-card space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase">Upload New Certificate</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Type *</label>
+                  <select
+                    value={uploadCertForm.certificate_type}
+                    onChange={(e) => setUploadCertForm({ ...uploadCertForm, certificate_type: e.target.value })}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="COF Certificate">COF Certificate</option>
+                    <option value="Other">Other (specify)</option>
+                  </select>
+                  {uploadCertForm.certificate_type === "Other" && (
+                    <input
+                      type="text"
+                      placeholder="Enter certificate name"
+                      value={uploadCertForm.certificate_type_other}
+                      onChange={(e) => setUploadCertForm({ ...uploadCertForm, certificate_type_other: e.target.value })}
+                      className="mt-2 w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Certificate Number</label>
+                  <input type="text" value={uploadCertForm.certificate_number} onChange={(e) => setUploadCertForm({ ...uploadCertForm, certificate_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Issue Date</label>
+                  <input type="date" value={uploadCertForm.issue_date} onChange={(e) => setUploadCertForm({ ...uploadCertForm, issue_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Expiry Date</label>
+                  <input type="date" value={uploadCertForm.expiry_date} onChange={(e) => setUploadCertForm({ ...uploadCertForm, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Issuing Authority</label>
+                  <input type="text" value={uploadCertForm.issuing_authority} onChange={(e) => setUploadCertForm({ ...uploadCertForm, issuing_authority: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Document File (PDF/Image)</label>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setUploadCertFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+                </div>
+              </div>
+              <button
+                onClick={handleUploadCert}
+                disabled={uploadingCert}
+                className="w-full bg-primary text-primary-foreground py-2 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Upload Certificate
+              </button>
+            </div>
+          )}
+
           
           {/* Required certificates from template */}
           {requiredCerts && requiredCerts.length > 0 && (
