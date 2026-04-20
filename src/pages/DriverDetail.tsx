@@ -428,6 +428,7 @@ export default function DriverDetail() {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Days</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Actions</th>
               </tr></thead>
               <tbody>
                 {enrichedDocs.map(doc => (
@@ -438,6 +439,16 @@ export default function DriverDetail() {
                     <td className="px-4 py-3 text-center">{doc.expiry_date && <span className={`text-sm font-semibold ${doc.daysRemaining <= 0 ? "text-destructive" : doc.daysRemaining <= 30 ? "text-warning" : "text-success"}`}>{doc.daysRemaining <= 0 ? `${Math.abs(doc.daysRemaining)}d overdue` : `${doc.daysRemaining}d`}</span>}</td>
                     <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[doc.calcStatus]}`}>{doc.calcStatus === "valid" ? "Valid" : doc.calcStatus === "expiring" ? "Expiring" : "Expired"}</span></td>
                     <td className="px-4 py-3 text-center">{doc.file_url ? <button onClick={async () => { const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url!, 3600); if (data?.signedUrl) window.open(data.signedUrl, "_blank"); }} className="text-xs text-primary hover:underline">View</button> : <span className="text-xs text-muted-foreground">-</span>}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => handleEditDoc(doc)} className="text-muted-foreground hover:text-primary" title={doc.file_url ? "Edit / Replace file" : "Edit"}>
+                          {doc.file_url ? <RefreshCw className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => setDeleteDocId(doc.id)} className="text-muted-foreground hover:text-destructive" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -469,6 +480,7 @@ export default function DriverDetail() {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Date</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Conducted By</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">File</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Actions</th>
               </tr></thead>
               <tbody>
                 {(toolboxTalks || []).map(talk => (
@@ -477,6 +489,16 @@ export default function DriverDetail() {
                     <td className="px-4 py-3 text-sm text-center text-foreground">{talk.date_conducted}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{talk.conducted_by || "-"}</td>
                     <td className="px-4 py-3 text-center">{talk.file_url ? <button onClick={async () => { const { data } = await supabase.storage.from("documents").createSignedUrl(talk.file_url!, 3600); if (data?.signedUrl) window.open(data.signedUrl, "_blank"); }} className="text-xs text-primary hover:underline">View</button> : <span className="text-xs text-muted-foreground">-</span>}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => handleEditTalk(talk)} className="text-muted-foreground hover:text-primary" title={talk.file_url ? "Edit / Replace file" : "Edit"}>
+                          {talk.file_url ? <RefreshCw className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => setDeleteTalkId(talk.id)} className="text-muted-foreground hover:text-destructive" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
