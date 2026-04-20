@@ -13,6 +13,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
+import { ActionRequired } from "@/components/dashboard/ActionRequired";
+import { HSScoreCard } from "@/components/dashboard/HSScoreCard";
 
 const conditionColors: Record<string, string> = {
   good: "bg-success/20 text-success",
@@ -243,6 +245,11 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2"><ActionRequired /></div>
+        <HSScoreCard />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="stat-card">

@@ -6,11 +6,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
   DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save, Trash2,
-  ArrowRightLeft, Wrench,
+  ArrowRightLeft, Wrench, ClipboardList, FileDown,
 } from "lucide-react";
 import { ComplianceRequirements } from "@/components/vehicle/ComplianceRequirements";
 import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
+import { ServiceTrackersTab } from "@/components/vehicle/ServiceTrackersTab";
+import { ComplianceScoreCard } from "@/components/vehicle/ComplianceScoreCard";
+import { calculateVehicleComplianceScore } from "@/lib/compliance";
+import { generateVehiclePdfReport } from "@/lib/vehiclePdfReport";
+import { ServiceTracker } from "@/lib/serviceTrackers";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -58,6 +63,7 @@ function kmProgressColor(km: number) {
 const tabs = [
   { id: "overview", label: "Overview", icon: Truck },
   { id: "certificates", label: "Certificates", icon: FileText },
+  { id: "trackers", label: "Service Trackers", icon: ClipboardList },
   { id: "jobcards", label: "Job Cards", icon: Wrench },
   { id: "inspections", label: "Inspections", icon: ClipboardCheck },
   { id: "fines", label: "Fines", icon: DollarSign },
@@ -150,6 +156,36 @@ export default function VehicleDetail() {
     },
   });
 
+  const { data: trackers } = useQuery({
+    queryKey: ["service_trackers", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_service_trackers" as any).select("*").eq("vehicle_id", id!);
+      if (error) throw error;
+      return (data || []) as unknown as ServiceTracker[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: jobCards } = useQuery({
+    queryKey: ["job_cards", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("job_cards").select("*").eq("vehicle_id", id!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: organisation } = useQuery({
+    queryKey: ["organisation", vehicle?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organisations").select("name").eq("id", vehicle!.organisation_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!vehicle?.organisation_id,
+  });
+
   const { data: auditLogs } = useQuery({
     queryKey: ["vehicle_audit", id],
     queryFn: async () => {
@@ -159,6 +195,27 @@ export default function VehicleDetail() {
     },
     enabled: !!id,
   });
+
+  const handleDownloadPdf = () => {
+    if (!vehicle) return;
+    const compliance = calculateVehicleComplianceScore(
+      vehicle as any,
+      (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+      (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
+      (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracking_type: t.tracking_type, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
+    );
+    generateVehiclePdfReport({
+      vehicle: vehicle as any,
+      compliance,
+      certificates: certificates || [],
+      trackers: trackers || [],
+      inspections: inspections || [],
+      jobCards: jobCards || [],
+      companyName: organisation?.name,
+      branchName: (vehicle as any).branches?.name,
+    });
+    toast.success("PDF downloaded");
+  };
 
   const handleUpdateOdometer = async () => {
     const km = parseInt(odometerValue);
@@ -336,6 +393,9 @@ export default function VehicleDetail() {
           </div>
           <p className="text-sm text-muted-foreground">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
         </div>
+        <button onClick={handleDownloadPdf} className="flex items-center gap-2 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 font-semibold">
+          <FileDown className="w-4 h-4" /> Download PDF
+        </button>
         <button onClick={() => setShowTransfer(true)} className="flex items-center gap-2 text-sm bg-secondary text-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 border border-border">
           <ArrowRightLeft className="w-4 h-4" /> Transfer
         </button>
@@ -410,27 +470,15 @@ export default function VehicleDetail() {
               </div>
             </div>
 
-            <div className="stat-card">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Risk Assessment</h3>
-              <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold ${riskBg(vehicle.risk_score ?? 0)}`}>{vehicle.risk_score ?? 0}</div>
-                <div>
-                  <p className={`text-lg font-semibold ${riskColor(vehicle.risk_score ?? 0)}`}>{(vehicle.risk_score ?? 0) <= 25 ? "Low Risk" : (vehicle.risk_score ?? 0) <= 50 ? "Medium Risk" : "High Risk"}</p>
-                  <p className="text-xs text-muted-foreground">Based on compliance, service, fines & damage</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Compliance Status</h3>
-              <div className="flex items-center gap-3">
-                <ShieldCheck className={`w-8 h-8 ${riskColor(vehicle.risk_score ?? 0)}`} />
-                <div>
-                  <span className={`text-sm font-semibold px-3 py-1 rounded-full uppercase ${statusStyles[vehicle.compliance_status || "compliant"]}`}>{vehicle.compliance_status || "compliant"}</span>
-                  {(vehicle as any).compliance_templates?.template_name && <p className="text-xs text-muted-foreground mt-1">Template: {(vehicle as any).compliance_templates.template_name}</p>}
-                </div>
-              </div>
-            </div>
+            {(() => {
+              const compliance = calculateVehicleComplianceScore(
+                vehicle as any,
+                (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
+                (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracking_type: t.tracking_type, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
+              );
+              return <ComplianceScoreCard score={compliance.score} status={compliance.status} breakdown={compliance.breakdown} />;
+            })()}
 
             <ComplianceRequirements
               equipment={(vehicle.equipment as string[]) || []}
@@ -438,6 +486,10 @@ export default function VehicleDetail() {
             />
           </div>
         </div>
+      )}
+
+      {activeTab === "trackers" && (
+        <ServiceTrackersTab vehicleId={id!} organisationId={vehicle.organisation_id} currentKm={currentKm} />
       )}
 
       {activeTab === "jobcards" && (
