@@ -376,7 +376,7 @@ export default function VehicleDetail() {
     if (error) { toast.error(error.message); return; }
     toast.success("Certificate uploaded");
     setShowUploadCert(false);
-    setUploadCertForm({ certificate_type: "COF Certificate", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "" });
+    setUploadCertForm({ certificate_type: "COF & Vehicle Licence", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "" });
     setUploadCertFile(null);
     queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
     queryClient.invalidateQueries({ queryKey: ["certificates"] });
