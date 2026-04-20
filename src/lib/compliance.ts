@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getRequiredCertificates } from "@/lib/vehicleEquipment";
+import { getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
 
 interface VehicleComplianceInput {
   id: string;
@@ -76,7 +76,9 @@ export function calculateVehicleComplianceScore(
   const certTypes = vehicleCerts.map(c => (c.certificate_type || "").toLowerCase());
 
   for (const reqCert of required) {
-    if (!certTypes.includes(reqCert.toLowerCase())) {
+    const found = vehicleCerts.some(c => matchesCert(reqCert, c.certificate_type)) ||
+      certTypes.includes(reqCert.toLowerCase());
+    if (!found) {
       score -= 20;
       breakdown.push({ label: `Missing: ${reqCert}`, deduction: 20, severity: "critical" });
     }
