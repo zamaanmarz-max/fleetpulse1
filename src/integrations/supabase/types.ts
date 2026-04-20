@@ -880,6 +880,39 @@ export type Database = {
           },
         ]
       }
+      odometer_readings: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          organisation_id: string | null
+          reading_date: string
+          reading_km: number
+          recorded_by: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          organisation_id?: string | null
+          reading_date?: string
+          reading_km: number
+          recorded_by?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          organisation_id?: string | null
+          reading_date?: string
+          reading_km?: number
+          recorded_by?: string | null
+          vehicle_id?: string
+        }
+        Relationships: []
+      }
       organisations: {
         Row: {
           created_at: string | null
@@ -1021,6 +1054,54 @@ export type Database = {
           },
         ]
       }
+      vehicle_service_trackers: {
+        Row: {
+          created_at: string | null
+          id: string
+          interval_value: number
+          last_done_date: string | null
+          last_done_value: number | null
+          next_due_date: string | null
+          next_due_value: number | null
+          notes: string | null
+          organisation_id: string | null
+          tracker_name: string
+          tracking_type: string
+          updated_at: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          interval_value: number
+          last_done_date?: string | null
+          last_done_value?: number | null
+          next_due_date?: string | null
+          next_due_value?: number | null
+          notes?: string | null
+          organisation_id?: string | null
+          tracker_name: string
+          tracking_type?: string
+          updated_at?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          interval_value?: number
+          last_done_date?: string | null
+          last_done_value?: number | null
+          next_due_date?: string | null
+          next_due_value?: number | null
+          notes?: string | null
+          organisation_id?: string | null
+          tracker_name?: string
+          tracking_type?: string
+          updated_at?: string | null
+          vehicle_id?: string
+        }
+        Relationships: []
+      }
       vehicle_status: {
         Row: {
           actual_return_date: string | null
@@ -1107,6 +1188,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           km_until_service: number | null
+          last_odometer_update: string | null
           last_service_km: number | null
           make: string | null
           model: string | null
@@ -1132,6 +1214,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           km_until_service?: number | null
+          last_odometer_update?: string | null
           last_service_km?: number | null
           make?: string | null
           model?: string | null
@@ -1157,6 +1240,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           km_until_service?: number | null
+          last_odometer_update?: string | null
           last_service_km?: number | null
           make?: string | null
           model?: string | null
