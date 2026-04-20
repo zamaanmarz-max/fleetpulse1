@@ -169,7 +169,7 @@ export default function DriverDetail() {
     // Sync licence/PrDP fields back to drivers table so compliance reflects upload immediately
     const driverUpdate = driverFieldsForDocType(form.document_type, form.expiry_date || null, form.document_number || null);
     if (Object.keys(driverUpdate).length > 0) {
-      await supabase.from("drivers").update(driverUpdate).eq("id", id!);
+      await supabase.from("drivers").update(driverUpdate as any).eq("id", id!);
     }
 
     setShowForm(false); setFile(null); setEditingDocId(null);
