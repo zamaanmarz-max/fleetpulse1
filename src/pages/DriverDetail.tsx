@@ -539,14 +539,14 @@ export default function DriverDetail() {
         </div>
       )}
 
-      {/* Add Document Form */}
+      {/* Add/Edit Document Form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-background/50" onClick={() => setShowForm(false)} />
+          <div className="flex-1 bg-background/50" onClick={() => { setShowForm(false); setEditingDocId(null); setFile(null); }} />
           <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">Add Document</h2>
-              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              <h2 className="text-lg font-bold text-foreground">{editingDocId ? "Edit Document" : "Add Document"}</h2>
+              <button onClick={() => { setShowForm(false); setEditingDocId(null); setFile(null); }} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Document Type *</label>
@@ -570,11 +570,12 @@ export default function DriverDetail() {
               <input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Upload File (PDF/Image)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">{editingDocId ? "Replace File (optional)" : "Upload File (PDF/Image)"}</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+              {editingDocId && <p className="text-xs text-muted-foreground mt-1">Leave empty to keep existing file</p>}
             </div>
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Document
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {editingDocId ? "Update Document" : "Save Document"}
             </button>
           </div>
         </div>
