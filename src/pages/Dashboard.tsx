@@ -167,13 +167,13 @@ export default function Dashboard() {
   const handleCardClick = (panel: PanelType) => setActivePanel(prev => prev === panel ? null : panel);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Command Centre</h1>
-        <p className="text-muted-foreground text-sm">Real-time fleet compliance overview</p>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Command Centre</h1>
+        <p className="text-muted-foreground text-xs md:text-sm">Real-time fleet compliance overview</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         <StatCard icon={Truck} label="Active Vehicles" value={statsLoading ? "..." : stats?.totalVehicles ?? 0} color="text-primary" />
         <StatCard icon={ShieldCheck} label="Fleet Score" value={statsLoading ? "..." : `${combinedScore}%`} color="text-primary" onClick={() => handleCardClick("fleet")} active={activePanel === "fleet"} />
         <StatCard icon={Users} label="Driver Compliance" value={statsLoading ? "..." : `${driverCompliance}%`} color={driversWithExpired > 0 ? "text-destructive" : "text-primary"} highlight={driversWithExpired > 0} onClick={() => handleCardClick("drivers")} active={activePanel === "drivers"} />
@@ -294,25 +294,48 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">MARZ Fleet AI</h3>
+          <details className="md:hidden" open>
+            <summary className="flex items-center justify-between mb-4 cursor-pointer list-none">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">MARZ Fleet AI</h3>
+              </div>
+              <button onClick={(e) => { e.preventDefault(); fetchInsights(); }} disabled={aiLoading} className="text-muted-foreground hover:text-foreground">
+                <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
+              </button>
+            </summary>
+            {aiLoading && !insights ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analysing fleet data...
+              </div>
+            ) : (
+              <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground leading-relaxed">
+                <ReactMarkdown>{insights || "No insights available. Click refresh to generate."}</ReactMarkdown>
+              </div>
+            )}
+          </details>
+          <div className="hidden md:block">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">MARZ Fleet AI</h3>
+              </div>
+              <button onClick={fetchInsights} disabled={aiLoading} className="text-muted-foreground hover:text-foreground">
+                <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
+              </button>
             </div>
-            <button onClick={fetchInsights} disabled={aiLoading} className="text-muted-foreground hover:text-foreground">
-              <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
-            </button>
+            {aiLoading && !insights ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analysing fleet data...
+              </div>
+            ) : (
+              <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground leading-relaxed">
+                <ReactMarkdown>{insights || "No insights available. Click refresh to generate."}</ReactMarkdown>
+              </div>
+            )}
           </div>
-          {aiLoading && !insights ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Analysing fleet data...
-            </div>
-          ) : (
-            <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground leading-relaxed">
-              <ReactMarkdown>{insights || "No insights available. Click refresh to generate."}</ReactMarkdown>
-            </div>
-          )}
         </div>
       </div>
 
@@ -442,12 +465,12 @@ function StatCard({ icon: Icon, label, value, color, highlight, onClick, active 
   icon: React.ElementType; label: string; value: string | number; color: string; highlight?: boolean; onClick?: () => void; active?: boolean;
 }) {
   return (
-    <div className={`stat-card transition-all ${highlight ? "border-destructive/50" : ""} ${onClick ? "cursor-pointer hover:ring-1 hover:ring-primary/50" : ""} ${active ? "ring-2 ring-primary" : ""}`} onClick={onClick}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
-        <Icon className={`w-5 h-5 ${color}`} />
+    <div className={`stat-card p-4 md:p-5 transition-all ${highlight ? "border-destructive/50" : ""} ${onClick ? "cursor-pointer hover:ring-1 hover:ring-primary/50" : ""} ${active ? "ring-2 ring-primary" : ""}`} onClick={onClick}>
+      <div className="flex items-center justify-between mb-2 md:mb-3">
+        <span className="text-[10px] md:text-xs font-medium text-muted-foreground uppercase tracking-wider leading-tight">{label}</span>
+        <Icon className={`w-4 h-4 md:w-5 md:h-5 flex-shrink-0 ${color}`} />
       </div>
-      <p className={`text-3xl font-bold ${color}`}>{value}</p>
+      <p className={`text-2xl md:text-3xl font-bold ${color}`}>{value}</p>
     </div>
   );
 }

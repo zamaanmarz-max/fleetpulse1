@@ -318,7 +318,7 @@ export default function DriverDetail() {
   const talkDays = latestTalk ? Math.ceil((now - new Date(latestTalk.date_conducted).getTime()) / 86400000) : null;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-center gap-4">
         <button onClick={() => navigate("/drivers")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary"><ArrowLeft className="w-5 h-5" /></button>
         <div className="flex-1">

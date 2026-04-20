@@ -114,109 +114,172 @@ export default function Vehicles() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Vehicles</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Vehicles</h1>
           <p className="text-sm text-muted-foreground">{filtered.length} vehicles in fleet</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport} className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm hover:bg-secondary/80">
+          <button onClick={handleExport} className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm hover:bg-secondary/80">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
+          <button onClick={() => setShowForm(true)} className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
             <Plus className="w-4 h-4" /> Add Vehicle
           </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by reg, fleet no, or make..." className="w-full bg-secondary border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
         <BranchFilter value={branchFilter} onChange={setBranchFilter} />
       </div>
 
-      <div className="glass-card overflow-x-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">No vehicles found. Add your first vehicle to get started.</div>
-        ) : (
-          <table className="w-full min-w-[900px]">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet No</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reg No</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Make & Model</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Until Service</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Updated</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((v) => {
-                const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
-                const compliance = calculateVehicleComplianceScore(
-                  v as any,
-                  vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
-                );
-                const kmUntil = compliance.km_until_service;
-                const now = new Date();
-                // Use updated_at (bumped on every KM save) so badge refreshes immediately
-                const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
-                const daysSinceUpdate = lastUpdate ? Math.floor((now.getTime() - lastUpdate.getTime()) / 86400000) : null;
-                const updateBadge = daysSinceUpdate === null
-                  ? { text: "Never updated", cls: "bg-destructive/20 text-destructive" }
-                  : daysSinceUpdate >= 14
-                  ? { text: `Update KM — ${daysSinceUpdate}d ago`, cls: "bg-destructive/20 text-destructive" }
-                  : daysSinceUpdate >= 7
-                  ? { text: `Updated ${daysSinceUpdate}d ago`, cls: "bg-warning/20 text-warning" }
-                  : { text: daysSinceUpdate === 0 ? "Updated today" : `Updated ${daysSinceUpdate}d ago`, cls: "bg-success/20 text-success" };
-                const scoreColor = compliance.score >= 80 ? "text-success" : compliance.score >= 50 ? "text-warning" : "text-destructive";
+      {isLoading ? (
+        <div className="glass-card flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="glass-card text-center py-12 text-muted-foreground text-sm">No vehicles found. Add your first vehicle to get started.</div>
+      ) : (
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-3">
+            {filtered.map((v) => {
+              const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
+              const compliance = calculateVehicleComplianceScore(
+                v as any,
+                vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+              );
+              const kmUntil = compliance.km_until_service;
+              const now = new Date();
+              const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
+              const daysSinceUpdate = lastUpdate ? Math.floor((now.getTime() - lastUpdate.getTime()) / 86400000) : null;
+              const updateBadge = daysSinceUpdate === null
+                ? { text: "Never updated", cls: "bg-destructive/20 text-destructive" }
+                : daysSinceUpdate >= 14
+                ? { text: `${daysSinceUpdate}d ago`, cls: "bg-destructive/20 text-destructive" }
+                : daysSinceUpdate >= 7
+                ? { text: `${daysSinceUpdate}d ago`, cls: "bg-warning/20 text-warning" }
+                : { text: daysSinceUpdate === 0 ? "Today" : `${daysSinceUpdate}d ago`, cls: "bg-success/20 text-success" };
+              const scoreColor = compliance.score >= 80 ? "text-success" : compliance.score >= 50 ? "text-warning" : "text-destructive";
+              return (
+                <div key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="glass-card p-4 active:bg-secondary/30 transition-colors">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-base font-bold text-foreground">{v.registration_number}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{v.fleet_number || "-"} · {v.make} {v.model}</p>
+                    </div>
+                    <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase whitespace-nowrap ${statusStyles[compliance.status]}`}>
+                      {compliance.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs my-3">
+                    <div>
+                      <p className="text-muted-foreground">KM Left</p>
+                      <p className={`font-mono font-semibold ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
+                        {kmUntil.toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Score</p>
+                      <p className={`font-mono font-bold ${scoreColor}`}>{compliance.score}%</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Updated</p>
+                      <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${updateBadge.cls}`}>{updateBadge.text}</span>
+                    </div>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
+                      className="w-full inline-flex items-center justify-center gap-1.5 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-3 py-2 rounded-md"
+                    >
+                      <Gauge className="w-3.5 h-3.5" /> Update KM
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-                return (
-                  <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
-                    <td className="px-4 py-3 text-sm font-mono text-foreground">{v.fleet_number || "-"}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-foreground">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {v.registration_number}
-                        {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
-                        {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
-                    <td className={`px-4 py-3 text-sm text-right font-mono ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
-                      {kmUntil.toLocaleString()} km
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${updateBadge.cls}`}>{updateBadge.text}</span>
-                    </td>
-                    <td className={`px-4 py-3 text-sm text-right font-mono font-bold ${scoreColor}`}>{compliance.score}%</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[compliance.status]}`}>
-                        {compliance.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
-                        className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-2.5 py-1 rounded-md"
-                        title="Update KM"
-                      >
-                        <Gauge className="w-3.5 h-3.5" /> Update KM
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+          {/* Desktop table */}
+          <div className="hidden md:block glass-card overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet No</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reg No</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Make & Model</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Until Service</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Updated</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((v) => {
+                  const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
+                  const compliance = calculateVehicleComplianceScore(
+                    v as any,
+                    vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                  );
+                  const kmUntil = compliance.km_until_service;
+                  const now = new Date();
+                  // Use updated_at (bumped on every KM save) so badge refreshes immediately
+                  const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
+                  const daysSinceUpdate = lastUpdate ? Math.floor((now.getTime() - lastUpdate.getTime()) / 86400000) : null;
+                  const updateBadge = daysSinceUpdate === null
+                    ? { text: "Never updated", cls: "bg-destructive/20 text-destructive" }
+                    : daysSinceUpdate >= 14
+                    ? { text: `Update KM — ${daysSinceUpdate}d ago`, cls: "bg-destructive/20 text-destructive" }
+                    : daysSinceUpdate >= 7
+                    ? { text: `Updated ${daysSinceUpdate}d ago`, cls: "bg-warning/20 text-warning" }
+                    : { text: daysSinceUpdate === 0 ? "Updated today" : `Updated ${daysSinceUpdate}d ago`, cls: "bg-success/20 text-success" };
+                  const scoreColor = compliance.score >= 80 ? "text-success" : compliance.score >= 50 ? "text-warning" : "text-destructive";
+
+                  return (
+                    <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
+                      <td className="px-4 py-3 text-sm font-mono text-foreground">{v.fleet_number || "-"}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {v.registration_number}
+                          {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
+                          {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
+                      <td className={`px-4 py-3 text-sm text-right font-mono ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
+                        {kmUntil.toLocaleString()} km
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${updateBadge.cls}`}>{updateBadge.text}</span>
+                      </td>
+                      <td className={`px-4 py-3 text-sm text-right font-mono font-bold ${scoreColor}`}>{compliance.score}%</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[compliance.status]}`}>
+                          {compliance.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
+                          className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-2.5 py-1 rounded-md"
+                          title="Update KM"
+                        >
+                          <Gauge className="w-3.5 h-3.5" /> Update KM
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {updateKmFor && (
         <UpdateKMDialog
@@ -233,8 +296,8 @@ export default function Vehicles() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-background/50" onClick={() => setShowForm(false)} />
-          <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
+          <div className="hidden md:block flex-1 bg-background/50" onClick={() => setShowForm(false)} />
+          <div className="w-full md:w-[450px] bg-card border-l border-border p-4 md:p-6 overflow-y-auto space-y-4 max-h-screen">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-foreground">Add Vehicle</h2>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
