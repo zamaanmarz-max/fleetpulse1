@@ -35,6 +35,13 @@ export function AIChatButton() {
     }
   }, [open]);
 
+  // Allow other components (e.g. MobileNav "More" sheet) to open the chat
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener("marz:open-ai-chat", onOpen);
+    return () => window.removeEventListener("marz:open-ai-chat", onOpen);
+  }, []);
+
   // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,8 +73,10 @@ export function AIChatButton() {
     <>
       <button
         onClick={() => setOpen(true)}
+        aria-label="Open AI Chat"
         className={cn(
-          "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg transition-transform hover:scale-110 glow-green",
+          // Lift above mobile bottom nav (h-16 + safe area). Standard position on desktop.
+          "fixed right-4 md:right-6 bottom-20 md:bottom-6 z-40 w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg transition-transform hover:scale-110 glow-green",
           open && "hidden"
         )}
       >
@@ -75,7 +84,7 @@ export function AIChatButton() {
       </button>
 
       {open && (
-        <div className="fixed right-0 top-0 z-50 h-screen w-96 bg-card border-l border-border flex flex-col animate-slide-in-right shadow-2xl">
+        <div className="fixed right-0 top-0 z-50 h-screen w-full sm:w-96 bg-card border-l border-border flex flex-col animate-slide-in-right shadow-2xl">
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
