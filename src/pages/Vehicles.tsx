@@ -18,12 +18,7 @@ const statusStyles: Record<string, string> = {
   expired: "bg-destructive/30 text-destructive",
 };
 
-function riskColor(score: number) {
-  if (score <= 25) return "text-success";
-  if (score <= 50) return "text-warning";
-  if (score <= 75) return "text-destructive";
-  return "text-destructive font-bold";
-}
+
 
 export default function Vehicles() {
   const [search, setSearch] = useState("");
