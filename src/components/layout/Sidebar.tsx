@@ -13,7 +13,6 @@ const navItems = [
   { to: "/vehicles", icon: Truck, label: "Vehicles" },
   { to: "/drivers", icon: Users, label: "Drivers" },
   { to: "/certificates", icon: FileCheck, label: "Certificates" },
-  { to: "/compliance-templates", icon: Shield, label: "Templates" },
   { to: "/inspections", icon: ClipboardCheck, label: "Inspections" },
   { to: "/fines", icon: Receipt, label: "Fines & AARTO" },
   { to: "/reports", icon: BarChart3, label: "Reports" },
