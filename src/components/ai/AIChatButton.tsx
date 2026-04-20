@@ -7,9 +7,8 @@ import ReactMarkdown from "react-markdown";
 
 const QUICK_ACTIONS = [
   "Today's Briefing",
-  "Expiring Certificates",
+  "Expiring Soon",
   "Non-Compliant Drivers",
-  "Maintenance Costs",
   "Fleet Status",
 ];
 
@@ -104,8 +103,7 @@ export function AIChatButton() {
             {messages.length === 0 && !loading && (
               <div className="text-center text-muted-foreground text-sm mt-8">
                 <Sparkles className="w-8 h-8 mx-auto mb-3 text-primary opacity-50" />
-                <p>Hey! Ask me anything about your fleet.</p>
-                <p className="mt-1 text-xs">I understand AARTO, COF, PrDP, and SA compliance.</p>
+                <p>Hey! I am MARZ AI. Ask me anything about your fleet.</p>
               </div>
             )}
             {messages.map((msg, i) => (
