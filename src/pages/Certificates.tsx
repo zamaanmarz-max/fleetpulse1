@@ -19,8 +19,8 @@ const statusStyles: Record<string, string> = {
   expired: "bg-destructive/20 text-destructive",
 };
 
-// Only COF is preset. Users select "Other" to enter a custom certificate name.
-const certTypes = ["COF Certificate", "Other"];
+// Preset categories. "Other" lets users type a custom name (e.g. equipment cert).
+const certTypes = ["COF & Vehicle Licence", "Operator Card", "Other"];
 
 export default function Certificates() {
   const [search, setSearch] = useState("");
