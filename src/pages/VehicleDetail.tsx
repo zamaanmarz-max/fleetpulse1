@@ -156,6 +156,36 @@ export default function VehicleDetail() {
     },
   });
 
+  const { data: trackers } = useQuery({
+    queryKey: ["service_trackers", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_service_trackers" as any).select("*").eq("vehicle_id", id!);
+      if (error) throw error;
+      return (data || []) as unknown as ServiceTracker[];
+    },
+    enabled: !!id,
+  });
+
+  const { data: jobCards } = useQuery({
+    queryKey: ["job_cards", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("job_cards").select("*").eq("vehicle_id", id!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: organisation } = useQuery({
+    queryKey: ["organisation", vehicle?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organisations").select("name").eq("id", vehicle!.organisation_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!vehicle?.organisation_id,
+  });
+
   const { data: auditLogs } = useQuery({
     queryKey: ["vehicle_audit", id],
     queryFn: async () => {
@@ -165,6 +195,27 @@ export default function VehicleDetail() {
     },
     enabled: !!id,
   });
+
+  const handleDownloadPdf = () => {
+    if (!vehicle) return;
+    const compliance = calculateVehicleComplianceScore(
+      vehicle as any,
+      (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+      (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
+      (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracking_type: t.tracking_type, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
+    );
+    generateVehiclePdfReport({
+      vehicle: vehicle as any,
+      compliance,
+      certificates: certificates || [],
+      trackers: trackers || [],
+      inspections: inspections || [],
+      jobCards: jobCards || [],
+      companyName: organisation?.name,
+      branchName: (vehicle as any).branches?.name,
+    });
+    toast.success("PDF downloaded");
+  };
 
   const handleUpdateOdometer = async () => {
     const km = parseInt(odometerValue);
