@@ -4,10 +4,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save, MessageSquare,
+  ArrowLeft, FileText, Plus, Loader2, X, Upload, AlertTriangle, Pencil, Save, MessageSquare, Trash2, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const statusStyles: Record<string, string> = {
   valid: "bg-success/20 text-success",
