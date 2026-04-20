@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fleet-ai`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -21,23 +21,58 @@ async function streamChat({
   onDelta: (text: string) => void;
   onDone: () => void;
 }) {
+  // Get current session token (required by edge function auth)
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error("You are not signed in. Please log in again.");
+  }
+
+  const payload = {
+    message: message || undefined,
+    organisationId,
+    conversationHistory,
+    mode,
+  };
+
+  // Debug logs so we can see exactly what's being sent
+  console.log("[FleetAI] POST", CHAT_URL);
+  console.log("[FleetAI] Authorization: Bearer <session.access_token>");
+  console.log("[FleetAI] Body:", payload);
+
   const resp = await fetch(CHAT_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${ANON_KEY}`,
+      Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({
-      message: message || undefined,
-      organisationId,
-      conversationHistory,
-      mode,
-    }),
+    body: JSON.stringify(payload),
   });
 
+  console.log("[FleetAI] Response status:", resp.status);
+
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: "Stream failed" }));
-    throw new Error(err.error || "Stream failed");
+    const text = await resp.text().catch(() => "");
+    let errMsg = "Request failed";
+    try {
+      const parsed = JSON.parse(text);
+      errMsg = parsed.error || parsed.message || errMsg;
+    } catch {
+      errMsg = text || errMsg;
+    }
+    console.error("[FleetAI] Error response:", resp.status, errMsg);
+    throw new Error(errMsg);
+  }
+
+  const contentType = resp.headers.get("content-type") || "";
+
+  // Non-streaming JSON fallback (e.g. { message: "..." })
+  if (!contentType.includes("text/event-stream")) {
+    const data = await resp.json().catch(() => null);
+    console.log("[FleetAI] JSON response:", data);
+    const text = data?.message || data?.content || "";
+    if (text) onDelta(text);
+    onDone();
+    return;
   }
 
   if (!resp.body) throw new Error("No response body");
@@ -69,18 +104,33 @@ async function streamChat({
   onDone();
 }
 
+async function getOrgIdFromProfile(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) return null;
+  const { data: userProfile, error } = await supabase
+    .from("users")
+    .select("organisation_id")
+    .eq("id", session.user.id)
+    .maybeSingle();
+  if (error) {
+    console.error("[FleetAI] Failed to load user profile:", error);
+    return null;
+  }
+  return userProfile?.organisation_id ?? null;
+}
+
 export function useFleetInsights() {
   const { profile } = useAuth();
   const [insights, setInsights] = useState("");
   const [loading, setLoading] = useState(false);
 
   const fetchInsights = useCallback(async () => {
-    const orgId = profile?.organisation_id;
-    if (!orgId) return;
     setLoading(true);
     setInsights("");
     let result = "";
     try {
+      const orgId = profile?.organisation_id ?? (await getOrgIdFromProfile());
+      if (!orgId) throw new Error("No organisation linked to your account.");
       await streamChat({
         organisationId: orgId,
         conversationHistory: [],
@@ -88,9 +138,9 @@ export function useFleetInsights() {
         onDelta: (chunk) => { result += chunk; setInsights(result); },
         onDone: () => setLoading(false),
       });
-    } catch (e) {
-      console.error(e);
-      setInsights("Unable to load AI insights. Please try again.");
+    } catch (e: any) {
+      console.error("[FleetAI] Insights error:", e);
+      setInsights(`Unable to load AI insights: ${e?.message || "please try again."}`);
       setLoading(false);
     }
   }, [profile?.organisation_id]);
@@ -104,11 +154,10 @@ export function useFleetChat() {
   const [loading, setLoading] = useState(false);
 
   const send = async (input: string) => {
-    const orgId = profile?.organisation_id;
-    if (!orgId || !input.trim()) return;
+    if (!input.trim()) return;
     const userMsg: Msg = { role: "user", content: input };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    const previous = messages;
+    setMessages([...previous, userMsg]);
     setLoading(true);
 
     let assistantText = "";
@@ -124,17 +173,23 @@ export function useFleetChat() {
     };
 
     try {
+      const orgId = profile?.organisation_id ?? (await getOrgIdFromProfile());
+      if (!orgId) throw new Error("No organisation linked to your account.");
+
       await streamChat({
         message: input,
         organisationId: orgId,
-        conversationHistory: messages, // previous messages (before this one)
+        conversationHistory: previous,
         mode: "chat",
         onDelta: upsert,
         onDone: () => setLoading(false),
       });
-    } catch (e) {
-      console.error(e);
-      setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error. Please try again." }]);
+    } catch (e: any) {
+      console.error("[FleetAI] Chat error:", e);
+      const friendly = e?.message?.includes("sign")
+        ? e.message
+        : "Sorry, I couldn't reach the fleet AI right now. Please try again in a moment.";
+      setMessages((prev) => [...prev, { role: "assistant", content: friendly }]);
       setLoading(false);
     }
   };
