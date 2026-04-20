@@ -393,6 +393,9 @@ export default function VehicleDetail() {
           </div>
           <p className="text-sm text-muted-foreground">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
         </div>
+        <button onClick={handleDownloadPdf} className="flex items-center gap-2 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 font-semibold">
+          <FileDown className="w-4 h-4" /> Download PDF
+        </button>
         <button onClick={() => setShowTransfer(true)} className="flex items-center gap-2 text-sm bg-secondary text-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 border border-border">
           <ArrowRightLeft className="w-4 h-4" /> Transfer
         </button>
