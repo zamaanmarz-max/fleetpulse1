@@ -85,6 +85,8 @@ export function useFleetInsights() {
         return;
       }
       const reply = await callFleetAI({
+        message:
+          "Give me exactly 3 urgent compliance insights for this fleet today. Use specific vehicle registration numbers and exact dates. Format each as a bullet point starting with an emoji.",
         organisationId: orgId,
         conversationHistory: [],
         mode: "insights",
