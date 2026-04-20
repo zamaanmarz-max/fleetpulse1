@@ -45,7 +45,7 @@ export const CERT_ALIASES: Record<string, string[]> = {
   ],
 };
 
-function matchesCert(canonical: string, certTypeRaw: string): boolean {
+export function matchesCert(canonical: string, certTypeRaw: string): boolean {
   const lower = (certTypeRaw || "").toLowerCase().trim();
   if (lower === canonical.toLowerCase()) return true;
   const aliases = CERT_ALIASES[canonical];
