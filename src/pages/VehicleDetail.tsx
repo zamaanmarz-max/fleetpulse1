@@ -6,11 +6,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
   DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save, Trash2,
-  ArrowRightLeft, Wrench,
+  ArrowRightLeft, Wrench, ClipboardList, FileDown,
 } from "lucide-react";
 import { ComplianceRequirements } from "@/components/vehicle/ComplianceRequirements";
 import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
+import { ServiceTrackersTab } from "@/components/vehicle/ServiceTrackersTab";
+import { ComplianceScoreCard } from "@/components/vehicle/ComplianceScoreCard";
+import { calculateVehicleComplianceScore } from "@/lib/compliance";
+import { generateVehiclePdfReport } from "@/lib/vehiclePdfReport";
+import { ServiceTracker } from "@/lib/serviceTrackers";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
