@@ -123,24 +123,30 @@ export function checkDriverCompliance(
     }
   }
 
-  // Medical
-  const medical = documents.find(d => d.document_type === "Medical Certificate");
+  // ---- Medical Certificate ----
+  // Missing OR expired = NON-COMPLIANT (force critical band)
+  const medicalKeywords = ["medical"];
+  const medical = documents.find(d => matchesType(d.document_type, medicalKeywords));
   if (!medical) {
     issues.push({ field: "Medical Certificate", status: "missing" });
-    score -= 15; breakdown.push({ label: "No medical certificate", deduction: 15, severity: "critical" });
+    score -= 35; breakdown.push({ label: "No medical certificate (NON-COMPLIANT)", deduction: 35, severity: "critical" });
   } else if (medical.calcStatus === "expired") {
     issues.push({ field: "Medical Certificate", status: "expired" });
-    score -= 20; breakdown.push({ label: "Medical certificate expired", deduction: 20, severity: "critical" });
+    score -= 35; breakdown.push({ label: "Medical certificate expired (NON-COMPLIANT)", deduction: 35, severity: "critical" });
   } else if (medical.calcStatus === "expiring") {
     issues.push({ field: "Medical Certificate", status: "expiring" });
     score -= 5; breakdown.push({ label: "Medical certificate expiring soon", deduction: 5, severity: "warning" });
   }
 
-  // Criminal
-  const criminal = documents.find(d => d.document_type === "Criminal Background Check");
+  // ---- Criminal Background Check ----
+  const criminalKeywords = ["criminal", "background"];
+  const criminal = documents.find(d => matchesType(d.document_type, criminalKeywords));
   if (!criminal) {
     issues.push({ field: "Criminal Background Check", status: "missing" });
-    score -= 10; breakdown.push({ label: "No criminal background check", deduction: 10, severity: "warning" });
+    score -= 15; breakdown.push({ label: "No criminal background check", deduction: 15, severity: "critical" });
+  } else if (criminal.calcStatus === "expired") {
+    issues.push({ field: "Criminal Background Check", status: "expired" });
+    score -= 15; breakdown.push({ label: "Criminal background check expired", deduction: 15, severity: "critical" });
   }
 
   // Toolbox talk
