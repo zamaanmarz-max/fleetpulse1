@@ -149,29 +149,38 @@ export default function Vehicles() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">No vehicles found. Add your first vehicle to get started.</div>
         ) : (
-          <table className="w-full min-w-[700px]">
+          <table className="w-full min-w-[900px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet No</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reg No</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Make & Model</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Until Service</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Risk Score</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Updated</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((v) => {
-                const kmUntil = v.km_until_service ?? ((v.next_service_due_km ?? 0) - (v.current_odometer_km ?? 0));
                 const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
+                const compliance = calculateVehicleComplianceScore(
+                  v as any,
+                  vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                );
+                const kmUntil = compliance.km_until_service;
                 const now = new Date();
-                const hasExpiredCert = vehicleCerts.some(c => c.expiry_date && new Date(c.expiry_date) < now);
-                const hasExpiringCert = vehicleCerts.some(c => {
-                  if (!c.expiry_date) return false;
-                  const days = Math.ceil((new Date(c.expiry_date).getTime() - now.getTime()) / 86400000);
-                  return days > 0 && days <= 30;
-                });
-                const noCerts = vehicleCerts.length === 0;
+                const lastUpdate = v.last_odometer_update ? new Date(v.last_odometer_update) : null;
+                const daysSinceUpdate = lastUpdate ? Math.floor((now.getTime() - lastUpdate.getTime()) / 86400000) : null;
+                const updateBadge = daysSinceUpdate === null
+                  ? { text: "Never", cls: "bg-destructive/20 text-destructive" }
+                  : daysSinceUpdate >= 14
+                  ? { text: `${daysSinceUpdate}d ago`, cls: "bg-destructive/20 text-destructive" }
+                  : daysSinceUpdate >= 7
+                  ? { text: `${daysSinceUpdate}d ago`, cls: "bg-warning/20 text-warning" }
+                  : { text: daysSinceUpdate === 0 ? "Today" : `${daysSinceUpdate}d ago`, cls: "bg-success/20 text-success" };
+                const scoreColor = compliance.score >= 80 ? "text-success" : compliance.score >= 50 ? "text-warning" : "text-destructive";
 
                 return (
                   <tr key={v.id} onClick={() => navigate(`/vehicles/${v.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
@@ -181,20 +190,29 @@ export default function Vehicles() {
                         {v.registration_number}
                         {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
                         {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
-                        {noCerts && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">No Certificate</span>}
-                        {hasExpiredCert && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Expired Cert</span>}
-                        {hasExpiringCert && !hasExpiredCert && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Expiring</span>}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
                     <td className={`px-4 py-3 text-sm text-right font-mono ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
                       {kmUntil.toLocaleString()} km
                     </td>
-                    <td className={`px-4 py-3 text-sm text-right font-mono ${riskColor(v.risk_score ?? 0)}`}>{v.risk_score ?? 0}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${updateBadge.cls}`}>{updateBadge.text}</span>
+                    </td>
+                    <td className={`px-4 py-3 text-sm text-right font-mono font-bold ${scoreColor}`}>{compliance.score}%</td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[v.compliance_status || "compliant"]}`}>
-                        {v.compliance_status || "compliant"}
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[compliance.status]}`}>
+                        {compliance.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
+                        className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-2.5 py-1 rounded-md"
+                        title="Update KM"
+                      >
+                        <Gauge className="w-3.5 h-3.5" /> Update KM
+                      </button>
                     </td>
                   </tr>
                 );
@@ -203,6 +221,19 @@ export default function Vehicles() {
           </table>
         )}
       </div>
+
+      {updateKmFor && (
+        <UpdateKMDialog
+          vehicleId={updateKmFor.id}
+          organisationId={profile?.organisation_id ?? null}
+          currentKm={updateKmFor.km}
+          registration={updateKmFor.reg}
+          onClose={() => setUpdateKmFor(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+          }}
+        />
+      )}
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
