@@ -324,6 +324,15 @@ export default function Certificates() {
                 <option value="">Select type</option>
                 {certTypes.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
+              {form.certificate_type === "Other" && (
+                <input
+                  type="text"
+                  placeholder="Enter certificate name"
+                  value={form.certificate_type_other}
+                  onChange={(e) => setForm({ ...form, certificate_type_other: e.target.value })}
+                  className="mt-2 w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              )}
             </div>
             {[
               { key: "certificate_number", label: "Certificate Number", type: "text" },
