@@ -166,15 +166,16 @@ export default function Vehicles() {
                 );
                 const kmUntil = compliance.km_until_service;
                 const now = new Date();
-                const lastUpdate = v.last_odometer_update ? new Date(v.last_odometer_update) : null;
+                // Use updated_at (bumped on every KM save) so badge refreshes immediately
+                const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
                 const daysSinceUpdate = lastUpdate ? Math.floor((now.getTime() - lastUpdate.getTime()) / 86400000) : null;
                 const updateBadge = daysSinceUpdate === null
-                  ? { text: "Never", cls: "bg-destructive/20 text-destructive" }
+                  ? { text: "Never updated", cls: "bg-destructive/20 text-destructive" }
                   : daysSinceUpdate >= 14
-                  ? { text: `${daysSinceUpdate}d ago`, cls: "bg-destructive/20 text-destructive" }
+                  ? { text: `Update KM — ${daysSinceUpdate}d ago`, cls: "bg-destructive/20 text-destructive" }
                   : daysSinceUpdate >= 7
-                  ? { text: `${daysSinceUpdate}d ago`, cls: "bg-warning/20 text-warning" }
-                  : { text: daysSinceUpdate === 0 ? "Today" : `${daysSinceUpdate}d ago`, cls: "bg-success/20 text-success" };
+                  ? { text: `Updated ${daysSinceUpdate}d ago`, cls: "bg-warning/20 text-warning" }
+                  : { text: daysSinceUpdate === 0 ? "Updated today" : `Updated ${daysSinceUpdate}d ago`, cls: "bg-success/20 text-success" };
                 const scoreColor = compliance.score >= 80 ? "text-success" : compliance.score >= 50 ? "text-warning" : "text-destructive";
 
                 return (
