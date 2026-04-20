@@ -56,14 +56,17 @@ export default function Certificates() {
   );
 
   const [form, setForm] = useState({
-    vehicle_id: "", certificate_type: "", certificate_number: "",
+    vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "",
     issue_date: "", expiry_date: "", issuing_authority: "", notes: "",
   });
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!form.vehicle_id || !form.certificate_type || !profile?.organisation_id) {
+    const finalType = form.certificate_type === "Other"
+      ? form.certificate_type_other.trim()
+      : form.certificate_type;
+    if (!form.vehicle_id || !finalType || !profile?.organisation_id) {
       toast.error("Vehicle and certificate type are required");
       return;
     }
