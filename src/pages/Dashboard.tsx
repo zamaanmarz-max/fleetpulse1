@@ -294,25 +294,48 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">MARZ Fleet AI</h3>
+          <details className="md:hidden" open>
+            <summary className="flex items-center justify-between mb-4 cursor-pointer list-none">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">MARZ Fleet AI</h3>
+              </div>
+              <button onClick={(e) => { e.preventDefault(); fetchInsights(); }} disabled={aiLoading} className="text-muted-foreground hover:text-foreground">
+                <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
+              </button>
+            </summary>
+            {aiLoading && !insights ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analysing fleet data...
+              </div>
+            ) : (
+              <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground leading-relaxed">
+                <ReactMarkdown>{insights || "No insights available. Click refresh to generate."}</ReactMarkdown>
+              </div>
+            )}
+          </details>
+          <div className="hidden md:block">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">MARZ Fleet AI</h3>
+              </div>
+              <button onClick={fetchInsights} disabled={aiLoading} className="text-muted-foreground hover:text-foreground">
+                <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
+              </button>
             </div>
-            <button onClick={fetchInsights} disabled={aiLoading} className="text-muted-foreground hover:text-foreground">
-              <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
-            </button>
+            {aiLoading && !insights ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analysing fleet data...
+              </div>
+            ) : (
+              <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground leading-relaxed">
+                <ReactMarkdown>{insights || "No insights available. Click refresh to generate."}</ReactMarkdown>
+              </div>
+            )}
           </div>
-          {aiLoading && !insights ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Analysing fleet data...
-            </div>
-          ) : (
-            <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground leading-relaxed">
-              <ReactMarkdown>{insights || "No insights available. Click refresh to generate."}</ReactMarkdown>
-            </div>
-          )}
         </div>
       </div>
 
