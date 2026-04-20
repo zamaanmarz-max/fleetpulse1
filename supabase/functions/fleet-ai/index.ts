@@ -6,167 +6,141 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022";
+
+// Anthropic-format tool definitions (input_schema not parameters)
 const tools = [
   {
-    type: "function",
-    function: {
-      name: "update_vehicle_odometer",
-      description: "Update a vehicle's current odometer reading in km.",
-      parameters: {
-        type: "object",
-        properties: {
-          registration_number: { type: "string", description: "Vehicle registration number" },
-          current_odometer_km: { type: "number", description: "New odometer reading in km" },
-        },
-        required: ["registration_number", "current_odometer_km"],
+    name: "update_vehicle_odometer",
+    description: "Update a vehicle's current odometer reading in km.",
+    input_schema: {
+      type: "object",
+      properties: {
+        registration_number: { type: "string" },
+        current_odometer_km: { type: "number" },
       },
+      required: ["registration_number", "current_odometer_km"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "update_vehicle_service",
-      description: "Update a vehicle's last service KM and next service due KM.",
-      parameters: {
-        type: "object",
-        properties: {
-          registration_number: { type: "string", description: "Vehicle registration number" },
-          last_service_km: { type: "number", description: "KM at which last service was done" },
-          next_service_due_km: { type: "number", description: "KM at which next service is due" },
-        },
-        required: ["registration_number", "last_service_km", "next_service_due_km"],
+    name: "update_vehicle_service",
+    description: "Update a vehicle's last service KM and next service due KM.",
+    input_schema: {
+      type: "object",
+      properties: {
+        registration_number: { type: "string" },
+        last_service_km: { type: "number" },
+        next_service_due_km: { type: "number" },
       },
+      required: ["registration_number", "last_service_km", "next_service_due_km"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "add_certificate",
-      description: "Add a new certificate for a vehicle.",
-      parameters: {
-        type: "object",
-        properties: {
-          registration_number: { type: "string" },
-          certificate_type: { type: "string" },
-          certificate_number: { type: "string" },
-          expiry_date: { type: "string", description: "YYYY-MM-DD" },
-          issue_date: { type: "string" },
-          issuing_authority: { type: "string" },
-        },
-        required: ["registration_number", "certificate_type", "expiry_date"],
+    name: "add_certificate",
+    description: "Add a new certificate for a vehicle.",
+    input_schema: {
+      type: "object",
+      properties: {
+        registration_number: { type: "string" },
+        certificate_type: { type: "string" },
+        certificate_number: { type: "string" },
+        expiry_date: { type: "string", description: "YYYY-MM-DD" },
+        issue_date: { type: "string" },
+        issuing_authority: { type: "string" },
       },
+      required: ["registration_number", "certificate_type", "expiry_date"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "renew_certificate",
-      description: "Update an existing certificate's expiry date (renewal).",
-      parameters: {
-        type: "object",
-        properties: {
-          registration_number: { type: "string" },
-          certificate_type: { type: "string" },
-          new_expiry_date: { type: "string", description: "YYYY-MM-DD" },
-        },
-        required: ["registration_number", "certificate_type", "new_expiry_date"],
+    name: "renew_certificate",
+    description: "Update an existing certificate's expiry date (renewal).",
+    input_schema: {
+      type: "object",
+      properties: {
+        registration_number: { type: "string" },
+        certificate_type: { type: "string" },
+        new_expiry_date: { type: "string", description: "YYYY-MM-DD" },
       },
+      required: ["registration_number", "certificate_type", "new_expiry_date"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "mark_damage_repaired",
-      description: "Mark a damage item as repaired.",
-      parameters: {
-        type: "object",
-        properties: {
-          registration_number: { type: "string" },
-          damage_location: { type: "string" },
-          repair_cost: { type: "number" },
-          repaired_by: { type: "string" },
-          repair_date: { type: "string" },
-        },
-        required: ["registration_number", "damage_location"],
+    name: "mark_damage_repaired",
+    description: "Mark a damage item as repaired.",
+    input_schema: {
+      type: "object",
+      properties: {
+        registration_number: { type: "string" },
+        damage_location: { type: "string" },
+        repair_cost: { type: "number" },
+        repaired_by: { type: "string" },
+        repair_date: { type: "string" },
       },
+      required: ["registration_number", "damage_location"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "update_driver_licence_expiry",
-      description: "Update a driver's licence expiry date.",
-      parameters: {
-        type: "object",
-        properties: {
-          driver_name: { type: "string" },
-          licence_expiry: { type: "string", description: "YYYY-MM-DD" },
-        },
-        required: ["driver_name", "licence_expiry"],
+    name: "update_driver_licence_expiry",
+    description: "Update a driver's licence expiry date.",
+    input_schema: {
+      type: "object",
+      properties: {
+        driver_name: { type: "string" },
+        licence_expiry: { type: "string", description: "YYYY-MM-DD" },
       },
+      required: ["driver_name", "licence_expiry"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "update_driver_prdp_expiry",
-      description: "Update a driver's PrDP expiry date.",
-      parameters: {
-        type: "object",
-        properties: {
-          driver_name: { type: "string" },
-          prdp_expiry: { type: "string", description: "YYYY-MM-DD" },
-        },
-        required: ["driver_name", "prdp_expiry"],
+    name: "update_driver_prdp_expiry",
+    description: "Update a driver's PrDP expiry date.",
+    input_schema: {
+      type: "object",
+      properties: {
+        driver_name: { type: "string" },
+        prdp_expiry: { type: "string", description: "YYYY-MM-DD" },
       },
+      required: ["driver_name", "prdp_expiry"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "update_vehicle_status",
-      description: "Mark a vehicle as available, out_for_repair, on_route, off_road, or standby.",
-      parameters: {
-        type: "object",
-        properties: {
-          registration_number: { type: "string" },
-          status: { type: "string", enum: ["available", "out_for_repair", "on_route", "off_road", "standby"] },
-          workshop_name: { type: "string" },
-          repair_description: { type: "string" },
-          estimated_return_date: { type: "string" },
-        },
-        required: ["registration_number", "status"],
+    name: "update_vehicle_status",
+    description: "Mark a vehicle as available, out_for_repair, on_route, off_road, or standby.",
+    input_schema: {
+      type: "object",
+      properties: {
+        registration_number: { type: "string" },
+        status: { type: "string", enum: ["available", "out_for_repair", "on_route", "off_road", "standby"] },
+        workshop_name: { type: "string" },
+        repair_description: { type: "string" },
+        estimated_return_date: { type: "string" },
       },
+      required: ["registration_number", "status"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "get_certificate_link",
-      description: "Get a secure 1-hour download link for a vehicle's certificate file (COF, licence disc, roadworthy, etc.). Returns a markdown link.",
-      parameters: {
-        type: "object",
-        properties: {
-          registration_number: { type: "string" },
-          certificate_type: { type: "string", description: "e.g. 'COF', 'Licence Disc', 'Roadworthy'" },
-        },
-        required: ["registration_number", "certificate_type"],
+    name: "get_certificate_link",
+    description: "Get a secure 1-hour download link for a vehicle's certificate file. Returns markdown link.",
+    input_schema: {
+      type: "object",
+      properties: {
+        registration_number: { type: "string" },
+        certificate_type: { type: "string" },
       },
+      required: ["registration_number", "certificate_type"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "get_driver_document_link",
-      description: "Get a secure 1-hour download link for a driver's document file (Licence, PrDP, Medical, etc.). Returns a markdown link.",
-      parameters: {
-        type: "object",
-        properties: {
-          driver_name: { type: "string" },
-          document_type: { type: "string", description: "e.g. 'Licence', 'PrDP', 'Medical'" },
-        },
-        required: ["driver_name", "document_type"],
+    name: "get_driver_document_link",
+    description: "Get a secure 1-hour download link for a driver's document file. Returns markdown link.",
+    input_schema: {
+      type: "object",
+      properties: {
+        driver_name: { type: "string" },
+        document_type: { type: "string" },
       },
+      required: ["driver_name", "document_type"],
     },
   },
 ];
@@ -188,9 +162,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
     }
     case "update_vehicle_service": {
       const { data: vehicle } = await supabase.from("vehicles")
-        .select("id, current_odometer_km")
-        .ilike("registration_number", args.registration_number)
-        .maybeSingle();
+        .select("id").ilike("registration_number", args.registration_number).maybeSingle();
       if (!vehicle) return JSON.stringify({ error: `Vehicle ${args.registration_number} not found` });
       const { error } = await supabase.from("vehicles").update({
         last_service_km: args.last_service_km,
@@ -201,9 +173,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
     }
     case "add_certificate": {
       const { data: vehicle } = await supabase.from("vehicles")
-        .select("id, organisation_id")
-        .ilike("registration_number", args.registration_number)
-        .maybeSingle();
+        .select("id, organisation_id").ilike("registration_number", args.registration_number).maybeSingle();
       if (!vehicle) return JSON.stringify({ error: `Vehicle ${args.registration_number} not found` });
       const days = Math.ceil((new Date(args.expiry_date).getTime() - Date.now()) / 86400000);
       const status = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
@@ -321,283 +291,142 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
   }
 }
 
+async function buildFleetSnapshot(supabase: any, orgId: string): Promise<string> {
+  const today = new Date().toISOString().split("T")[0];
+  const [vehicles, certs, drivers, fines, statuses] = await Promise.all([
+    supabase.from("vehicles").select("registration_number, fleet_number, make, model, current_odometer_km, next_service_due_km, compliance_status").eq("organisation_id", orgId).limit(200),
+    supabase.from("certificates").select("certificate_type, expiry_date, status, days_until_expiry, vehicle_id").eq("organisation_id", orgId).limit(300),
+    supabase.from("drivers").select("full_name, licence_expiry, prdp_expiry, demerit_points, employment_status").eq("organisation_id", orgId).limit(200),
+    supabase.from("fines").select("fine_number, amount, payment_status, offence_date").eq("organisation_id", orgId).order("offence_date", { ascending: false }).limit(50),
+    supabase.from("vehicle_status").select("vehicle_id, status, estimated_return_date").eq("organisation_id", orgId).limit(200),
+  ]);
+
+  return `# Fleet Snapshot (today ${today})
+Vehicles (${vehicles.data?.length || 0}): ${JSON.stringify(vehicles.data || [])}
+Certificates (${certs.data?.length || 0}): ${JSON.stringify(certs.data || [])}
+Drivers (${drivers.data?.length || 0}): ${JSON.stringify(drivers.data || [])}
+Recent Fines (${fines.data?.length || 0}): ${JSON.stringify(fines.data || [])}
+Vehicle Statuses (${statuses.data?.length || 0}): ${JSON.stringify(statuses.data || [])}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("MARZ KEY");
+    if (!ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({ error: "MARZ KEY secret is not configured" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    // Parse request body - support both old and new formats
-    const body = await req.json();
-    const message = body.message as string | undefined;
-    const organisationId = body.organisationId as string | undefined;
-    const conversationHistory = (body.conversationHistory || []) as Array<{ role: string; content: string }>;
-    // Legacy support
-    const legacyMessages = body.messages as Array<{ role: string; content: string }> | undefined;
-    const mode = body.mode as string | undefined;
-
-    // Use service role key to bypass RLS and query by org ID directly
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Determine the organisation ID and user name
-    let orgId = organisationId;
-    let userName = "Fleet Manager";
-
-    // If organisationId provided, use it directly; otherwise try auth header
-    if (!orgId) {
-      const authHeader = req.headers.get("Authorization");
-      const authSupabase = createClient(supabaseUrl, supabaseKey, {
-        global: { headers: { Authorization: authHeader || "" } },
+    // Parse body safely
+    let body: any = {};
+    try {
+      const raw = await req.text();
+      body = raw ? JSON.parse(raw) : {};
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-      const { data: { user }, error: authError } = await authSupabase.auth.getUser();
-      if (authError || !user) {
-        return new Response(JSON.stringify({ error: "Unauthorized — no organisationId or valid auth token provided." }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const { data: profile } = await supabase.from("users").select("organisation_id, full_name").eq("id", user.id).maybeSingle();
-      if (!profile?.organisation_id) {
-        return new Response(JSON.stringify({ error: "No organisation linked to your account." }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      orgId = profile.organisation_id;
-      userName = profile.full_name || user.email || "Fleet Manager";
-    } else {
-      // Fetch user name from org if possible
-      const { data: orgUsers } = await supabase.from("users").select("full_name").eq("organisation_id", orgId).limit(1).maybeSingle();
-      if (orgUsers?.full_name) userName = orgUsers.full_name;
     }
 
-    // Build chat messages from new or legacy format
-    let chatMessages: Array<{ role: string; content: string }> = [];
-    if (message) {
-      // New format: single message + conversation history
-      chatMessages = [...conversationHistory, { role: "user", content: message }];
-    } else if (legacyMessages) {
-      chatMessages = legacyMessages;
+    const message: string | undefined = body.message;
+    const organisationId: string | undefined = body.organisationId;
+    const conversationHistory: Array<{ role: string; content: string }> = body.conversationHistory || [];
+    const mode: string = body.mode || "chat";
+
+    if (!organisationId) {
+      return new Response(JSON.stringify({ error: "organisationId is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const isInsightsMode = mode === "insights";
+    const isInsights = mode === "insights";
+    const userMessage = message || (isInsights
+      ? "Give me 3 quick insights about what needs attention in my fleet right now. Be concise and specific."
+      : "");
 
-    // Fetch ALL org data using service role (no RLS issues)
-    const [vehiclesRes, certsRes, driversRes, finesRes, inspectionsRes, damageRes, statusRes, driverDocsRes, toolboxRes, branchesRes, jobCardsRes] = await Promise.all([
-      supabase.from("vehicles").select("*").eq("organisation_id", orgId),
-      supabase.from("certificates").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("expiry_date"),
-      supabase.from("drivers").select("*").eq("organisation_id", orgId),
-      supabase.from("fines").select("*, vehicles(registration_number), drivers(full_name)").eq("organisation_id", orgId).order("offence_date", { ascending: false }),
-      supabase.from("damage_inspections").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("inspection_date", { ascending: false }).limit(50),
-      supabase.from("damage_items").select("*, vehicles(registration_number)").eq("organisation_id", orgId).eq("resolved", false),
-      supabase.from("vehicle_status").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("updated_at", { ascending: false }),
-      supabase.from("driver_documents").select("*, drivers(full_name)").eq("organisation_id", orgId).order("expiry_date"),
-      supabase.from("toolbox_talks").select("*, drivers(full_name)").eq("organisation_id", orgId).order("date_conducted", { ascending: false }),
-      supabase.from("branches").select("*").eq("organisation_id", orgId),
-      supabase.from("job_cards").select("*, vehicles(registration_number)").eq("organisation_id", orgId).order("work_date", { ascending: false }),
-    ]);
+    if (!userMessage) {
+      return new Response(JSON.stringify({ error: "message is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    const fleetData = JSON.stringify({
-      vehicles: vehiclesRes.data || [],
-      certificates: certsRes.data || [],
-      drivers: driversRes.data || [],
-      fines: finesRes.data || [],
-      recent_inspections: inspectionsRes.data || [],
-      unresolved_damage: damageRes.data || [],
-      vehicle_statuses: statusRes.data || [],
-      driver_documents: driverDocsRes.data || [],
-      toolbox_talks: toolboxRes.data || [],
-      branches: branchesRes.data || [],
-      job_cards: jobCardsRes.data || [],
-      today: new Date().toISOString().split("T")[0],
+    const snapshot = await buildFleetSnapshot(supabase, organisationId);
+
+    const systemPrompt = `You are MARZ Fleet AI, a warm, sharp South African fleet compliance assistant. Today is ${new Date().toISOString().split("T")[0]}.
+Refer to local context: AARTO, JMPD, COF, PrDP, ZAR currency.
+Be concise and direct. Use markdown for lists. Cite registration numbers and exact dates from the snapshot.
+
+${snapshot}`;
+
+    // Build Anthropic messages from conversation history + current user message
+    const anthropicMessages: Array<{ role: "user" | "assistant"; content: any }> = [];
+    for (const m of conversationHistory) {
+      if (m.role === "user" || m.role === "assistant") {
+        anthropicMessages.push({ role: m.role, content: m.content });
+      }
+    }
+    anthropicMessages.push({ role: "user", content: userMessage });
+
+    // First call
+    let assistantMessages = anthropicMessages.slice();
+    let finalText = "";
+
+    for (let iter = 0; iter < 3; iter++) {
+      const aiResp = await fetch(ANTHROPIC_URL, {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 1500,
+          system: systemPrompt,
+          tools: isInsights ? undefined : tools,
+          messages: assistantMessages,
+        }),
+      });
+
+      if (!aiResp.ok) {
+        const errText = await aiResp.text();
+        console.error("Anthropic error:", aiResp.status, errText);
+        return new Response(JSON.stringify({ error: `AI provider error: ${aiResp.status}`, detail: errText }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const data = await aiResp.json();
+      const content: any[] = data.content || [];
+      const textBlocks = content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+      const toolUses = content.filter((b) => b.type === "tool_use");
+
+      if (toolUses.length === 0 || isInsights) {
+        finalText = textBlocks || finalText;
+        break;
+      }
+
+      // Append assistant turn (with tool_use blocks) and tool_result turns
+      assistantMessages.push({ role: "assistant", content });
+      const toolResults = [];
+      for (const tu of toolUses) {
+        const result = await executeTool(supabase, tu.name, tu.input);
+        toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: result });
+      }
+      assistantMessages.push({ role: "user", content: toolResults });
+      finalText = textBlocks || finalText;
+    }
+
+    return new Response(JSON.stringify({ message: finalText || "No response generated." }), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
-    const saPersonality = `YOUR PERSONALITY — This is critical, follow it exactly:
-- You are a warm, direct, professional South African fleet manager's assistant
-- Use natural SA speech: "hey", "so", "look", "right", "shame", "eish"
-- Understand SA context deeply: AARTO, JMPD, RTMC, roadblocks, COF, PrDP, C-NATIS, SABS, NRCS
-- Never be robotic or overly formal — talk like a helpful colleague who genuinely cares
-- Always end with an offer to help more, like "Need me to check anything else?"
-- Give SPECIFIC data — exact dates, exact KM readings, exact ZAR amounts
-- Never give vague or generic answers when data exists
-
-CRITICAL RULES:
-- When asked about ONE specific vehicle/driver/branch, ONLY report on that ONE thing. Don't dump info about the whole fleet.
-- When asked about a specific topic (e.g. "expiring certificates"), ONLY show that data.
-- Calculate days until expiry from today's date (${new Date().toISOString().split("T")[0]})
-- All currency is in South African Rand (ZAR), display as "R X,XXX"
-- Driver compliance requires ALL of: valid licence, valid PrDP, valid medical certificate, valid criminal background check, and toolbox talk within 30 days
-- Vehicle compliance requires: service not overdue (km_until_service >= 0), all required certificates valid, equipment-specific certificates present`;
-
-    let systemPrompt: string;
-    if (isInsightsMode) {
-      systemPrompt = `You are MARZ Fleet AI, the fleet compliance assistant for a South African fleet company. Today is ${new Date().toISOString().split("T")[0]}.
-
-${saPersonality}
-
-Your job: Analyse the fleet data below and give exactly 3 bullet point insights about the MOST URGENT stuff that needs attention. Be specific — mention reg numbers, driver names, exact dates, exact KMs.
-
-Prioritise: expired/overdue items first, then items expiring within 7 days, then 30 days.
-Keep each bullet to 1-2 sentences max. Be punchy and actionable.
-If no issues found, say something like "Looking good! Your fleet is running clean."
-
-Fleet data:
-${fleetData}`;
-    } else {
-      systemPrompt = `You are MARZ Fleet AI, a warm and sharp fleet compliance assistant for South African businesses. Today is ${new Date().toISOString().split("T")[0]}. The logged-in user is ${userName}.
-
-${saPersonality}
-
-You have COMPLETE access to this organisation's fleet data (and ONLY this organisation):
-${fleetData}
-
-DATA UPDATE CAPABILITIES:
-You can update fleet data when users ask. You have tools to:
-- Update vehicle odometer readings
-- Update service records
-- Add or renew certificates
-- Mark damage items as repaired
-- Update driver licence/PrDP expiry dates
-- Update vehicle availability status (available, out for repair, etc.)
-
-CRITICAL RULES FOR UPDATES:
-1. ALWAYS ask for confirmation before executing any update
-2. Format: "I'm about to update [detail]. Shall I go ahead?"
-3. Only execute AFTER the user confirms with yes/ja/sure/okay
-4. After success, confirm with ✅
-5. If info is missing, ask before proceeding
-6. NEVER update without explicit confirmation`;
-    }
-
-    const aiMessages: any[] = [
-      { role: "system", content: systemPrompt },
-      ...chatMessages,
-    ];
-
-    if (isInsightsMode && chatMessages.length === 0) {
-      aiMessages.push({ role: "user", content: "Give me 3 quick insights about what needs attention in my fleet right now." });
-    }
-
-    const requestBody: any = {
-      model: "google/gemini-3-flash-preview",
-      messages: aiMessages,
-      stream: true,
-    };
-
-    if (!isInsightsMode) {
-      requestBody.tools = tools;
-    }
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      throw new Error("AI gateway error");
-    }
-
-    if (!isInsightsMode) {
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullContent = "";
-      let currentToolCalls: Record<number, { id: string; function: { name: string; arguments: string } }> = {};
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        let idx: number;
-        while ((idx = buffer.indexOf("\n")) !== -1) {
-          let line = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (json === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(json);
-            const delta = parsed.choices?.[0]?.delta;
-            if (delta?.content) fullContent += delta.content;
-            if (delta?.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                const i = tc.index ?? 0;
-                if (!currentToolCalls[i]) currentToolCalls[i] = { id: tc.id || "", function: { name: "", arguments: "" } };
-                if (tc.id) currentToolCalls[i].id = tc.id;
-                if (tc.function?.name) currentToolCalls[i].function.name += tc.function.name;
-                if (tc.function?.arguments) currentToolCalls[i].function.arguments += tc.function.arguments;
-              }
-            }
-          } catch { /* ignore */ }
-        }
-      }
-
-      const toolCalls = Object.values(currentToolCalls).filter(tc => tc.function.name);
-
-      if (toolCalls.length > 0) {
-        const toolResults: any[] = [];
-        for (const tc of toolCalls) {
-          try {
-            const args = JSON.parse(tc.function.arguments);
-            const result = await executeTool(supabase, tc.function.name, args);
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: result });
-          } catch (e) {
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ error: "Failed to execute tool" }) });
-          }
-        }
-
-        const followUpMessages = [
-          ...aiMessages,
-          {
-            role: "assistant", content: fullContent || null,
-            tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function", function: tc.function })),
-          },
-          ...toolResults,
-        ];
-
-        const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: followUpMessages, stream: true }),
-        });
-
-        if (!followUpResponse.ok) {
-          const resultMsg = toolResults.map(r => {
-            try { return JSON.parse(r.content).message || r.content; } catch { return r.content; }
-          }).join("\n");
-          const sseBody = `data: ${JSON.stringify({ choices: [{ delta: { content: resultMsg } }] })}\n\ndata: [DONE]\n\n`;
-          return new Response(sseBody, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
-        }
-
-        return new Response(followUpResponse.body, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
-      }
-
-      const sseBody = `data: ${JSON.stringify({ choices: [{ delta: { content: fullContent } }] })}\n\ndata: [DONE]\n\n`;
-      return new Response(sseBody, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
-    }
-
-    return new Response(response.body, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
   } catch (e) {
     console.error("fleet-ai error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
