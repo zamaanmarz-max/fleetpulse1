@@ -491,12 +491,6 @@ export default function VehicleDetail() {
       {activeTab === "trackers" && (
         <ServiceTrackersTab vehicleId={id!} organisationId={vehicle.organisation_id} currentKm={currentKm} />
       )}
-              equipment={(vehicle.equipment as string[]) || []}
-              certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
-            />
-          </div>
-        </div>
-      )}
 
       {activeTab === "jobcards" && (
         <JobCardsTab vehicleId={id!} organisationId={vehicle.organisation_id} />
