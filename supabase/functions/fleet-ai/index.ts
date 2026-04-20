@@ -169,6 +169,7 @@ const tools = [
       },
     },
   },
+];
 
 async function executeTool(supabase: any, toolName: string, args: any): Promise<string> {
   switch (toolName) {
