@@ -116,10 +116,10 @@ export function checkDriverCompliance(
     const hasAnyExpiry = driver.prdp_expiry || anyPrdpDoc?.expiry_date;
     if (!hasAnyExpiry || (!driver.prdp_number && !anyPrdpDoc)) {
       issues.push({ field: "PrDP", status: "missing" });
-      score -= 20; breakdown.push({ label: "No PrDP on file", deduction: 20, severity: "critical" });
+      score -= 35; breakdown.push({ label: "No PrDP on file (NON-COMPLIANT)", deduction: 35, severity: "critical" });
     } else {
       issues.push({ field: "PrDP", status: "expired" });
-      score -= 25; breakdown.push({ label: "PrDP expired", deduction: 25, severity: "critical" });
+      score -= 35; breakdown.push({ label: "PrDP expired (NON-COMPLIANT)", deduction: 35, severity: "critical" });
     }
   }
 
