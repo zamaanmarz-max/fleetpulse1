@@ -89,6 +89,17 @@ export default function VehicleDetail() {
   const [certSaving, setCertSaving] = useState(false);
   const [deleteCertId, setDeleteCertId] = useState<string | null>(null);
   const [deletingCert, setDeletingCert] = useState(false);
+  const [showUploadCert, setShowUploadCert] = useState(false);
+  const [uploadCertForm, setUploadCertForm] = useState({
+    certificate_type: "COF Certificate",
+    certificate_type_other: "",
+    certificate_number: "",
+    issue_date: "",
+    expiry_date: "",
+    issuing_authority: "",
+  });
+  const [uploadCertFile, setUploadCertFile] = useState<File | null>(null);
+  const [uploadingCert, setUploadingCert] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferBranch, setTransferBranch] = useState("");
   const [transferReason, setTransferReason] = useState("");
