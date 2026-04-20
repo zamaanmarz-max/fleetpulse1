@@ -84,7 +84,7 @@ export default function Certificates() {
     const { error } = await supabase.from("certificates").insert({
       organisation_id: profile.organisation_id,
       vehicle_id: form.vehicle_id,
-      certificate_type: form.certificate_type,
+      certificate_type: finalType,
       certificate_number: form.certificate_number || null,
       issue_date: form.issue_date || null,
       expiry_date: form.expiry_date || null,
@@ -99,7 +99,7 @@ export default function Certificates() {
     if (error) { toast.error(error.message); } else {
       toast.success("Certificate uploaded");
       setShowForm(false);
-      setForm({ vehicle_id: "", certificate_type: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "" });
+      setForm({ vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "" });
       setFile(null);
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
     }
