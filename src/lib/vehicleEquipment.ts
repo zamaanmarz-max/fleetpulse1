@@ -14,10 +14,43 @@ export const EQUIPMENT_OPTIONS = [
   "Skip/Waste",
 ] as const;
 
-// Default certificates ALL vehicles require (only COF is mandatory by default)
+// Default certificates ALL vehicles require.
+// COF & Vehicle Licence is one combined annual document; Operator Card is annual and tied to company BRN.
 export const DEFAULT_REQUIRED_CERTS = [
-  "COF Certificate",
+  "COF & Vehicle Licence",
+  "Operator Card",
 ];
+
+// Legacy/alternate names that should be treated as equivalent to a canonical required cert.
+// Used so historic uploads (e.g. "COF Certificate", "Vehicle Licence", "Licence Disk") still satisfy compliance.
+export const CERT_ALIASES: Record<string, string[]> = {
+  "COF & Vehicle Licence": [
+    "cof & vehicle licence",
+    "cof certificate",
+    "certificate of fitness (cof)",
+    "certificate of fitness",
+    "cof",
+    "vehicle licence",
+    "vehicle license",
+    "motor vehicle licence disc",
+    "licence disk",
+    "licence disc",
+    "license disc",
+  ],
+  "Operator Card": [
+    "operator card",
+    "operating licence",
+    "operator permit",
+    "operator's card",
+  ],
+};
+
+function matchesCert(canonical: string, certTypeRaw: string): boolean {
+  const lower = (certTypeRaw || "").toLowerCase().trim();
+  if (lower === canonical.toLowerCase()) return true;
+  const aliases = CERT_ALIASES[canonical];
+  return !!aliases?.includes(lower);
+}
 
 // Mapping from equipment → required certificates
 export const EQUIPMENT_CERT_MAP: Record<string, string[]> = {
