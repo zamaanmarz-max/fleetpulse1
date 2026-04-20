@@ -302,11 +302,6 @@ export default function Vehicles() {
               <h2 className="text-lg font-bold text-foreground">Add Vehicle</h2>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
-          <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">Add Vehicle</h2>
-              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
-            </div>
             {[
               { key: "registration_number", label: "Registration Number *", placeholder: "GP 123-456" },
               { key: "fleet_number", label: "Fleet Number", placeholder: "FP-001" },
