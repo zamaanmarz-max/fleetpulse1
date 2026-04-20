@@ -581,14 +581,14 @@ export default function DriverDetail() {
         </div>
       )}
 
-      {/* Add Toolbox Talk Form */}
+      {/* Add/Edit Toolbox Talk Form */}
       {showTalkForm && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-background/50" onClick={() => setShowTalkForm(false)} />
+          <div className="flex-1 bg-background/50" onClick={() => { setShowTalkForm(false); setEditingTalkId(null); setTalkFile(null); }} />
           <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">Add Toolbox Talk</h2>
-              <button onClick={() => setShowTalkForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              <h2 className="text-lg font-bold text-foreground">{editingTalkId ? "Edit Toolbox Talk" : "Add Toolbox Talk"}</h2>
+              <button onClick={() => { setShowTalkForm(false); setEditingTalkId(null); setTalkFile(null); }} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Topic/Title *</label>
@@ -603,15 +603,48 @@ export default function DriverDetail() {
               <input type="text" value={talkForm.conducted_by} onChange={e => setTalkForm({ ...talkForm, conducted_by: e.target.value })} placeholder="Name of person" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Upload Attendance Sheet (PDF/Image)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">{editingTalkId ? "Replace Attendance Sheet (optional)" : "Upload Attendance Sheet (PDF/Image)"}</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setTalkFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+              {editingTalkId && <p className="text-xs text-muted-foreground mt-1">Leave empty to keep existing file</p>}
             </div>
             <button onClick={handleSaveTalk} disabled={savingTalk} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {savingTalk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Save Toolbox Talk
+              {savingTalk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {editingTalkId ? "Update Toolbox Talk" : "Save Toolbox Talk"}
             </button>
           </div>
         </div>
       )}
+
+      {/* Delete document confirmation */}
+      <AlertDialog open={!!deleteDocId} onOpenChange={(open) => !open && setDeleteDocId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>Permanently delete this driver document? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteDoc} disabled={deletingDoc} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingDoc ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete toolbox talk confirmation */}
+      <AlertDialog open={!!deleteTalkId} onOpenChange={(open) => !open && setDeleteTalkId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Toolbox Talk</AlertDialogTitle>
+            <AlertDialogDescription>Permanently delete this toolbox talk? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTalk} disabled={deletingTalk} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingTalk ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
