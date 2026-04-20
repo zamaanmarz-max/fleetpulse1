@@ -89,6 +89,17 @@ export default function VehicleDetail() {
   const [certSaving, setCertSaving] = useState(false);
   const [deleteCertId, setDeleteCertId] = useState<string | null>(null);
   const [deletingCert, setDeletingCert] = useState(false);
+  const [showUploadCert, setShowUploadCert] = useState(false);
+  const [uploadCertForm, setUploadCertForm] = useState({
+    certificate_type: "COF Certificate",
+    certificate_type_other: "",
+    certificate_number: "",
+    issue_date: "",
+    expiry_date: "",
+    issuing_authority: "",
+  });
+  const [uploadCertFile, setUploadCertFile] = useState<File | null>(null);
+  const [uploadingCert, setUploadingCert] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferBranch, setTransferBranch] = useState("");
   const [transferReason, setTransferReason] = useState("");
@@ -330,6 +341,47 @@ export default function VehicleDetail() {
     }
   };
 
+  const handleUploadCert = async () => {
+    if (!vehicle || !id) return;
+    const finalType = uploadCertForm.certificate_type === "Other"
+      ? uploadCertForm.certificate_type_other.trim()
+      : uploadCertForm.certificate_type;
+    if (!finalType) { toast.error("Certificate type is required"); return; }
+    setUploadingCert(true);
+    let fileUrl: string | null = null;
+    if (uploadCertFile) {
+      const path = `${vehicle.organisation_id}/${id}/${Date.now()}_${uploadCertFile.name}`;
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, uploadCertFile);
+      if (upErr) { toast.error("File upload failed: " + upErr.message); setUploadingCert(false); return; }
+      fileUrl = path;
+    }
+    const days = uploadCertForm.expiry_date
+      ? Math.ceil((new Date(uploadCertForm.expiry_date).getTime() - Date.now()) / 86400000)
+      : null;
+    const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
+    const { error } = await supabase.from("certificates").insert({
+      organisation_id: vehicle.organisation_id,
+      vehicle_id: id,
+      certificate_type: finalType,
+      certificate_number: uploadCertForm.certificate_number || null,
+      issue_date: uploadCertForm.issue_date || null,
+      expiry_date: uploadCertForm.expiry_date || null,
+      issuing_authority: uploadCertForm.issuing_authority || null,
+      file_url: fileUrl,
+      uploaded_by: profile?.id || null,
+      status,
+      days_until_expiry: days,
+    });
+    setUploadingCert(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Certificate uploaded");
+    setShowUploadCert(false);
+    setUploadCertForm({ certificate_type: "COF Certificate", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "" });
+    setUploadCertFile(null);
+    queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
+    queryClient.invalidateQueries({ queryKey: ["certificates"] });
+  };
+
   const handleTransfer = async () => {
     if (!transferBranch || !vehicle) return;
     setTransferring(true);
@@ -498,7 +550,71 @@ export default function VehicleDetail() {
 
       {activeTab === "certificates" && (
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">Certificates ({(certificates || []).length})</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Certificates ({(certificates || []).length})</h3>
+            <button
+              onClick={() => setShowUploadCert(v => !v)}
+              className="bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90"
+            >
+              {showUploadCert ? "Cancel" : "+ Upload Certificate"}
+            </button>
+          </div>
+
+          {showUploadCert && (
+            <div className="stat-card space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase">Upload New Certificate</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Type *</label>
+                  <select
+                    value={uploadCertForm.certificate_type}
+                    onChange={(e) => setUploadCertForm({ ...uploadCertForm, certificate_type: e.target.value })}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="COF Certificate">COF Certificate</option>
+                    <option value="Other">Other (specify)</option>
+                  </select>
+                  {uploadCertForm.certificate_type === "Other" && (
+                    <input
+                      type="text"
+                      placeholder="Enter certificate name"
+                      value={uploadCertForm.certificate_type_other}
+                      onChange={(e) => setUploadCertForm({ ...uploadCertForm, certificate_type_other: e.target.value })}
+                      className="mt-2 w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Certificate Number</label>
+                  <input type="text" value={uploadCertForm.certificate_number} onChange={(e) => setUploadCertForm({ ...uploadCertForm, certificate_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Issue Date</label>
+                  <input type="date" value={uploadCertForm.issue_date} onChange={(e) => setUploadCertForm({ ...uploadCertForm, issue_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Expiry Date</label>
+                  <input type="date" value={uploadCertForm.expiry_date} onChange={(e) => setUploadCertForm({ ...uploadCertForm, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Issuing Authority</label>
+                  <input type="text" value={uploadCertForm.issuing_authority} onChange={(e) => setUploadCertForm({ ...uploadCertForm, issuing_authority: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Document File (PDF/Image)</label>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setUploadCertFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
+                </div>
+              </div>
+              <button
+                onClick={handleUploadCert}
+                disabled={uploadingCert}
+                className="w-full bg-primary text-primary-foreground py-2 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {uploadingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Upload Certificate
+              </button>
+            </div>
+          )}
+
           
           {/* Required certificates from template */}
           {requiredCerts && requiredCerts.length > 0 && (

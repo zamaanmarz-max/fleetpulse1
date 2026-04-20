@@ -19,12 +19,8 @@ const statusStyles: Record<string, string> = {
   expired: "bg-destructive/20 text-destructive",
 };
 
-const certTypes = [
-  "COF Certificate", "Licence Disc", "Operator Permit", "Refrigeration Certificate",
-  "Fuel Certificate", "Fire Extinguisher Certificate", "Dangerous Goods Permit",
-  "Cross-Border Permit", "Abnormal Load Permit", "Crane and Lifting Certificate",
-  "Fumigation Certificate", "Temperature Log Compliance",
-];
+// Only COF is preset. Users select "Other" to enter a custom certificate name.
+const certTypes = ["COF Certificate", "Other"];
 
 export default function Certificates() {
   const [search, setSearch] = useState("");
@@ -60,14 +56,17 @@ export default function Certificates() {
   );
 
   const [form, setForm] = useState({
-    vehicle_id: "", certificate_type: "", certificate_number: "",
+    vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "",
     issue_date: "", expiry_date: "", issuing_authority: "", notes: "",
   });
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!form.vehicle_id || !form.certificate_type || !profile?.organisation_id) {
+    const finalType = form.certificate_type === "Other"
+      ? form.certificate_type_other.trim()
+      : form.certificate_type;
+    if (!form.vehicle_id || !finalType || !profile?.organisation_id) {
       toast.error("Vehicle and certificate type are required");
       return;
     }
@@ -85,7 +84,7 @@ export default function Certificates() {
     const { error } = await supabase.from("certificates").insert({
       organisation_id: profile.organisation_id,
       vehicle_id: form.vehicle_id,
-      certificate_type: form.certificate_type,
+      certificate_type: finalType,
       certificate_number: form.certificate_number || null,
       issue_date: form.issue_date || null,
       expiry_date: form.expiry_date || null,
@@ -100,7 +99,7 @@ export default function Certificates() {
     if (error) { toast.error(error.message); } else {
       toast.success("Certificate uploaded");
       setShowForm(false);
-      setForm({ vehicle_id: "", certificate_type: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "" });
+      setForm({ vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "" });
       setFile(null);
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
     }
@@ -325,6 +324,15 @@ export default function Certificates() {
                 <option value="">Select type</option>
                 {certTypes.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
+              {form.certificate_type === "Other" && (
+                <input
+                  type="text"
+                  placeholder="Enter certificate name"
+                  value={form.certificate_type_other}
+                  onChange={(e) => setForm({ ...form, certificate_type_other: e.target.value })}
+                  className="mt-2 w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              )}
             </div>
             {[
               { key: "certificate_number", label: "Certificate Number", type: "text" },
