@@ -5,7 +5,7 @@ import { useVehicles, useCertificates } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { recalculateAllVehicleCompliance, calculateVehicleComplianceScore } from "@/lib/compliance";
 import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { BranchFilter } from "@/components/filters/BranchFilter";
@@ -30,6 +30,16 @@ export default function Vehicles() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  const { data: allTrackers } = useQuery({
+    queryKey: ["all_service_trackers", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracking_type, next_due_value, next_due_date");
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!profile?.organisation_id,
+  });
 
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
