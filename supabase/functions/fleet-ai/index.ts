@@ -293,12 +293,14 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
 async function buildFleetSnapshot(supabase: any, orgId: string): Promise<string> {
   const today = new Date().toISOString().split("T")[0];
-  const [vehicles, certs, drivers, fines, statuses] = await Promise.all([
-    supabase.from("vehicles").select("registration_number, fleet_number, make, model, current_odometer_km, next_service_due_km, compliance_status").eq("organisation_id", orgId).limit(200),
+  const [vehicles, certs, drivers, fines, statuses, trackers, talks] = await Promise.all([
+    supabase.from("vehicles").select("registration_number, fleet_number, make, model, current_odometer_km, next_service_due_km, compliance_status, equipment").eq("organisation_id", orgId).limit(200),
     supabase.from("certificates").select("certificate_type, expiry_date, status, days_until_expiry, vehicle_id").eq("organisation_id", orgId).limit(300),
-    supabase.from("drivers").select("full_name, licence_expiry, prdp_expiry, demerit_points, employment_status").eq("organisation_id", orgId).limit(200),
+    supabase.from("drivers").select("full_name, licence_expiry, prdp_expiry, demerit_points, employment_status, branch_id").eq("organisation_id", orgId).limit(200),
     supabase.from("fines").select("fine_number, amount, payment_status, offence_date").eq("organisation_id", orgId).order("offence_date", { ascending: false }).limit(50),
     supabase.from("vehicle_status").select("vehicle_id, status, estimated_return_date").eq("organisation_id", orgId).limit(200),
+    supabase.from("vehicle_service_trackers").select("vehicle_id, tracker_name, tracking_type, next_due_value, next_due_date").eq("organisation_id", orgId).limit(200),
+    supabase.from("toolbox_talks").select("driver_id, topic, date_conducted").eq("organisation_id", orgId).limit(200),
   ]);
 
   return `# Fleet Snapshot (today ${today})
@@ -306,7 +308,9 @@ Vehicles (${vehicles.data?.length || 0}): ${JSON.stringify(vehicles.data || [])}
 Certificates (${certs.data?.length || 0}): ${JSON.stringify(certs.data || [])}
 Drivers (${drivers.data?.length || 0}): ${JSON.stringify(drivers.data || [])}
 Recent Fines (${fines.data?.length || 0}): ${JSON.stringify(fines.data || [])}
-Vehicle Statuses (${statuses.data?.length || 0}): ${JSON.stringify(statuses.data || [])}`;
+Vehicle Statuses (${statuses.data?.length || 0}): ${JSON.stringify(statuses.data || [])}
+Service Trackers (${trackers.data?.length || 0}): ${JSON.stringify(trackers.data || [])}
+Toolbox Talks (${talks.data?.length || 0}): ${JSON.stringify(talks.data || [])}`;
 }
 
 serve(async (req) => {
