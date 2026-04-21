@@ -138,7 +138,7 @@ export function AIChatButton() {
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+          <div className="px-4 pb-2 flex flex-wrap gap-1.5 flex-shrink-0">
             {QUICK_ACTIONS.map((action) => (
               <button
                 key={action}
@@ -152,17 +152,24 @@ export function AIChatButton() {
             ))}
           </div>
 
-          <div className="p-4 border-t border-border">
+          <div
+            className="p-4 border-t border-border flex-shrink-0 bg-card"
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+          >
             <div className="flex gap-2">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !loading && handleSend()}
                 placeholder="Ask your fleet anything..."
-                className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-3 text-base md:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary h-11"
                 disabled={loading}
               />
-              <button onClick={handleSend} disabled={loading} className="bg-primary text-primary-foreground p-2 rounded-md hover:opacity-90 disabled:opacity-50">
+              <button
+                onClick={handleSend}
+                disabled={loading}
+                className="bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50 h-11 w-11 flex items-center justify-center flex-shrink-0"
+              >
                 <Send className="w-4 h-4" />
               </button>
             </div>
