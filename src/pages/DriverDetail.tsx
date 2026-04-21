@@ -96,16 +96,6 @@ export default function DriverDetail() {
     enabled: !!id,
   });
 
-  const { data: branches } = useQuery({
-    queryKey: ["branches", profile?.organisation_id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("branches").select("id, name").order("name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!profile?.organisation_id,
-  });
-
   const now = Date.now();
 
   const enrichedDocs = (documents || []).map(d => {
@@ -282,17 +272,11 @@ export default function DriverDetail() {
       prdp_number: driver.prdp_number || "", prdp_category: driver.prdp_category || "",
       prdp_expiry: driver.prdp_expiry || "", shift_type: driver.shift_type || "day",
       notes: driver.notes || "",
-      branch_id: driver.branch_id || "",
     });
     setEditing(true);
   };
 
   const handleSaveEdit = async () => {
-    // Enforce induction toolbox before activation
-    if (editForm.employment_status === "active" && (toolboxTalks || []).length === 0) {
-      toast.error("Driver cannot be set to active until at least one toolbox talk is uploaded.");
-      return;
-    }
     setEditSaving(true);
     const { error } = await supabase.from("drivers").update({
       full_name: editForm.full_name, id_number: editForm.id_number || null,
@@ -303,7 +287,6 @@ export default function DriverDetail() {
       prdp_number: editForm.prdp_number || null, prdp_category: editForm.prdp_category || null,
       prdp_expiry: editForm.prdp_expiry || null, shift_type: editForm.shift_type || "day",
       notes: editForm.notes || null,
-      branch_id: editForm.branch_id || null,
     }).eq("id", id!);
     setEditSaving(false);
     if (error) { toast.error(error.message); } else {
@@ -403,15 +386,6 @@ export default function DriverDetail() {
               <EditField label="Email" value={editForm.email} onChange={v => setEditForm({ ...editForm, email: v })} type="email" />
               <EditField label="Employment" value={editForm.employment_status} onChange={v => setEditForm({ ...editForm, employment_status: v })} />
               <EditField label="Shift Type" value={editForm.shift_type} onChange={v => setEditForm({ ...editForm, shift_type: v })} />
-              {(branches || []).length > 0 && (
-                <div className="flex items-center gap-3 py-1">
-                  <span className="text-xs text-muted-foreground uppercase tracking-wider w-32 shrink-0">Branch</span>
-                  <select value={editForm.branch_id || ""} onChange={e => setEditForm({ ...editForm, branch_id: e.target.value })} className="flex-1 bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                    <option value="">Unassigned</option>
-                    {branches!.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-              )}
             </div>
           ) : (
             <>
@@ -530,11 +504,11 @@ export default function DriverDetail() {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <MessageSquare className="w-5 h-5" /> Toolbox Talks ({(toolboxTalks || []).length})
-            {(toolboxTalks || []).length === 0 ? (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full ml-2 bg-destructive/20 text-destructive">No toolbox talk uploaded</span>
-            ) : talkDays !== null ? (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full ml-2 bg-success/20 text-success">Last: {talkDays}d ago</span>
-            ) : null}
+            {talkDays !== null && (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${talkDays <= 30 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                {talkDays <= 30 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
+              </span>
+            )}
           </h3>
           <button onClick={() => setShowTalkForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90"><Plus className="w-4 h-4" /> Add Talk</button>
         </div>

@@ -76,33 +76,17 @@ export default function Drivers() {
   const [form, setForm] = useState({
     full_name: "", id_number: "", licence_number: "", licence_expiry: "",
     licence_code: "EC", prdp_number: "", prdp_expiry: "", prdp_category: "G",
-    phone: "", email: "", branch_id: "",
-    induction_topic: "Induction & Company Policies",
-    induction_date: new Date().toISOString().split("T")[0],
+    phone: "", email: "",
   });
   const [saving, setSaving] = useState(false);
-
-  const { data: branches } = useQuery({
-    queryKey: ["branches", profile?.organisation_id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("branches").select("id, name").order("name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!profile?.organisation_id,
-  });
 
   const handleSave = async () => {
     if (!form.full_name || !profile?.organisation_id) {
       toast.error("Full name is required");
       return;
     }
-    if (!form.induction_topic.trim()) {
-      toast.error("Induction toolbox talk is required to activate driver");
-      return;
-    }
     setSaving(true);
-    const { data: newDriver, error } = await supabase.from("drivers").insert({
+    const { error } = await supabase.from("drivers").insert({
       organisation_id: profile.organisation_id,
       full_name: form.full_name,
       id_number: form.id_number || null,
@@ -114,31 +98,13 @@ export default function Drivers() {
       prdp_category: form.prdp_category || null,
       phone: form.phone || null,
       email: form.email || null,
-      branch_id: form.branch_id || null,
-      employment_status: "active",
-    }).select("id").single();
-    if (error || !newDriver) {
-      setSaving(false);
-      toast.error(error?.message || "Failed to create driver");
-      return;
-    }
-    // Create the mandatory induction toolbox talk
-    const { error: talkErr } = await supabase.from("toolbox_talks").insert({
-      organisation_id: profile.organisation_id,
-      driver_id: newDriver.id,
-      topic: form.induction_topic,
-      date_conducted: form.induction_date,
-      conducted_by: profile.full_name || null,
     });
     setSaving(false);
-    if (talkErr) {
-      toast.error("Driver created but induction talk failed: " + talkErr.message);
-    } else {
-      toast.success("Driver added with induction toolbox talk");
+    if (error) { toast.error(error.message); } else {
+      toast.success("Driver added");
+      setShowForm(false);
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
     }
-    setShowForm(false);
-    queryClient.invalidateQueries({ queryKey: ["drivers"] });
-    queryClient.invalidateQueries({ queryKey: ["all_toolbox_talks"] });
   };
 
   return (
@@ -302,26 +268,6 @@ export default function Drivers() {
                 <input type={f.type || "text"} value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
-            {(branches || []).length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Branch</label>
-                <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="">Unassigned</option>
-                  {branches!.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
-            )}
-            <div className="border-t border-border pt-4 space-y-3">
-              <p className="text-xs font-semibold text-warning uppercase">Induction Toolbox Talk (Required)</p>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Induction Topic *</label>
-                <input type="text" value={form.induction_topic} onChange={(e) => setForm({ ...form, induction_topic: e.target.value })} placeholder="Induction & Company Policies" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Date Conducted *</label>
-                <input type="date" value={form.induction_date} onChange={(e) => setForm({ ...form, induction_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-            </div>
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save Driver
             </button>

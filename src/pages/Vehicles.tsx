@@ -5,7 +5,7 @@ import { useVehicles, useCertificates } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { recalculateAllVehicleCompliance, calculateVehicleComplianceScore } from "@/lib/compliance";
 import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { BranchFilter } from "@/components/filters/BranchFilter";
@@ -30,16 +30,6 @@ export default function Vehicles() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-
-  const { data: allTrackers } = useQuery({
-    queryKey: ["all_service_trackers", profile?.organisation_id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracking_type, next_due_value, next_due_date");
-      if (error) throw error;
-      return (data || []) as any[];
-    },
-    enabled: !!profile?.organisation_id,
-  });
 
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
@@ -158,14 +148,10 @@ export default function Vehicles() {
           <div className="md:hidden space-y-3">
             {filtered.map((v) => {
               const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
-              const vehicleTrackers = (allTrackers || []).filter(t => t.vehicle_id === v.id);
               const compliance = calculateVehicleComplianceScore(
                 v as any,
                 vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
-                [],
-                vehicleTrackers,
               );
-              const trackerOverdue = compliance.breakdown.some(b => b.label.toLowerCase().includes("tracker"));
               const kmUntil = compliance.km_until_service;
               const now = new Date();
               const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
@@ -185,14 +171,9 @@ export default function Vehicles() {
                       <p className="text-base font-bold text-foreground">{v.registration_number}</p>
                       <p className="text-xs text-muted-foreground font-mono">{v.fleet_number || "-"} · {v.make} {v.model}</p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase whitespace-nowrap ${statusStyles[compliance.status]}`}>
-                        {compliance.status}
-                      </span>
-                      {trackerOverdue && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/20 text-warning">Tracker overdue</span>
-                      )}
-                    </div>
+                    <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase whitespace-nowrap ${statusStyles[compliance.status]}`}>
+                      {compliance.status}
+                    </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs my-3">
                     <div>
@@ -241,14 +222,10 @@ export default function Vehicles() {
               <tbody>
                 {filtered.map((v) => {
                   const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
-                  const vehicleTrackers = (allTrackers || []).filter(t => t.vehicle_id === v.id);
                   const compliance = calculateVehicleComplianceScore(
                     v as any,
                     vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
-                    [],
-                    vehicleTrackers,
                   );
-                  const trackerOverdue = compliance.breakdown.some(b => b.label.toLowerCase().includes("tracker"));
                   const kmUntil = compliance.km_until_service;
                   const now = new Date();
                   // Use updated_at (bumped on every KM save) so badge refreshes immediately
@@ -271,7 +248,6 @@ export default function Vehicles() {
                           {v.registration_number}
                           {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
                           {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
-                          {trackerOverdue && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Tracker Overdue</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>

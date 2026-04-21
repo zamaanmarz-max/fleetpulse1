@@ -1,40 +1,42 @@
 import { useState, useCallback } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 const FLEET_AI_URL = "https://cgqmyqveqnvrmytmpbfh.supabase.co/functions/v1/fleet-ai";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-async function getOrgIdFromProfile(): Promise<string | null> {
+/**
+ * Canonical fleet-ai caller.
+ * ALWAYS resolves organisationId fresh from public.users using the live auth session.
+ * Never hardcoded, never null.
+ */
+async function callFleetAI(
+  userMessage: string,
+  history: Msg[] = [],
+  mode: "chat" | "insights" = "chat"
+): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user?.id) return null;
-  const { data } = await supabase
+  if (!session) return "Please log in again.";
+
+  const { data: profile, error: profileError } = await supabase
     .from("users")
     .select("organisation_id")
     .eq("id", session.user.id)
-    .maybeSingle();
-  return data?.organisation_id ?? null;
-}
+    .single();
 
-async function callFleetAI(params: {
-  message?: string;
-  organisationId: string;
-  conversationHistory: Msg[];
-  mode?: "chat" | "insights";
-}): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return "Please log in to use the AI assistant.";
+  if (profileError || !profile?.organisation_id) {
+    console.error("[FleetAI] Missing organisation_id for user", session.user.id, profileError);
+    return "Session error — please refresh.";
+  }
 
   const requestBody = {
-    message: params.message,
-    organisationId: params.organisationId,
-    conversationHistory: params.conversationHistory || [],
-    mode: params.mode || "chat",
+    message: userMessage,
+    organisationId: profile.organisation_id,
+    conversationHistory: history,
+    mode,
   };
 
-  console.log("[FleetAI] POST", FLEET_AI_URL);
-  console.log("[FleetAI] Body:", requestBody);
+  console.log("[FleetAI] POST", FLEET_AI_URL, { mode, orgId: profile.organisation_id });
 
   try {
     const response = await fetch(FLEET_AI_URL, {
@@ -46,7 +48,6 @@ async function callFleetAI(params: {
       body: JSON.stringify(requestBody),
     });
 
-    console.log("[FleetAI] Status:", response.status);
     const text = await response.text();
     if (!text) return "Hey, I got an empty response. Try again!";
 
@@ -71,7 +72,6 @@ async function callFleetAI(params: {
 }
 
 export function useFleetInsights() {
-  const { profile } = useAuth();
   const [insights, setInsights] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -79,29 +79,21 @@ export function useFleetInsights() {
     setLoading(true);
     setInsights("");
     try {
-      const orgId = profile?.organisation_id ?? (await getOrgIdFromProfile());
-      if (!orgId) {
-        setInsights("Session error - please refresh and try again");
-        return;
-      }
-      const reply = await callFleetAI({
-        message:
-          "Give me exactly 3 urgent compliance insights for this fleet today. Use specific vehicle registration numbers and exact dates. Format each as a bullet point starting with an emoji.",
-        organisationId: orgId,
-        conversationHistory: [],
-        mode: "insights",
-      });
+      const reply = await callFleetAI(
+        "Give me exactly 3 urgent compliance insights for this fleet today. Use specific vehicle registration numbers and exact dates. Format each as a bullet point starting with an emoji.",
+        [],
+        "insights"
+      );
       setInsights(reply);
     } finally {
       setLoading(false);
     }
-  }, [profile?.organisation_id]);
+  }, []);
 
   return { insights, loading, fetchInsights };
 }
 
 export function useFleetChat() {
-  const { profile } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -113,17 +105,7 @@ export function useFleetChat() {
     setLoading(true);
 
     try {
-      const orgId = profile?.organisation_id ?? (await getOrgIdFromProfile());
-      if (!orgId) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "Session error - please refresh and try again" }]);
-        return;
-      }
-      const reply = await callFleetAI({
-        message: input,
-        organisationId: orgId,
-        conversationHistory: previous,
-        mode: "chat",
-      });
+      const reply = await callFleetAI(input, previous, "chat");
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } finally {
       setLoading(false);

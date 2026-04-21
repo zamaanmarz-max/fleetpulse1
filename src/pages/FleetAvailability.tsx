@@ -9,7 +9,6 @@ import {
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { BranchFilter } from "@/components/filters/BranchFilter";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Truck }> = {
   available: { label: "Available", color: "bg-success/20 text-success", icon: Truck },
@@ -39,7 +38,6 @@ export default function FleetAvailability() {
   const { data: statuses } = useVehicleStatuses();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [branchFilter, setBranchFilter] = useState("");
   const [modalVehicle, setModalVehicle] = useState<any>(null);
   const [form, setForm] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
@@ -57,7 +55,6 @@ export default function FleetAvailability() {
 
   const filtered = enriched.filter(v => {
     if (filter !== "all" && v.currentStatus !== filter) return false;
-    if (branchFilter && v.branch_id !== branchFilter) return false;
     if (search) {
       const s = search.toLowerCase();
       return v.registration_number.toLowerCase().includes(s) || (v.fleet_number || "").toLowerCase().includes(s) || (v.make || "").toLowerCase().includes(s);
@@ -197,8 +194,7 @@ export default function FleetAvailability() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vehicles..." className="w-full pl-10 pr-4 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
-        <BranchFilter value={branchFilter} onChange={setBranchFilter} />
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex gap-1">
           {["all", ...Object.keys(STATUS_CONFIG)].map(key => (
             <button key={key} onClick={() => setFilter(key)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${filter === key ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
               {key === "all" ? "All" : STATUS_CONFIG[key]?.label || key}
