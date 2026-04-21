@@ -806,11 +806,11 @@ export default function VehicleDetail() {
       )}
 
       {showOdometer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50">
-          <div className="bg-card border border-border rounded-lg p-6 w-96 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Update Odometer</h3><button onClick={() => setShowOdometer(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Current KM</label><input type="number" value={odometerValue} onChange={e => setOdometerValue(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" /></div>
-            <button onClick={handleUpdateOdometer} disabled={savingOdometer} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">{savingOdometer && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/50 p-0 sm:p-4">
+          <div className="bg-card border border-border rounded-t-2xl sm:rounded-lg p-6 w-full sm:w-96 max-w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Update Odometer</h3><button onClick={() => setShowOdometer(false)} className="text-muted-foreground hover:text-foreground p-2 -m-2"><X className="w-5 h-5" /></button></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Current KM</label><input type="number" value={odometerValue} onChange={e => setOdometerValue(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px]" /></div>
+            <button onClick={handleUpdateOdometer} disabled={savingOdometer} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]">{savingOdometer && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
           </div>
         </div>
       )}
