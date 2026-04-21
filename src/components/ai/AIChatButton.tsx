@@ -83,8 +83,11 @@ export function AIChatButton() {
       </button>
 
       {open && (
-        <div className="fixed right-0 top-0 z-50 h-screen w-full sm:w-96 bg-card border-l border-border flex flex-col animate-slide-in-right shadow-2xl">
-          <div className="flex items-center justify-between p-4 border-b border-border">
+        <div
+          className="fixed right-0 top-0 z-50 w-full sm:w-96 bg-card border-l border-border flex flex-col animate-slide-in-right shadow-2xl"
+          style={{ height: "100dvh" }}
+        >
+          <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
               <span className="font-semibold text-foreground">MARZ Fleet AI</span>
