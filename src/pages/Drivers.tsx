@@ -302,6 +302,26 @@ export default function Drivers() {
                 <input type={f.type || "text"} value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
+            {(branches || []).length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Branch</label>
+                <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">Unassigned</option>
+                  {branches!.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="border-t border-border pt-4 space-y-3">
+              <p className="text-xs font-semibold text-warning uppercase">Induction Toolbox Talk (Required)</p>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Induction Topic *</label>
+                <input type="text" value={form.induction_topic} onChange={(e) => setForm({ ...form, induction_topic: e.target.value })} placeholder="Induction & Company Policies" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Date Conducted *</label>
+                <input type="date" value={form.induction_date} onChange={(e) => setForm({ ...form, induction_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save Driver
             </button>
