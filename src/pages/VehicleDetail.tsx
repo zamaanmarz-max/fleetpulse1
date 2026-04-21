@@ -434,23 +434,25 @@ export default function VehicleDetail() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate("/vehicles")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary"><ArrowLeft className="w-5 h-5" /></button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-foreground">{vehicle.registration_number}</h1>
+      <div className="flex items-start gap-2 md:gap-4 flex-wrap">
+        <button onClick={() => navigate("/vehicles")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary flex-shrink-0"><ArrowLeft className="w-5 h-5" /></button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground break-all">{vehicle.registration_number}</h1>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[vehicle.compliance_status || "compliant"]}`}>{vehicle.compliance_status || "compliant"}</span>
             {missingVin && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">Missing VIN</span>}
             {noTemplate && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">No Template</span>}
           </div>
-          <p className="text-sm text-muted-foreground">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
+          <p className="text-sm text-muted-foreground break-words">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
         </div>
-        <button onClick={handleDownloadPdf} className="flex items-center gap-2 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 font-semibold">
-          <FileDown className="w-4 h-4" /> Download PDF
-        </button>
-        <button onClick={() => setShowTransfer(true)} className="flex items-center gap-2 text-sm bg-secondary text-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 border border-border">
-          <ArrowRightLeft className="w-4 h-4" /> Transfer
-        </button>
+        <div className="flex gap-2 w-full md:w-auto">
+          <button onClick={handleDownloadPdf} className="flex-1 md:flex-initial flex items-center justify-center gap-2 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 font-semibold min-h-[44px]">
+            <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">Download </span>PDF
+          </button>
+          <button onClick={() => setShowTransfer(true)} className="flex-1 md:flex-initial flex items-center justify-center gap-2 text-sm bg-secondary text-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 border border-border min-h-[44px]">
+            <ArrowRightLeft className="w-4 h-4" /> Transfer
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
@@ -804,20 +806,20 @@ export default function VehicleDetail() {
       )}
 
       {showOdometer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50">
-          <div className="bg-card border border-border rounded-lg p-6 w-96 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Update Odometer</h3><button onClick={() => setShowOdometer(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Current KM</label><input type="number" value={odometerValue} onChange={e => setOdometerValue(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" /></div>
-            <button onClick={handleUpdateOdometer} disabled={savingOdometer} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">{savingOdometer && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/50 p-0 sm:p-4">
+          <div className="bg-card border border-border rounded-t-2xl sm:rounded-lg p-6 w-full sm:w-96 max-w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Update Odometer</h3><button onClick={() => setShowOdometer(false)} className="text-muted-foreground hover:text-foreground p-2 -m-2"><X className="w-5 h-5" /></button></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Current KM</label><input type="number" value={odometerValue} onChange={e => setOdometerValue(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px]" /></div>
+            <button onClick={handleUpdateOdometer} disabled={savingOdometer} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]">{savingOdometer && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
           </div>
         </div>
       )}
 
       {viewingPdf && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
-          <div className="relative w-[90vw] h-[90vh] bg-card border border-border rounded-lg shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-border"><h3 className="text-sm font-semibold text-foreground">Document Viewer</h3><button onClick={() => setViewingPdf(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
-            <iframe src={viewingPdf} className="flex-1 w-full rounded-b-lg" title="PDF Viewer" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-0 sm:p-4">
+          <div className="relative w-full h-full sm:w-[90vw] sm:h-[90vh] bg-card border border-border sm:rounded-lg shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border"><h3 className="text-sm font-semibold text-foreground">Document Viewer</h3><button onClick={() => setViewingPdf(null)} className="text-muted-foreground hover:text-foreground p-2 -m-2"><X className="w-5 h-5" /></button></div>
+            <iframe src={viewingPdf} className="flex-1 w-full sm:rounded-b-lg" title="PDF Viewer" />
           </div>
         </div>
        )}
@@ -840,14 +842,14 @@ export default function VehicleDetail() {
 
       {/* Transfer Vehicle Modal */}
       {showTransfer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50">
-          <div className="bg-card border border-border rounded-lg p-6 w-96 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Transfer Vehicle</h3><button onClick={() => setShowTransfer(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/50 p-0 sm:p-4">
+          <div className="bg-card border border-border rounded-t-2xl sm:rounded-lg p-6 w-full sm:w-96 max-w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Transfer Vehicle</h3><button onClick={() => setShowTransfer(false)} className="text-muted-foreground hover:text-foreground p-2 -m-2"><X className="w-5 h-5" /></button></div>
             <div><label className="block text-sm font-medium text-foreground mb-1">Current Branch</label><p className="text-sm text-muted-foreground bg-secondary px-3 py-2 rounded-lg">{(vehicle as any).branches?.name || "None"}</p></div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">New Branch</label><select value={transferBranch} onChange={e => setTransferBranch(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground"><option value="">Select branch...</option>{(branches || []).filter(b => b.id !== vehicle.branch_id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Transfer Date</label><input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground" /></div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Reason</label><textarea value={transferReason} onChange={e => setTransferReason(e.target.value)} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground resize-none" placeholder="Reason for transfer..." /></div>
-            <button onClick={handleTransfer} disabled={transferring || !transferBranch} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">{transferring && <Loader2 className="w-4 h-4 animate-spin" />} Confirm Transfer</button>
+            <div><label className="block text-sm font-medium text-foreground mb-1">New Branch</label><select value={transferBranch} onChange={e => setTransferBranch(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground min-h-[44px]"><option value="">Select branch...</option>{(branches || []).filter(b => b.id !== vehicle.branch_id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Transfer Date</label><input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground min-h-[44px]" /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Reason</label><textarea value={transferReason} onChange={e => setTransferReason(e.target.value)} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground resize-none" placeholder="Reason for transfer..." /></div>
+            <button onClick={handleTransfer} disabled={transferring || !transferBranch} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]">{transferring && <Loader2 className="w-4 h-4 animate-spin" />} Confirm Transfer</button>
           </div>
         </div>
       )}
