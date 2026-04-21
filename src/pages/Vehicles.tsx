@@ -158,10 +158,14 @@ export default function Vehicles() {
           <div className="md:hidden space-y-3">
             {filtered.map((v) => {
               const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
+              const vehicleTrackers = (allTrackers || []).filter(t => t.vehicle_id === v.id);
               const compliance = calculateVehicleComplianceScore(
                 v as any,
                 vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                [],
+                vehicleTrackers,
               );
+              const trackerOverdue = compliance.breakdown.some(b => b.label.toLowerCase().includes("tracker"));
               const kmUntil = compliance.km_until_service;
               const now = new Date();
               const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
