@@ -272,11 +272,17 @@ export default function DriverDetail() {
       prdp_number: driver.prdp_number || "", prdp_category: driver.prdp_category || "",
       prdp_expiry: driver.prdp_expiry || "", shift_type: driver.shift_type || "day",
       notes: driver.notes || "",
+      branch_id: driver.branch_id || "",
     });
     setEditing(true);
   };
 
   const handleSaveEdit = async () => {
+    // Enforce induction toolbox before activation
+    if (editForm.employment_status === "active" && (toolboxTalks || []).length === 0) {
+      toast.error("Driver cannot be set to active until at least one toolbox talk is uploaded.");
+      return;
+    }
     setEditSaving(true);
     const { error } = await supabase.from("drivers").update({
       full_name: editForm.full_name, id_number: editForm.id_number || null,
@@ -287,6 +293,7 @@ export default function DriverDetail() {
       prdp_number: editForm.prdp_number || null, prdp_category: editForm.prdp_category || null,
       prdp_expiry: editForm.prdp_expiry || null, shift_type: editForm.shift_type || "day",
       notes: editForm.notes || null,
+      branch_id: editForm.branch_id || null,
     }).eq("id", id!);
     setEditSaving(false);
     if (error) { toast.error(error.message); } else {
