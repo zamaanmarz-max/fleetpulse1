@@ -185,9 +185,14 @@ export default function Vehicles() {
                       <p className="text-base font-bold text-foreground">{v.registration_number}</p>
                       <p className="text-xs text-muted-foreground font-mono">{v.fleet_number || "-"} · {v.make} {v.model}</p>
                     </div>
-                    <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase whitespace-nowrap ${statusStyles[compliance.status]}`}>
-                      {compliance.status}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase whitespace-nowrap ${statusStyles[compliance.status]}`}>
+                        {compliance.status}
+                      </span>
+                      {trackerOverdue && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/20 text-warning">Tracker overdue</span>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs my-3">
                     <div>
@@ -236,10 +241,14 @@ export default function Vehicles() {
               <tbody>
                 {filtered.map((v) => {
                   const vehicleCerts = (allCerts || []).filter(c => c.vehicle_id === v.id);
+                  const vehicleTrackers = (allTrackers || []).filter(t => t.vehicle_id === v.id);
                   const compliance = calculateVehicleComplianceScore(
                     v as any,
                     vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                    [],
+                    vehicleTrackers,
                   );
+                  const trackerOverdue = compliance.breakdown.some(b => b.label.toLowerCase().includes("tracker"));
                   const kmUntil = compliance.km_until_service;
                   const now = new Date();
                   // Use updated_at (bumped on every KM save) so badge refreshes immediately
