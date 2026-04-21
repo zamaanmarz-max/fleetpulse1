@@ -393,6 +393,15 @@ export default function DriverDetail() {
               <EditField label="Email" value={editForm.email} onChange={v => setEditForm({ ...editForm, email: v })} type="email" />
               <EditField label="Employment" value={editForm.employment_status} onChange={v => setEditForm({ ...editForm, employment_status: v })} />
               <EditField label="Shift Type" value={editForm.shift_type} onChange={v => setEditForm({ ...editForm, shift_type: v })} />
+              {(branches || []).length > 0 && (
+                <div className="flex items-center gap-3 py-1">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider w-32 shrink-0">Branch</span>
+                  <select value={editForm.branch_id || ""} onChange={e => setEditForm({ ...editForm, branch_id: e.target.value })} className="flex-1 bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                    <option value="">Unassigned</option>
+                    {branches!.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
           ) : (
             <>
