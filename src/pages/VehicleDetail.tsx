@@ -434,23 +434,25 @@ export default function VehicleDetail() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate("/vehicles")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary"><ArrowLeft className="w-5 h-5" /></button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-foreground">{vehicle.registration_number}</h1>
+      <div className="flex items-start gap-2 md:gap-4 flex-wrap">
+        <button onClick={() => navigate("/vehicles")} className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary flex-shrink-0"><ArrowLeft className="w-5 h-5" /></button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground break-all">{vehicle.registration_number}</h1>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[vehicle.compliance_status || "compliant"]}`}>{vehicle.compliance_status || "compliant"}</span>
             {missingVin && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">Missing VIN</span>}
             {noTemplate && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">No Template</span>}
           </div>
-          <p className="text-sm text-muted-foreground">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
+          <p className="text-sm text-muted-foreground break-words">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
         </div>
-        <button onClick={handleDownloadPdf} className="flex items-center gap-2 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 font-semibold">
-          <FileDown className="w-4 h-4" /> Download PDF
-        </button>
-        <button onClick={() => setShowTransfer(true)} className="flex items-center gap-2 text-sm bg-secondary text-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 border border-border">
-          <ArrowRightLeft className="w-4 h-4" /> Transfer
-        </button>
+        <div className="flex gap-2 w-full md:w-auto">
+          <button onClick={handleDownloadPdf} className="flex-1 md:flex-initial flex items-center justify-center gap-2 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 font-semibold min-h-[44px]">
+            <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">Download </span>PDF
+          </button>
+          <button onClick={() => setShowTransfer(true)} className="flex-1 md:flex-initial flex items-center justify-center gap-2 text-sm bg-secondary text-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 border border-border min-h-[44px]">
+            <ArrowRightLeft className="w-4 h-4" /> Transfer
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
