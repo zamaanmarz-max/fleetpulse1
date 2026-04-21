@@ -76,17 +76,33 @@ export default function Drivers() {
   const [form, setForm] = useState({
     full_name: "", id_number: "", licence_number: "", licence_expiry: "",
     licence_code: "EC", prdp_number: "", prdp_expiry: "", prdp_category: "G",
-    phone: "", email: "",
+    phone: "", email: "", branch_id: "",
+    induction_topic: "Induction & Company Policies",
+    induction_date: new Date().toISOString().split("T")[0],
   });
   const [saving, setSaving] = useState(false);
+
+  const { data: branches } = useQuery({
+    queryKey: ["branches", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
 
   const handleSave = async () => {
     if (!form.full_name || !profile?.organisation_id) {
       toast.error("Full name is required");
       return;
     }
+    if (!form.induction_topic.trim()) {
+      toast.error("Induction toolbox talk is required to activate driver");
+      return;
+    }
     setSaving(true);
-    const { error } = await supabase.from("drivers").insert({
+    const { data: newDriver, error } = await supabase.from("drivers").insert({
       organisation_id: profile.organisation_id,
       full_name: form.full_name,
       id_number: form.id_number || null,
@@ -98,13 +114,31 @@ export default function Drivers() {
       prdp_category: form.prdp_category || null,
       phone: form.phone || null,
       email: form.email || null,
+      branch_id: form.branch_id || null,
+      employment_status: "active",
+    }).select("id").single();
+    if (error || !newDriver) {
+      setSaving(false);
+      toast.error(error?.message || "Failed to create driver");
+      return;
+    }
+    // Create the mandatory induction toolbox talk
+    const { error: talkErr } = await supabase.from("toolbox_talks").insert({
+      organisation_id: profile.organisation_id,
+      driver_id: newDriver.id,
+      topic: form.induction_topic,
+      date_conducted: form.induction_date,
+      conducted_by: profile.full_name || null,
     });
     setSaving(false);
-    if (error) { toast.error(error.message); } else {
-      toast.success("Driver added");
-      setShowForm(false);
-      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+    if (talkErr) {
+      toast.error("Driver created but induction talk failed: " + talkErr.message);
+    } else {
+      toast.success("Driver added with induction toolbox talk");
     }
+    setShowForm(false);
+    queryClient.invalidateQueries({ queryKey: ["drivers"] });
+    queryClient.invalidateQueries({ queryKey: ["all_toolbox_talks"] });
   };
 
   return (
