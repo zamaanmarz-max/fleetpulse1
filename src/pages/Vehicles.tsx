@@ -271,6 +271,7 @@ export default function Vehicles() {
                           {v.registration_number}
                           {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
                           {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
+                          {trackerOverdue && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Tracker Overdue</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
