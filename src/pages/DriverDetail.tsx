@@ -504,11 +504,11 @@ export default function DriverDetail() {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <MessageSquare className="w-5 h-5" /> Toolbox Talks ({(toolboxTalks || []).length})
-            {talkDays !== null && (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${talkDays <= 30 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
-                {talkDays <= 30 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
-              </span>
-            )}
+            {(toolboxTalks || []).length === 0 ? (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full ml-2 bg-destructive/20 text-destructive">No toolbox talk uploaded</span>
+            ) : talkDays !== null ? (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full ml-2 bg-success/20 text-success">Last: {talkDays}d ago</span>
+            ) : null}
           </h3>
           <button onClick={() => setShowTalkForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90"><Plus className="w-4 h-4" /> Add Talk</button>
         </div>
