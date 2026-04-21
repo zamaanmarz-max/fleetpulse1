@@ -96,6 +96,16 @@ export default function DriverDetail() {
     enabled: !!id,
   });
 
+  const { data: branches } = useQuery({
+    queryKey: ["branches", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
   const now = Date.now();
 
   const enrichedDocs = (documents || []).map(d => {
