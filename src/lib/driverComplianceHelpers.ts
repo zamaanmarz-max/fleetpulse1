@@ -98,5 +98,6 @@ export const lastToolboxStatus = (talks: { date_conducted: string }[]): { status
   const latestMs = talks.reduce((m, t) => Math.max(m, new Date(t.date_conducted).getTime()), 0);
   const days = Math.ceil((Date.now() - latestMs) / 86400000);
   const lastDate = new Date(latestMs).toISOString().split("T")[0];
-  return { status: days > 30 ? "expired" : "valid", lastDate, daysSince: days };
+  // No expiry — once any talk exists, driver is compliant
+  return { status: "valid", lastDate, daysSince: days };
 };

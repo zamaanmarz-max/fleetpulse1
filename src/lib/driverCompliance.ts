@@ -149,17 +149,10 @@ export function checkDriverCompliance(
     score -= 15; breakdown.push({ label: "Criminal background check expired", deduction: 15, severity: "critical" });
   }
 
-  // Toolbox talk
+  // Toolbox talk: compliant if AT LEAST ONE talk on record (no expiry)
   if (toolboxTalks.length === 0) {
     issues.push({ field: "Toolbox Talk", status: "missing" });
-    score -= 20; breakdown.push({ label: "No toolbox talk on record", deduction: 20, severity: "critical" });
-  } else {
-    const latest = toolboxTalks.reduce((m, t) => Math.max(m, new Date(t.date_conducted).getTime()), 0);
-    const daysSince = Math.ceil((now - latest) / 86400000);
-    if (daysSince > 30) {
-      issues.push({ field: "Toolbox Talk", status: "expired" });
-      score -= 20; breakdown.push({ label: `No toolbox talk in ${daysSince} days`, deduction: 20, severity: "critical" });
-    }
+    score -= 20; breakdown.push({ label: "No toolbox talk on record (induction required)", deduction: 20, severity: "critical" });
   }
 
   score = Math.max(0, Math.min(100, score));
