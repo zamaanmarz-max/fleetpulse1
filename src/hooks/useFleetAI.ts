@@ -81,7 +81,7 @@ export function useFleetInsights() {
     try {
       const orgId = profile?.organisation_id ?? (await getOrgIdFromProfile());
       if (!orgId) {
-        setInsights("No organisation linked to your account.");
+        setInsights("Session error - please refresh and try again");
         return;
       }
       const reply = await callFleetAI({
@@ -115,7 +115,7 @@ export function useFleetChat() {
     try {
       const orgId = profile?.organisation_id ?? (await getOrgIdFromProfile());
       if (!orgId) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "No organisation linked to your account." }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: "Session error - please refresh and try again" }]);
         return;
       }
       const reply = await callFleetAI({
