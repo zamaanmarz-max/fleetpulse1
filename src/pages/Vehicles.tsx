@@ -27,6 +27,7 @@ export default function Vehicles() {
   const [branchFilter, setBranchFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [updateKmFor, setUpdateKmFor] = useState<{ id: string; reg: string; km: number } | null>(null);
+  const { profile } = useAuth();
   const { data: vehicles, isLoading } = useVehicles();
   const { data: allCerts } = useCertificates();
   const { data: allTrackers } = useQuery({
@@ -38,7 +39,6 @@ export default function Vehicles() {
     },
     enabled: !!profile?.organisation_id,
   });
-  const { profile } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
