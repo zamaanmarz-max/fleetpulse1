@@ -10,6 +10,8 @@ import { recalculateAllVehicleCompliance, calculateVehicleComplianceScore } from
 import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { BranchFilter } from "@/components/filters/BranchFilter";
 import { UpdateKMDialog } from "@/components/vehicle/UpdateKMDialog";
+import { useQuery } from "@tanstack/react-query";
+import { computeTrackerStatus } from "@/lib/serviceTrackers";
 
 const statusStyles: Record<string, string> = {
   compliant: "bg-success/20 text-success",
@@ -27,6 +29,15 @@ export default function Vehicles() {
   const [updateKmFor, setUpdateKmFor] = useState<{ id: string; reg: string; km: number } | null>(null);
   const { data: vehicles, isLoading } = useVehicles();
   const { data: allCerts } = useCertificates();
+  const { data: allTrackers } = useQuery({
+    queryKey: ["all_service_trackers", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_service_trackers" as any).select("*");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.organisation_id,
+  });
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -151,7 +162,10 @@ export default function Vehicles() {
               const compliance = calculateVehicleComplianceScore(
                 v as any,
                 vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                [],
+                ((allTrackers || []) as any[]).filter(t => t.vehicle_id === v.id),
               );
+              const trackerWarning = ((allTrackers || []) as any[]).filter(t => t.vehicle_id === v.id).some(t => computeTrackerStatus(t, v.current_odometer_km ?? 0).status !== "ok");
               const kmUntil = compliance.km_until_service;
               const now = new Date();
               const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
@@ -181,6 +195,7 @@ export default function Vehicles() {
                       <p className={`font-mono font-semibold ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
                         {kmUntil.toLocaleString()}
                       </p>
+                      {trackerWarning && <span className="text-[10px] bg-warning/20 text-warning px-1.5 py-0.5 rounded">Tracker warning</span>}
                     </div>
                     <div>
                       <p className="text-muted-foreground">Score</p>
@@ -225,7 +240,10 @@ export default function Vehicles() {
                   const compliance = calculateVehicleComplianceScore(
                     v as any,
                     vehicleCerts.map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+                    [],
+                    ((allTrackers || []) as any[]).filter(t => t.vehicle_id === v.id),
                   );
+                  const trackerWarning = ((allTrackers || []) as any[]).filter(t => t.vehicle_id === v.id).some(t => computeTrackerStatus(t, v.current_odometer_km ?? 0).status !== "ok");
                   const kmUntil = compliance.km_until_service;
                   const now = new Date();
                   // Use updated_at (bumped on every KM save) so badge refreshes immediately
@@ -248,6 +266,7 @@ export default function Vehicles() {
                           {v.registration_number}
                           {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
                           {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
+                          {trackerWarning && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Tracker Warning</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
