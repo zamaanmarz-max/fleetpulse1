@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
 import { generateDriverComplianceReport } from "@/lib/driverPdfReport";
+import { calcToolboxStatus, toolboxExpiry } from "@/lib/driverComplianceHelpers";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -215,9 +216,12 @@ export default function DriverDetail() {
       fileUrl = path;
     }
     if (editingTalkId) {
+      const expiryDate = toolboxExpiry(talkForm.date_conducted);
+      const talkStatus = calcToolboxStatus(talkForm.date_conducted);
       const updatePayload: any = {
         topic: talkForm.topic, date_conducted: talkForm.date_conducted,
-        conducted_by: talkForm.conducted_by || null,
+        conducted_by: talkForm.conducted_by || null, issue_date: talkForm.date_conducted,
+        expiry_date: expiryDate, status: talkStatus,
       };
       if (fileUrl) updatePayload.file_url = fileUrl;
       const { error } = await supabase.from("toolbox_talks").update(updatePayload).eq("id", editingTalkId);
@@ -225,10 +229,13 @@ export default function DriverDetail() {
       if (error) { toast.error(error.message); return; }
       toast.success("Toolbox talk updated");
     } else {
+      const expiryDate = toolboxExpiry(talkForm.date_conducted);
+      const talkStatus = calcToolboxStatus(talkForm.date_conducted);
       const { error } = await supabase.from("toolbox_talks").insert({
         organisation_id: profile.organisation_id, driver_id: id,
         topic: talkForm.topic, date_conducted: talkForm.date_conducted,
         conducted_by: talkForm.conducted_by || null, file_url: fileUrl,
+        issue_date: talkForm.date_conducted, expiry_date: expiryDate, status: talkStatus,
       });
       setSavingTalk(false);
       if (error) { toast.error(error.message); return; }
@@ -237,6 +244,7 @@ export default function DriverDetail() {
     setShowTalkForm(false); setTalkFile(null); setEditingTalkId(null);
     setTalkForm({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
     queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
+    queryClient.invalidateQueries({ queryKey: ["drivers"] });
   };
 
   const handleEditTalk = (talk: any) => {
