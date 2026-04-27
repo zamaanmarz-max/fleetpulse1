@@ -1,4 +1,4 @@
-import { Building2, GitBranch, Users, Bell, Plus, Loader2, X, Trash2, Pencil, Save, UserPlus } from "lucide-react";
+import { Building2, GitBranch, Users, Bell, Plus, Loader2, X, Trash2, Pencil, Save, UserPlus, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,7 @@ const tabs = [
   { id: "organisation", icon: Building2, label: "Organisation" },
   { id: "branches", icon: GitBranch, label: "Branches" },
   { id: "users", icon: Users, label: "Users" },
+  { id: "compliance", icon: ShieldCheck, label: "Compliance" },
   { id: "notifications", icon: Bell, label: "Notifications" },
 ];
 
@@ -38,6 +39,7 @@ export default function SettingsPage() {
         {activeTab === "organisation" && <OrganisationTab />}
         {activeTab === "branches" && <BranchesTab />}
         {activeTab === "users" && <UsersTab />}
+        {activeTab === "compliance" && <ComplianceSettingsTab />}
         {activeTab === "notifications" && <p className="text-muted-foreground text-sm">Notification settings coming soon.</p>}
       </div>
 
