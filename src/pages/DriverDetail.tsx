@@ -369,6 +369,10 @@ export default function DriverDetail() {
                 driver: driver as any,
                 documents: (documents || []) as any,
                 toolboxTalks: (toolboxTalks || []) as any,
+                branchName: branch?.name,
+                companyName: organisation?.name,
+                incidents: (driverFines || []).map(f => ({ incident_date: f.offence_date, incident_type: f.offence_description || "Fine", status: f.payment_status || "open", outcome: f.fine_number || "" })) as any,
+                complianceSettings: (organisation as any)?.compliance_settings || {},
               })}
               className="flex items-center gap-1.5 text-xs bg-secondary text-secondary-foreground px-3 py-1.5 rounded-md hover:bg-secondary/80"
             >
