@@ -1,0 +1,2 @@
+ALTER TABLE public.organisations
+ADD COLUMN IF NOT EXISTS compliance_settings jsonb NOT NULL DEFAULT '{"pre_trip_inspections": false, "first_aid_kit_checks": false, "toolbox_talks": true, "criminal_background_checks": true}'::jsonb;
