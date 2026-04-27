@@ -203,6 +203,21 @@ export function generateDriverComplianceReport(input: DriverPdfInput) {
   doc.setTextColor(0, 0, 0);
   y += 8;
 
+  if (y > 230) { doc.addPage(); y = 20; }
+  y = sectionHeading(doc, `Incidents (${incidents.length})`, y);
+  if (incidents.length === 0) {
+    doc.setFontSize(9); doc.setTextColor(34, 139, 90); doc.text("No recorded incidents.", 14, y); doc.setTextColor(0, 0, 0); y += 8;
+  } else {
+    autoTable(doc, {
+      startY: y,
+      head: [["Date", "Type", "Outcome", "Status"]],
+      headStyles: tableHeadStyles,
+      styles: { fontSize: 9 },
+      body: incidents.map(i => [i.incident_date || "-", i.incident_type || "-", i.outcome || "-", (i.status || "-").toUpperCase()]),
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
+
   // ---- Score breakdown ----
   if (compliance.breakdown.length > 0) {
     if (y > 240) { doc.addPage(); y = 20; }
