@@ -501,6 +501,13 @@ export default function VehicleDetail() {
   const totalOutstandingFines = (fines || []).filter(f => f.payment_status !== "paid").reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
   const missingVin = !vehicle.vin_number;
   const noTemplate = !vehicle.compliance_template_id;
+  const complianceResult = calculateVehicleComplianceScore(
+    vehicle as any,
+    (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+    (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
+    (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracker_name: t.tracker_name, tracking_type: t.tracking_type, interval_value: t.interval_value, last_done_value: t.last_done_value, last_done_date: t.last_done_date, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
+  );
+  const trackerIssues = (trackers || []).filter(t => computeTrackerStatus(t, currentKm).status !== "ok");
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
@@ -594,19 +601,16 @@ export default function VehicleDetail() {
               </div>
             </div>
 
-            {(() => {
-              const compliance = calculateVehicleComplianceScore(
-                vehicle as any,
-                (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
-                (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
-                (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracking_type: t.tracking_type, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
-              );
-              return <ComplianceScoreCard score={compliance.score} status={compliance.status} breakdown={compliance.breakdown} />;
-            })()}
+            <ComplianceScoreCard score={complianceResult.score} status={complianceResult.status} breakdown={complianceResult.breakdown} onIssueClick={(item) => {
+              const cert = getRequiredCertificates((vehicle.equipment as string[]) || []).find(c => item.label.toLowerCase().includes(c.toLowerCase().split(" ")[0]));
+              const tracker = trackerIssues.find(t => item.label.toLowerCase().includes(t.tracker_name.toLowerCase()));
+              if (tracker) openTrackerResolver(tracker); else if (cert) openCertificateResolver(cert);
+            }} />
 
             <ComplianceRequirements
               equipment={(vehicle.equipment as string[]) || []}
               certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
+              onRequirementClick={openCertificateResolver}
             />
           </div>
         </div>
