@@ -889,6 +889,32 @@ export default function VehicleDetail() {
         </div>
       )}
 
+      {resolving && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="hidden md:block flex-1 bg-background/50" onClick={() => setResolving(null)} />
+          <div className="w-full md:w-[450px] bg-card border-l border-border p-4 md:p-6 overflow-y-auto space-y-4 max-h-screen">
+            <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-foreground">Resolve {resolving.name}</h2><button onClick={() => setResolving(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
+            {resolving.kind === "certificate" ? (
+              <>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Certificate Type</label><input value={resolving.name} readOnly className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Certificate Number</label><input value={resolveCertForm.certificate_number} onChange={e => setResolveCertForm({ ...resolveCertForm, certificate_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Issue Date</label><input type="date" value={resolveCertForm.issue_date} onChange={e => setResolveCertForm({ ...resolveCertForm, issue_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label><input type="date" value={resolveCertForm.expiry_date} onChange={e => setResolveCertForm({ ...resolveCertForm, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Upload PDF</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setResolveFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" /></div>
+              </>
+            ) : (
+              <>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Tracker Name</label><input value={resolving.name} readOnly className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Last Done Date</label><input type="date" value={resolveTrackerForm.last_done_date} onChange={e => setResolveTrackerForm({ ...resolveTrackerForm, last_done_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                {resolving.tracker?.tracking_type !== "days" && <div><label className="block text-sm font-medium text-foreground mb-1">Last Done {resolving.tracker?.tracking_type === "km" ? "KM" : "Hours"}</label><input type="number" value={resolveTrackerForm.last_done_value} onChange={e => setResolveTrackerForm({ ...resolveTrackerForm, last_done_value: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>}
+                <div><label className="block text-sm font-medium text-foreground mb-1">Notes</label><textarea value={resolveTrackerForm.notes} onChange={e => setResolveTrackerForm({ ...resolveTrackerForm, notes: e.target.value })} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+              </>
+            )}
+            <button onClick={handleResolveSave} disabled={resolveSaving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]">{resolveSaving && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
+          </div>
+        </div>
+      )}
+
       {viewingPdf && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-0 sm:p-4">
           <div className="relative w-full h-full sm:w-[90vw] sm:h-[90vh] bg-card border border-border sm:rounded-lg shadow-2xl flex flex-col">
