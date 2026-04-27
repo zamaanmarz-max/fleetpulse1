@@ -193,6 +193,16 @@ export default function VehicleDetail() {
     enabled: !!id,
   });
 
+  const { data: damageItems } = useQuery({
+    queryKey: ["vehicle_damage_items", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("damage_items").select("*").eq("vehicle_id", id!).eq("resolved", false).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
   const { data: organisation } = useQuery({
     queryKey: ["organisation", vehicle?.organisation_id],
     queryFn: async () => {
@@ -228,6 +238,7 @@ export default function VehicleDetail() {
       trackers: trackers || [],
       inspections: inspections || [],
       jobCards: jobCards || [],
+      damageItems: damageItems || [],
       companyName: organisation?.name,
       branchName: (vehicle as any).branches?.name,
     });
