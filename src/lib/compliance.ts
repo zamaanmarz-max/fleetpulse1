@@ -76,47 +76,49 @@ export function calculateVehicleComplianceScore(
   const nextServiceKm = vehicle.next_service_due_km ?? 0;
   const kmUntilService = nextServiceKm - currentKm;
 
-  // Required certificates from equipment
   const equipment = (vehicle.equipment as string[]) || [];
   const required = getRequiredCertificates(equipment);
-  const certTypes = vehicleCerts.map(c => (c.certificate_type || "").toLowerCase());
+  const equipmentCerts = new Set(equipment.flatMap(eq => EQUIPMENT_CERT_MAP[eq] || []));
 
   for (const reqCert of required) {
-    const found = vehicleCerts.some(c => matchesCert(reqCert, c.certificate_type)) ||
-      certTypes.includes(reqCert.toLowerCase());
-    if (!found) {
-      score -= 20;
-      breakdown.push({ label: `Missing: ${reqCert}`, deduction: 20, severity: "critical" });
+    const match = vehicleCerts.find(c => matchesCert(reqCert, c.certificate_type));
+    const isCof = matchesCert("COF & Vehicle Licence", reqCert);
+    const isFire = matchesCert("Fire Extinguisher Certificate", reqCert);
+    const missingDeduction = isCof ? 40 : isFire ? 15 : equipmentCerts.has(reqCert) ? 20 : 0;
+    const expiredDeduction = isCof ? 40 : isFire ? 15 : equipmentCerts.has(reqCert) ? 20 : 0;
+    if (!match) {
+      if (missingDeduction > 0) {
+        score -= missingDeduction;
+        breakdown.push({ label: `${reqCert} missing — ${missingDeduction}% deduction`, deduction: missingDeduction, severity: "critical" });
+      }
+      continue;
+    }
+    if (match.expiry_date) {
+      const days = Math.ceil((new Date(match.expiry_date).getTime() - now) / 86400000);
+      if (days <= 0 && expiredDeduction > 0) {
+        score -= expiredDeduction;
+        breakdown.push({ label: `${reqCert} expired — ${expiredDeduction}% deduction`, deduction: expiredDeduction, severity: "critical" });
+      }
     }
   }
 
-  // Expired / expiring certs
+  // Expiring warnings for required certificates only; optional certificates are informational.
   for (const cert of vehicleCerts) {
     if (!cert.expiry_date) continue;
+    const isRequired = required.some(req => matchesCert(req, cert.certificate_type));
+    if (!isRequired) continue;
     const days = Math.ceil((new Date(cert.expiry_date).getTime() - now) / 86400000);
-    if (days <= 0) {
-      score -= 25;
-      breakdown.push({
-        label: `Expired: ${cert.certificate_type} (${Math.abs(days)}d overdue)`,
-        deduction: 25,
-        severity: "critical",
-      });
-    } else if (days <= 30) {
-      score -= 10;
-      breakdown.push({
-        label: `Expiring soon: ${cert.certificate_type} (${days}d left)`,
-        deduction: 10,
-        severity: "warning",
-      });
+    if (days > 0 && days <= 30) {
+      breakdown.push({ label: `${cert.certificate_type} expiring in ${days} days`, deduction: 0, severity: "warning" });
     }
   }
 
   // Service status
   if (kmUntilService < 0) {
-    score -= 20;
+    score -= 15;
     breakdown.push({
-      label: `Service overdue by ${Math.abs(kmUntilService).toLocaleString()} km`,
-      deduction: 20,
+      label: `Service overdue by ${Math.abs(kmUntilService).toLocaleString()} km — 15% deduction`,
+      deduction: 15,
       severity: "critical",
     });
   } else if (kmUntilService <= 2000) {
