@@ -43,7 +43,7 @@ export default function DriverDetail() {
   const [talkFile, setTalkFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingTalk, setSavingTalk] = useState(false);
-  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
   const [talkForm, setTalkForm] = useState({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -149,7 +149,7 @@ export default function DriverDetail() {
     if (editingDocId) {
       const updatePayload: any = {
         document_type: form.document_type, document_name: form.document_name || form.document_type,
-        document_number: form.document_number || null, expiry_date: form.expiry_date || null, status,
+        document_number: form.document_number || null, issue_date: form.issue_date || null, expiry_date: form.expiry_date || null, status,
       };
       if (fileUrl) updatePayload.file_url = fileUrl;
       const { error } = await supabase.from("driver_documents").update(updatePayload).eq("id", editingDocId);
@@ -160,7 +160,7 @@ export default function DriverDetail() {
       const { error } = await supabase.from("driver_documents").insert({
         organisation_id: profile.organisation_id, driver_id: id,
         document_type: form.document_type, document_name: form.document_name || form.document_type,
-        document_number: form.document_number || null, expiry_date: form.expiry_date || null,
+        document_number: form.document_number || null, issue_date: form.issue_date || null, expiry_date: form.expiry_date || null,
         file_url: fileUrl, uploaded_by: user?.id || null, status,
       });
       setSaving(false);
@@ -175,7 +175,7 @@ export default function DriverDetail() {
     }
 
     setShowForm(false); setFile(null); setEditingDocId(null);
-    setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+    setForm({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
     queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
     queryClient.invalidateQueries({ queryKey: ["driver", id] });
     queryClient.invalidateQueries({ queryKey: ["drivers"] });
@@ -188,6 +188,7 @@ export default function DriverDetail() {
       document_type: doc.document_type || "",
       document_name: doc.document_name || "",
       document_number: doc.document_number || "",
+      issue_date: doc.issue_date || "",
       expiry_date: doc.expiry_date || "",
     });
     setFile(null);
