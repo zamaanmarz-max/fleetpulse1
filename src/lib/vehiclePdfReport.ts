@@ -171,19 +171,35 @@ export function generateVehiclePdfReport(opts: {
   }
 
   // JOB CARDS
+  const last5Jobs = jobCards.slice(0, 5);
   const totalSpend = jobCards.reduce((s, j) => s + (Number(j.total_cost) || 0), 0);
-  y = sectionHeading(doc, `Job Cards (${jobCards.length}) — Total Spend: R ${totalSpend.toLocaleString()}`, y);
+  y = sectionHeading(doc, `Last 5 Job Cards — Total Spend: R ${totalSpend.toLocaleString()}`, y);
   if (jobCards.length === 0) {
     doc.setFontSize(9); doc.setTextColor(110); doc.text("No maintenance records.", 14, y); doc.setTextColor(0);
   } else {
     autoTable(doc, {
       startY: y,
-      head: [["Date", "Type", "Workshop", "Status", "Cost"]],
-      body: jobCards.map(j => [j.work_date || "-", j.job_type || "-", j.workshop_name || "-", (j.status || "-").toUpperCase(), `R ${(Number(j.total_cost) || 0).toLocaleString()}`]),
+      head: [["Job Card", "Work", "Workshop", "Labour", "Parts", "Total", "Status"]],
+      body: last5Jobs.map(j => [j.job_card_number || j.work_date || "-", j.description || j.job_type || "-", j.workshop_name || "-", `R ${(Number(j.labour_cost) || 0).toLocaleString()}`, `R ${(Number(j.parts_cost) || 0).toLocaleString()}`, `R ${(Number(j.total_cost) || 0).toLocaleString()}`, (j.status || "-").toUpperCase()]),
+      theme: "striped",
+      headStyles: tableHeadStyles,
+      styles: { fontSize: 8 },
+      columnStyles: { 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
+
+  y = sectionHeading(doc, `Unresolved Damage Items (${damageItems.length})`, y);
+  if (damageItems.length === 0) {
+    doc.setFontSize(9); doc.setTextColor(34, 139, 90); doc.text("No unresolved damage items.", 14, y); doc.setTextColor(0);
+  } else {
+    autoTable(doc, {
+      startY: y,
+      head: [["Location", "Type", "Severity", "Reported", "Status"]],
+      body: damageItems.map(d => [d.location || "-", d.damage_type || "-", (d.severity || "-").toUpperCase(), d.created_at ? d.created_at.split("T")[0] : "-", d.resolved ? "RESOLVED" : "OPEN"]),
       theme: "striped",
       headStyles: tableHeadStyles,
       styles: { fontSize: 9 },
-      columnStyles: { 4: { halign: "right" } },
     });
   }
 
