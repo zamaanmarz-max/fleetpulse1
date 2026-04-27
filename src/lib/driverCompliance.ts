@@ -58,7 +58,8 @@ export function checkDriverCompliance(
     prdp_number?: string | null;
   },
   documents: { document_type: string | null; expiry_date: string | null; calcStatus: string }[],
-  toolboxTalks: { date_conducted: string }[]
+  toolboxTalks: { date_conducted: string }[],
+  complianceSettings: { toolbox_talks?: boolean; criminal_background_checks?: boolean } = {}
 ): DriverComplianceResult {
   const now = Date.now();
   const issues: DriverComplianceResult["issues"] = [];
@@ -140,30 +141,32 @@ export function checkDriverCompliance(
     score -= 5; breakdown.push({ label: "Medical certificate expiring soon", deduction: 5, severity: "warning" });
   }
 
-  // ---- Criminal Background Check ----
-  const criminalKeywords = ["criminal", "background"];
-  const criminal = documents.find(d => matchesType(d.document_type, criminalKeywords));
-  if (!criminal) {
-    issues.push({ field: "Criminal Background Check", status: "missing" });
-    score -= 10; breakdown.push({ label: "No criminal background check", deduction: 10, severity: "critical" });
-  } else if (criminal.calcStatus === "expired") {
-    issues.push({ field: "Criminal Background Check", status: "expired" });
-    score -= 10; breakdown.push({ label: "Criminal background check expired", deduction: 10, severity: "critical" });
+  if (complianceSettings.criminal_background_checks !== false) {
+    const criminalKeywords = ["criminal", "background"];
+    const criminal = documents.find(d => matchesType(d.document_type, criminalKeywords));
+    if (!criminal) {
+      issues.push({ field: "Criminal Background Check", status: "missing" });
+      score -= 10; breakdown.push({ label: "No criminal background check", deduction: 10, severity: "critical" });
+    } else if (criminal.calcStatus === "expired") {
+      issues.push({ field: "Criminal Background Check", status: "expired" });
+      score -= 10; breakdown.push({ label: "Criminal background check expired", deduction: 10, severity: "critical" });
+    }
   }
 
-  // Toolbox talk
-  if (toolboxTalks.length === 0) {
-    issues.push({ field: "Toolbox Talk", status: "missing" });
-    score -= 15; breakdown.push({ label: "No toolbox talk on record", deduction: 15, severity: "critical" });
-  } else {
-    const latest = toolboxTalks.reduce((m, t) => Math.max(m, new Date(t.date_conducted).getTime()), 0);
-    const latestDate = new Date(latest).toISOString().split("T")[0];
-    const status = calcToolboxStatus(latestDate);
-    if (status === "expired") {
-      issues.push({ field: "Toolbox Talk", status: "expired" });
-      score -= 10; breakdown.push({ label: "Toolbox talk expired", deduction: 10, severity: "critical" });
-    } else if (status === "expiring") {
-      issues.push({ field: "Toolbox Talk", status: "expiring" });
+  if (complianceSettings.toolbox_talks !== false) {
+    if (toolboxTalks.length === 0) {
+      issues.push({ field: "Toolbox Talk", status: "missing" });
+      score -= 15; breakdown.push({ label: "No toolbox talk on record", deduction: 15, severity: "critical" });
+    } else {
+      const latest = toolboxTalks.reduce((m, t) => Math.max(m, new Date(t.date_conducted).getTime()), 0);
+      const latestDate = new Date(latest).toISOString().split("T")[0];
+      const status = calcToolboxStatus(latestDate);
+      if (status === "expired") {
+        issues.push({ field: "Toolbox Talk", status: "expired" });
+        score -= 10; breakdown.push({ label: "Toolbox talk expired", deduction: 10, severity: "critical" });
+      } else if (status === "expiring") {
+        issues.push({ field: "Toolbox Talk", status: "expiring" });
+      }
     }
   }
 
