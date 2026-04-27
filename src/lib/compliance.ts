@@ -198,7 +198,7 @@ export async function recalculateAllVehicleCompliance() {
     supabase.from("vehicles").select("id, current_odometer_km, next_service_due_km, km_until_service, compliance_template_id, equipment").eq("is_active", true),
     supabase.from("certificates").select("certificate_type, vehicle_id, expiry_date, status"),
     supabase.from("damage_inspections").select("vehicle_id, inspection_date"),
-    supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracking_type, next_due_value, next_due_date"),
+    supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracker_name, tracking_type, interval_value, last_done_value, last_done_date, next_due_value, next_due_date"),
   ]);
 
   const vehicles = vehiclesRes.data || [];
