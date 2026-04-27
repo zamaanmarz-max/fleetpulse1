@@ -1694,9 +1694,12 @@ export type Database = {
           created_at: string | null
           date_conducted: string
           driver_id: string
+          expiry_date: string | null
           file_url: string | null
           id: string
+          issue_date: string | null
           organisation_id: string | null
+          status: string | null
           topic: string
         }
         Insert: {
@@ -1704,9 +1707,12 @@ export type Database = {
           created_at?: string | null
           date_conducted?: string
           driver_id: string
+          expiry_date?: string | null
           file_url?: string | null
           id?: string
+          issue_date?: string | null
           organisation_id?: string | null
+          status?: string | null
           topic: string
         }
         Update: {
@@ -1714,9 +1720,12 @@ export type Database = {
           created_at?: string | null
           date_conducted?: string
           driver_id?: string
+          expiry_date?: string | null
           file_url?: string | null
           id?: string
+          issue_date?: string | null
           organisation_id?: string | null
+          status?: string | null
           topic?: string
         }
         Relationships: [
