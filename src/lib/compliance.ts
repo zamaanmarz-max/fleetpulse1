@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
+import { DEFAULT_REQUIRED_CERTS, EQUIPMENT_CERT_MAP, getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
+import { computeTrackerStatus } from "@/lib/serviceTrackers";
 
 interface VehicleComplianceInput {
   id: string;
@@ -8,6 +9,7 @@ interface VehicleComplianceInput {
   km_until_service: number | null;
   compliance_template_id: string | null;
   equipment?: any;
+  compliance_settings?: any;
 }
 
 interface CertificateInput {
@@ -24,7 +26,11 @@ interface InspectionInput {
 
 interface TrackerInput {
   vehicle_id: string;
+  tracker_name?: string | null;
   tracking_type: string;
+  interval_value?: number | null;
+  last_done_value?: number | null;
+  last_done_date?: string | null;
   next_due_value: number | null;
   next_due_date: string | null;
 }
