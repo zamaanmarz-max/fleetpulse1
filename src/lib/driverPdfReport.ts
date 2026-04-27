@@ -17,6 +17,12 @@ interface ToolboxTalk {
   topic: string;
   conducted_by?: string | null;
 }
+interface DriverIncidentRow {
+  incident_date?: string | null;
+  incident_type?: string | null;
+  status?: string | null;
+  outcome?: string | null;
+}
 
 export interface DriverPdfInput {
   driver: {
@@ -37,6 +43,8 @@ export interface DriverPdfInput {
   companyName?: string;
   documents: DriverDoc[];
   toolboxTalks: ToolboxTalk[];
+  incidents?: DriverIncidentRow[];
+  complianceSettings?: { toolbox_talks?: boolean; criminal_background_checks?: boolean };
 }
 
 const drawStatusPill = (doc: jsPDF, x: number, y: number, label: string) => {
@@ -54,7 +62,7 @@ const drawStatusPill = (doc: jsPDF, x: number, y: number, label: string) => {
 };
 
 export function generateDriverComplianceReport(input: DriverPdfInput) {
-  const { driver, documents, toolboxTalks, branchName, companyName } = input;
+  const { driver, documents, toolboxTalks, branchName, companyName, incidents = [], complianceSettings = {} } = input;
   const doc = new jsPDF();
   let y = drawHeader(doc, {
     title: "Driver Compliance Report",
@@ -77,7 +85,8 @@ export function generateDriverComplianceReport(input: DriverPdfInput) {
       prdp_number: driver.prdp_number || null,
     },
     enriched as any,
-    toolboxTalks
+    toolboxTalks,
+    complianceSettings
   );
 
   const licence = resolveLicence({ licence_expiry: driver.licence_expiry || null, licence_number: driver.licence_number || null }, documents);
