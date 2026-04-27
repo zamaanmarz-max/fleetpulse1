@@ -23,7 +23,8 @@ interface VehicleData {
 
 interface CertRow { certificate_type: string; certificate_number?: string | null; expiry_date?: string | null; status?: string | null; }
 interface InspRow { inspection_date?: string | null; overall_condition?: string | null; total_damage_items?: number | null; new_damage_items?: number | null; has_critical_damage?: boolean | null; }
-interface JobRow { work_date?: string | null; job_type?: string | null; workshop_name?: string | null; total_cost?: number | string | null; status?: string | null; }
+interface JobRow { work_date?: string | null; job_card_number?: string | null; job_type?: string | null; description?: string | null; workshop_name?: string | null; labour_cost?: number | string | null; parts_cost?: number | string | null; total_cost?: number | string | null; status?: string | null; }
+interface DamageRow { location?: string | null; damage_type?: string | null; severity?: string | null; created_at?: string | null; resolved?: boolean | null; }
 
 export function generateVehiclePdfReport(opts: {
   vehicle: VehicleData;
@@ -32,10 +33,11 @@ export function generateVehiclePdfReport(opts: {
   trackers: ServiceTracker[];
   inspections: InspRow[];
   jobCards: JobRow[];
+  damageItems?: DamageRow[];
   companyName?: string;
   branchName?: string;
 }) {
-  const { vehicle, compliance, certificates, trackers, inspections, jobCards, companyName, branchName } = opts;
+  const { vehicle, compliance, certificates, trackers, inspections, jobCards, damageItems = [], companyName, branchName } = opts;
   const doc = new jsPDF();
   const now = new Date();
 
@@ -66,7 +68,19 @@ export function generateVehiclePdfReport(opts: {
   y = (doc as any).lastAutoTable.finalY + 8;
 
   // COMPLIANCE SCORE
-  y = sectionHeading(doc, `Compliance Score: ${compliance.score}% — ${compliance.status.toUpperCase()}`, y);
+  const bannerColor = compliance.status === "compliant" ? statusColor("valid") : compliance.status === "warning" ? statusColor("warning") : statusColor("expired");
+  doc.setFillColor(...bannerColor);
+  doc.roundedRect(14, y, 182, 18, 2, 2, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text(`${compliance.score}%`, 20, y + 12);
+  doc.setFontSize(11);
+  doc.text(`OVERALL COMPLIANCE — ${compliance.status.toUpperCase()}`, 60, y + 12);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
+  y += 26;
+  y = sectionHeading(doc, "Compliance Breakdown", y);
   if (compliance.breakdown.length === 0) {
     doc.setFontSize(9);
     doc.setTextColor(34, 139, 90);
@@ -169,19 +183,35 @@ export function generateVehiclePdfReport(opts: {
   }
 
   // JOB CARDS
+  const last5Jobs = jobCards.slice(0, 5);
   const totalSpend = jobCards.reduce((s, j) => s + (Number(j.total_cost) || 0), 0);
-  y = sectionHeading(doc, `Job Cards (${jobCards.length}) — Total Spend: R ${totalSpend.toLocaleString()}`, y);
+  y = sectionHeading(doc, `Last 5 Job Cards — Total Spend: R ${totalSpend.toLocaleString()}`, y);
   if (jobCards.length === 0) {
     doc.setFontSize(9); doc.setTextColor(110); doc.text("No maintenance records.", 14, y); doc.setTextColor(0);
   } else {
     autoTable(doc, {
       startY: y,
-      head: [["Date", "Type", "Workshop", "Status", "Cost"]],
-      body: jobCards.map(j => [j.work_date || "-", j.job_type || "-", j.workshop_name || "-", (j.status || "-").toUpperCase(), `R ${(Number(j.total_cost) || 0).toLocaleString()}`]),
+      head: [["Job Card", "Work", "Workshop", "Labour", "Parts", "Total", "Status"]],
+      body: last5Jobs.map(j => [j.job_card_number || j.work_date || "-", j.description || j.job_type || "-", j.workshop_name || "-", `R ${(Number(j.labour_cost) || 0).toLocaleString()}`, `R ${(Number(j.parts_cost) || 0).toLocaleString()}`, `R ${(Number(j.total_cost) || 0).toLocaleString()}`, (j.status || "-").toUpperCase()]),
+      theme: "striped",
+      headStyles: tableHeadStyles,
+      styles: { fontSize: 8 },
+      columnStyles: { 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
+
+  y = sectionHeading(doc, `Unresolved Damage Items (${damageItems.length})`, y);
+  if (damageItems.length === 0) {
+    doc.setFontSize(9); doc.setTextColor(34, 139, 90); doc.text("No unresolved damage items.", 14, y); doc.setTextColor(0);
+  } else {
+    autoTable(doc, {
+      startY: y,
+      head: [["Location", "Type", "Severity", "Reported", "Status"]],
+      body: damageItems.map(d => [d.location || "-", d.damage_type || "-", (d.severity || "-").toUpperCase(), d.created_at ? d.created_at.split("T")[0] : "-", d.resolved ? "RESOLVED" : "OPEN"]),
       theme: "striped",
       headStyles: tableHeadStyles,
       styles: { fontSize: 9 },
-      columnStyles: { 4: { halign: "right" } },
     });
   }
 

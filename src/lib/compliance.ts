@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
+import { DEFAULT_REQUIRED_CERTS, EQUIPMENT_CERT_MAP, getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
+import { computeTrackerStatus } from "@/lib/serviceTrackers";
 
 interface VehicleComplianceInput {
   id: string;
@@ -8,6 +9,7 @@ interface VehicleComplianceInput {
   km_until_service: number | null;
   compliance_template_id: string | null;
   equipment?: any;
+  compliance_settings?: any;
 }
 
 interface CertificateInput {
@@ -24,9 +26,20 @@ interface InspectionInput {
 
 interface TrackerInput {
   vehicle_id: string;
+  tracker_name?: string | null;
   tracking_type: string;
+  interval_value?: number | null;
+  last_done_value?: number | null;
+  last_done_date?: string | null;
   next_due_value: number | null;
   next_due_date: string | null;
+}
+
+interface DamageInput {
+  vehicle_id: string | null;
+  severity?: string | null;
+  resolved?: boolean | null;
+  requires_immediate_action?: boolean | null;
 }
 
 export interface ComplianceBreakdownItem {
@@ -60,7 +73,8 @@ export function calculateVehicleComplianceScore(
   vehicle: VehicleComplianceInput,
   vehicleCerts: CertificateInput[],
   vehicleInspections: InspectionInput[] = [],
-  vehicleTrackers: TrackerInput[] = []
+  vehicleTrackers: TrackerInput[] = [],
+  damageItems: DamageInput[] = []
 ): ComplianceScoreResult {
   let score = 100;
   const breakdown: ComplianceBreakdownItem[] = [];
@@ -70,47 +84,49 @@ export function calculateVehicleComplianceScore(
   const nextServiceKm = vehicle.next_service_due_km ?? 0;
   const kmUntilService = nextServiceKm - currentKm;
 
-  // Required certificates from equipment
   const equipment = (vehicle.equipment as string[]) || [];
   const required = getRequiredCertificates(equipment);
-  const certTypes = vehicleCerts.map(c => (c.certificate_type || "").toLowerCase());
+  const equipmentCerts = new Set(equipment.flatMap(eq => EQUIPMENT_CERT_MAP[eq] || []));
 
   for (const reqCert of required) {
-    const found = vehicleCerts.some(c => matchesCert(reqCert, c.certificate_type)) ||
-      certTypes.includes(reqCert.toLowerCase());
-    if (!found) {
-      score -= 20;
-      breakdown.push({ label: `Missing: ${reqCert}`, deduction: 20, severity: "critical" });
+    const match = vehicleCerts.find(c => matchesCert(reqCert, c.certificate_type));
+    const isCof = matchesCert("COF & Vehicle Licence", reqCert);
+    const isFire = matchesCert("Fire Extinguisher Certificate", reqCert);
+    const missingDeduction = isCof ? 40 : isFire ? 15 : equipmentCerts.has(reqCert) ? 20 : 0;
+    const expiredDeduction = isCof ? 40 : isFire ? 15 : equipmentCerts.has(reqCert) ? 20 : 0;
+    if (!match) {
+      if (missingDeduction > 0) {
+        score -= missingDeduction;
+        breakdown.push({ label: `${reqCert} missing — ${missingDeduction}% deduction`, deduction: missingDeduction, severity: "critical" });
+      }
+      continue;
+    }
+    if (match.expiry_date) {
+      const days = Math.ceil((new Date(match.expiry_date).getTime() - now) / 86400000);
+      if (days <= 0 && expiredDeduction > 0) {
+        score -= expiredDeduction;
+        breakdown.push({ label: `${reqCert} expired — ${expiredDeduction}% deduction`, deduction: expiredDeduction, severity: "critical" });
+      }
     }
   }
 
-  // Expired / expiring certs
+  // Expiring warnings for required certificates only; optional certificates are informational.
   for (const cert of vehicleCerts) {
     if (!cert.expiry_date) continue;
+    const isRequired = required.some(req => matchesCert(req, cert.certificate_type));
+    if (!isRequired) continue;
     const days = Math.ceil((new Date(cert.expiry_date).getTime() - now) / 86400000);
-    if (days <= 0) {
-      score -= 25;
-      breakdown.push({
-        label: `Expired: ${cert.certificate_type} (${Math.abs(days)}d overdue)`,
-        deduction: 25,
-        severity: "critical",
-      });
-    } else if (days <= 30) {
-      score -= 10;
-      breakdown.push({
-        label: `Expiring soon: ${cert.certificate_type} (${days}d left)`,
-        deduction: 10,
-        severity: "warning",
-      });
+    if (days > 0 && days <= 30) {
+      breakdown.push({ label: `${cert.certificate_type} expiring in ${days} days`, deduction: 0, severity: "warning" });
     }
   }
 
   // Service status
   if (kmUntilService < 0) {
-    score -= 20;
+    score -= 15;
     breakdown.push({
-      label: `Service overdue by ${Math.abs(kmUntilService).toLocaleString()} km`,
-      deduction: 20,
+      label: `Service overdue by ${Math.abs(kmUntilService).toLocaleString()} km — 15% deduction`,
+      deduction: 15,
       severity: "critical",
     });
   } else if (kmUntilService <= 2000) {
@@ -137,19 +153,24 @@ export function calculateVehicleComplianceScore(
     }
   }
 
-  // Custom service trackers overdue
+  // Custom equipment/service trackers
   for (const t of vehicleTrackers) {
-    let isOverdue = false;
-    if (t.tracking_type === "days" && t.next_due_date) {
-      isOverdue = new Date(t.next_due_date).getTime() < now;
-    } else if ((t.tracking_type === "km" || t.tracking_type === "hours") && t.next_due_value !== null) {
-      // KM trackers compare to current odometer; hours are tracked manually
-      if (t.tracking_type === "km") isOverdue = (t.next_due_value as number) <= currentKm;
-    }
-    if (isOverdue) {
+    const tracker = { id: "", interval_value: 0, last_done_value: null, last_done_date: null, ...t } as any;
+    const trackerStatus = computeTrackerStatus(tracker, currentKm);
+    const name = t.tracker_name || "Equipment tracker";
+    if (trackerStatus.status === "overdue") {
       score -= 10;
-      breakdown.push({ label: `Custom service tracker overdue`, deduction: 10, severity: "warning" });
+      breakdown.push({ label: `${name} overdue — 10% deduction`, deduction: 10, severity: "warning" });
+    } else if (trackerStatus.status === "due_soon") {
+      score -= 5;
+      breakdown.push({ label: `${name} due soon — 5% deduction`, deduction: 5, severity: "warning" });
     }
+  }
+
+  const criticalDamage = damageItems.filter(d => !d.resolved && (d.requires_immediate_action || (d.severity || "").toLowerCase() === "critical"));
+  for (const d of criticalDamage) {
+    score -= 5;
+    breakdown.push({ label: "Unresolved critical damage — 5% deduction", deduction: 5, severity: "warning" });
   }
 
   score = Math.max(0, Math.min(100, score));
@@ -187,17 +208,19 @@ export function calculateComplianceStatus(
 }
 
 export async function recalculateAllVehicleCompliance() {
-  const [vehiclesRes, certsRes, inspectionsRes, trackersRes] = await Promise.all([
+  const [vehiclesRes, certsRes, inspectionsRes, trackersRes, damageRes] = await Promise.all([
     supabase.from("vehicles").select("id, current_odometer_km, next_service_due_km, km_until_service, compliance_template_id, equipment").eq("is_active", true),
     supabase.from("certificates").select("certificate_type, vehicle_id, expiry_date, status"),
     supabase.from("damage_inspections").select("vehicle_id, inspection_date"),
-    supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracking_type, next_due_value, next_due_date"),
+    supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracker_name, tracking_type, interval_value, last_done_value, last_done_date, next_due_value, next_due_date"),
+    supabase.from("damage_items").select("vehicle_id, severity, resolved, requires_immediate_action"),
   ]);
 
   const vehicles = vehiclesRes.data || [];
   const certs = certsRes.data || [];
   const inspections = (inspectionsRes.data || []) as InspectionInput[];
   const trackers = ((trackersRes.data as any) || []) as TrackerInput[];
+  const damage = (damageRes.data || []) as DamageInput[];
 
   const certsByV: Record<string, CertificateInput[]> = {};
   for (const c of certs) {
@@ -214,13 +237,19 @@ export async function recalculateAllVehicleCompliance() {
     if (!t.vehicle_id) continue;
     (trackersByV[t.vehicle_id] = trackersByV[t.vehicle_id] || []).push(t);
   }
+  const damageByV: Record<string, DamageInput[]> = {};
+  for (const d of damage) {
+    if (!d.vehicle_id) continue;
+    (damageByV[d.vehicle_id] = damageByV[d.vehicle_id] || []).push(d);
+  }
 
   for (const v of vehicles) {
     const result = calculateVehicleComplianceScore(
       v,
       certsByV[v.id] || [],
       inspByV[v.id] || [],
-      trackersByV[v.id] || []
+      trackersByV[v.id] || [],
+      damageByV[v.id] || []
     );
     await supabase.from("vehicles").update({
       compliance_status: result.status,

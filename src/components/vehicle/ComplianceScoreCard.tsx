@@ -5,9 +5,10 @@ interface Props {
   score: number;
   status: "compliant" | "warning" | "critical";
   breakdown: ComplianceBreakdownItem[];
+  onIssueClick?: (item: ComplianceBreakdownItem) => void;
 }
 
-export function ComplianceScoreCard({ score, status, breakdown }: Props) {
+export function ComplianceScoreCard({ score, status, breakdown, onIssueClick }: Props) {
   const colors =
     status === "compliant"
       ? { ring: "text-success", bg: "bg-success/15", text: "text-success", label: "Compliant" }
@@ -41,10 +42,10 @@ export function ComplianceScoreCard({ score, status, breakdown }: Props) {
         <div className="mt-4 space-y-1.5 max-h-48 overflow-y-auto pr-1">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">Score breakdown</p>
           {breakdown.map((b, i) => (
-            <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded bg-secondary/30 text-xs">
+            <button key={i} type="button" onClick={() => onIssueClick?.(b)} className="w-full flex items-center justify-between py-1.5 px-2 rounded bg-secondary/30 hover:bg-secondary/60 text-xs text-left">
               <span className={b.severity === "critical" ? "text-destructive" : b.severity === "warning" ? "text-warning" : "text-foreground"}>{b.label}</span>
               <span className="font-mono font-semibold text-destructive">−{b.deduction}%</span>
-            </div>
+            </button>
           ))}
         </div>
       )}

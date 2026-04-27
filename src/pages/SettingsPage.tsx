@@ -1,4 +1,4 @@
-import { Building2, GitBranch, Users, Bell, Plus, Loader2, X, Trash2, Pencil, Save, UserPlus } from "lucide-react";
+import { Building2, GitBranch, Users, Bell, Plus, Loader2, X, Trash2, Pencil, Save, UserPlus, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,7 @@ const tabs = [
   { id: "organisation", icon: Building2, label: "Organisation" },
   { id: "branches", icon: GitBranch, label: "Branches" },
   { id: "users", icon: Users, label: "Users" },
+  { id: "compliance", icon: ShieldCheck, label: "Compliance" },
   { id: "notifications", icon: Bell, label: "Notifications" },
 ];
 
@@ -38,6 +39,7 @@ export default function SettingsPage() {
         {activeTab === "organisation" && <OrganisationTab />}
         {activeTab === "branches" && <BranchesTab />}
         {activeTab === "users" && <UsersTab />}
+        {activeTab === "compliance" && <ComplianceSettingsTab />}
         {activeTab === "notifications" && <p className="text-muted-foreground text-sm">Notification settings coming soon.</p>}
       </div>
 
@@ -124,6 +126,34 @@ function OrganisationTab() {
       ))}
     </div>
   );
+}
+
+function ComplianceSettingsTab() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: org } = useQuery({
+    queryKey: ["my_organisation", profile?.organisation_id],
+    queryFn: async () => {
+      const { data } = await supabase.from("organisations").select("id, compliance_settings").eq("id", profile!.organisation_id!).maybeSingle();
+      return data as any;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+  const settings = org?.compliance_settings || { pre_trip_inspections: false, first_aid_kit_checks: false, toolbox_talks: true, criminal_background_checks: true };
+  const toggle = async (key: string) => {
+    if (!org) return;
+    const next = { ...settings, [key]: !settings[key] };
+    const { error } = await supabase.from("organisations").update({ compliance_settings: next } as any).eq("id", org.id);
+    if (error) toast.error(error.message);
+    else { toast.success("Compliance settings updated"); queryClient.invalidateQueries({ queryKey: ["my_organisation"] }); }
+  };
+  const rows = [
+    ["pre_trip_inspections", "Pre-trip inspections"],
+    ["first_aid_kit_checks", "First aid kit checks"],
+    ["toolbox_talks", "Toolbox talks"],
+    ["criminal_background_checks", "Criminal background checks"],
+  ];
+  return <div className="space-y-3 max-w-xl">{rows.map(([key, label]) => <div key={key} className="flex items-center justify-between rounded-lg bg-secondary/30 p-3"><span className="text-sm font-medium text-foreground">{label}</span><button onClick={() => toggle(key)} className={`text-xs font-semibold px-3 py-1.5 rounded-full ${settings[key] ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"}`}>{settings[key] ? "On" : "Off"}</button></div>)}</div>;
 }
 
 function BranchesTab() {

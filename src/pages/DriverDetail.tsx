@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
 import { generateDriverComplianceReport } from "@/lib/driverPdfReport";
+import { calcToolboxStatus, toolboxExpiry } from "@/lib/driverComplianceHelpers";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -42,7 +43,7 @@ export default function DriverDetail() {
   const [talkFile, setTalkFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingTalk, setSavingTalk] = useState(false);
-  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
   const [talkForm, setTalkForm] = useState({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -96,6 +97,26 @@ export default function DriverDetail() {
     enabled: !!id,
   });
 
+  const { data: organisation } = useQuery({
+    queryKey: ["driver_org", driver?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organisations").select("name, compliance_settings").eq("id", driver!.organisation_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!driver?.organisation_id,
+  });
+
+  const { data: branch } = useQuery({
+    queryKey: ["driver_branch", driver?.branch_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("name").eq("id", driver!.branch_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!driver?.branch_id,
+  });
+
   const now = Date.now();
 
   const enrichedDocs = (documents || []).map(d => {
@@ -113,7 +134,8 @@ export default function DriverDetail() {
       prdp_number: driver.prdp_number,
     },
     enrichedDocs,
-    toolboxTalks || []
+    toolboxTalks || [],
+    (organisation as any)?.compliance_settings || {}
   ) : null;
 
   const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
@@ -148,7 +170,7 @@ export default function DriverDetail() {
     if (editingDocId) {
       const updatePayload: any = {
         document_type: form.document_type, document_name: form.document_name || form.document_type,
-        document_number: form.document_number || null, expiry_date: form.expiry_date || null, status,
+        document_number: form.document_number || null, issue_date: form.issue_date || null, expiry_date: form.expiry_date || null, status,
       };
       if (fileUrl) updatePayload.file_url = fileUrl;
       const { error } = await supabase.from("driver_documents").update(updatePayload).eq("id", editingDocId);
@@ -159,7 +181,7 @@ export default function DriverDetail() {
       const { error } = await supabase.from("driver_documents").insert({
         organisation_id: profile.organisation_id, driver_id: id,
         document_type: form.document_type, document_name: form.document_name || form.document_type,
-        document_number: form.document_number || null, expiry_date: form.expiry_date || null,
+        document_number: form.document_number || null, issue_date: form.issue_date || null, expiry_date: form.expiry_date || null,
         file_url: fileUrl, uploaded_by: user?.id || null, status,
       });
       setSaving(false);
@@ -174,7 +196,7 @@ export default function DriverDetail() {
     }
 
     setShowForm(false); setFile(null); setEditingDocId(null);
-    setForm({ document_type: "", document_name: "", document_number: "", expiry_date: "" });
+    setForm({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
     queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
     queryClient.invalidateQueries({ queryKey: ["driver", id] });
     queryClient.invalidateQueries({ queryKey: ["drivers"] });
@@ -187,6 +209,7 @@ export default function DriverDetail() {
       document_type: doc.document_type || "",
       document_name: doc.document_name || "",
       document_number: doc.document_number || "",
+      issue_date: doc.issue_date || "",
       expiry_date: doc.expiry_date || "",
     });
     setFile(null);
@@ -215,9 +238,12 @@ export default function DriverDetail() {
       fileUrl = path;
     }
     if (editingTalkId) {
+      const expiryDate = toolboxExpiry(talkForm.date_conducted);
+      const talkStatus = calcToolboxStatus(talkForm.date_conducted);
       const updatePayload: any = {
         topic: talkForm.topic, date_conducted: talkForm.date_conducted,
-        conducted_by: talkForm.conducted_by || null,
+        conducted_by: talkForm.conducted_by || null, issue_date: talkForm.date_conducted,
+        expiry_date: expiryDate, status: talkStatus,
       };
       if (fileUrl) updatePayload.file_url = fileUrl;
       const { error } = await supabase.from("toolbox_talks").update(updatePayload).eq("id", editingTalkId);
@@ -225,10 +251,13 @@ export default function DriverDetail() {
       if (error) { toast.error(error.message); return; }
       toast.success("Toolbox talk updated");
     } else {
+      const expiryDate = toolboxExpiry(talkForm.date_conducted);
+      const talkStatus = calcToolboxStatus(talkForm.date_conducted);
       const { error } = await supabase.from("toolbox_talks").insert({
         organisation_id: profile.organisation_id, driver_id: id,
         topic: talkForm.topic, date_conducted: talkForm.date_conducted,
         conducted_by: talkForm.conducted_by || null, file_url: fileUrl,
+        issue_date: talkForm.date_conducted, expiry_date: expiryDate, status: talkStatus,
       });
       setSavingTalk(false);
       if (error) { toast.error(error.message); return; }
@@ -237,6 +266,7 @@ export default function DriverDetail() {
     setShowTalkForm(false); setTalkFile(null); setEditingTalkId(null);
     setTalkForm({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
     queryClient.invalidateQueries({ queryKey: ["toolbox_talks", id] });
+    queryClient.invalidateQueries({ queryKey: ["drivers"] });
   };
 
   const handleEditTalk = (talk: any) => {
@@ -339,6 +369,10 @@ export default function DriverDetail() {
                 driver: driver as any,
                 documents: (documents || []) as any,
                 toolboxTalks: (toolboxTalks || []) as any,
+                branchName: branch?.name,
+                companyName: organisation?.name,
+                incidents: (driverFines || []).map(f => ({ incident_date: f.offence_date, incident_type: f.offence_description || "Fine", status: f.payment_status || "open", outcome: f.fine_number || "" })) as any,
+                complianceSettings: (organisation as any)?.compliance_settings || {},
               })}
               className="flex items-center gap-1.5 text-xs bg-secondary text-secondary-foreground px-3 py-1.5 rounded-md hover:bg-secondary/80"
             >
@@ -606,6 +640,10 @@ export default function DriverDetail() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Document Number</label>
               <input type="text" value={form.document_number} onChange={e => setForm({ ...form, document_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Issue Date</label>
+              <input type="date" value={form.issue_date} onChange={e => setForm({ ...form, issue_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label>

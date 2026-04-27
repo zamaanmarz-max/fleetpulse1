@@ -13,9 +13,10 @@ import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
 import { ServiceTrackersTab } from "@/components/vehicle/ServiceTrackersTab";
 import { ComplianceScoreCard } from "@/components/vehicle/ComplianceScoreCard";
-import { calculateVehicleComplianceScore } from "@/lib/compliance";
+import { calculateVehicleComplianceScore, recalculateAllVehicleCompliance } from "@/lib/compliance";
 import { generateVehiclePdfReport } from "@/lib/vehiclePdfReport";
-import { ServiceTracker } from "@/lib/serviceTrackers";
+import { computeNextDue, computeTrackerStatus, ServiceTracker } from "@/lib/serviceTrackers";
+import { getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -106,6 +107,11 @@ export default function VehicleDetail() {
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
   const [transferring, setTransferring] = useState(false);
   const [editEquipment, setEditEquipment] = useState<string[]>([]);
+  const [resolving, setResolving] = useState<{ kind: "certificate" | "tracker"; name: string; tracker?: ServiceTracker } | null>(null);
+  const [resolveCertForm, setResolveCertForm] = useState({ certificate_number: "", issue_date: "", expiry_date: "" });
+  const [resolveTrackerForm, setResolveTrackerForm] = useState({ last_done_date: new Date().toISOString().split("T")[0], last_done_value: "", notes: "" });
+  const [resolveFile, setResolveFile] = useState<File | null>(null);
+  const [resolveSaving, setResolveSaving] = useState(false);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
@@ -187,6 +193,16 @@ export default function VehicleDetail() {
     enabled: !!id,
   });
 
+  const { data: damageItems } = useQuery({
+    queryKey: ["vehicle_damage_items", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("damage_items").select("*").eq("vehicle_id", id!).eq("resolved", false).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
   const { data: organisation } = useQuery({
     queryKey: ["organisation", vehicle?.organisation_id],
     queryFn: async () => {
@@ -222,6 +238,7 @@ export default function VehicleDetail() {
       trackers: trackers || [],
       inspections: inspections || [],
       jobCards: jobCards || [],
+      damageItems: damageItems || [],
       companyName: organisation?.name,
       branchName: (vehicle as any).branches?.name,
     });
@@ -382,6 +399,59 @@ export default function VehicleDetail() {
     queryClient.invalidateQueries({ queryKey: ["certificates"] });
   };
 
+  const refreshVehicleCompliance = async () => {
+    await recalculateAllVehicleCompliance();
+    queryClient.invalidateQueries({ queryKey: ["vehicle", id] });
+    queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
+    queryClient.invalidateQueries({ queryKey: ["service_trackers", id] });
+    queryClient.invalidateQueries({ queryKey: ["certificates"] });
+  };
+
+  const openCertificateResolver = (name: string) => {
+    const existing = (certificates || []).find(c => matchesCert(name, c.certificate_type));
+    setResolving({ kind: "certificate", name });
+    setResolveCertForm({ certificate_number: existing?.certificate_number || "", issue_date: existing?.issue_date || "", expiry_date: existing?.expiry_date || "" });
+    setResolveFile(null);
+  };
+
+  const openTrackerResolver = (tracker: ServiceTracker) => {
+    setResolving({ kind: "tracker", name: tracker.tracker_name, tracker });
+    setResolveTrackerForm({ last_done_date: new Date().toISOString().split("T")[0], last_done_value: tracker.tracking_type === "km" ? String(currentKm) : String(tracker.last_done_value ?? ""), notes: tracker.notes || "" });
+  };
+
+  const handleResolveSave = async () => {
+    if (!vehicle || !resolving) return;
+    setResolveSaving(true);
+    if (resolving.kind === "certificate") {
+      let fileUrl: string | null = null;
+      if (resolveFile) {
+        const path = `${vehicle.organisation_id}/${id}/${Date.now()}_${resolveFile.name}`;
+        const { error: upErr } = await supabase.storage.from("documents").upload(path, resolveFile);
+        if (upErr) { toast.error("File upload failed: " + upErr.message); setResolveSaving(false); return; }
+        fileUrl = path;
+      }
+      const days = resolveCertForm.expiry_date ? Math.ceil((new Date(resolveCertForm.expiry_date).getTime() - Date.now()) / 86400000) : null;
+      const payload: any = {
+        organisation_id: vehicle.organisation_id, vehicle_id: id, certificate_type: resolving.name,
+        certificate_number: resolveCertForm.certificate_number || null, issue_date: resolveCertForm.issue_date || null,
+        expiry_date: resolveCertForm.expiry_date || null, status: days === null ? "valid" : days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid",
+        days_until_expiry: days, uploaded_by: profile?.id || null,
+      };
+      if (fileUrl) payload.file_url = fileUrl;
+      const existing = (certificates || []).find(c => matchesCert(resolving.name, c.certificate_type));
+      const { error } = existing ? await supabase.from("certificates").update(payload).eq("id", existing.id) : await supabase.from("certificates").insert(payload);
+      if (error) { toast.error(error.message); setResolveSaving(false); return; }
+    } else if (resolving.tracker) {
+      const lastValue = resolving.tracker.tracking_type === "days" ? null : parseFloat(resolveTrackerForm.last_done_value);
+      const next = computeNextDue(resolving.tracker.tracking_type, Number(resolving.tracker.interval_value), lastValue, resolveTrackerForm.last_done_date);
+      const { error } = await supabase.from("vehicle_service_trackers" as any).update({ last_done_value: lastValue, last_done_date: resolveTrackerForm.last_done_date, notes: resolveTrackerForm.notes || null, ...next }).eq("id", resolving.tracker.id);
+      if (error) { toast.error(error.message); setResolveSaving(false); return; }
+    }
+    setResolveSaving(false); setResolving(null); toast.success("Compliance item updated");
+    refreshVehicleCompliance();
+  };
+
   const handleTransfer = async () => {
     if (!transferBranch || !vehicle) return;
     setTransferring(true);
@@ -431,6 +501,14 @@ export default function VehicleDetail() {
   const totalOutstandingFines = (fines || []).filter(f => f.payment_status !== "paid").reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
   const missingVin = !vehicle.vin_number;
   const noTemplate = !vehicle.compliance_template_id;
+  const complianceResult = calculateVehicleComplianceScore(
+    vehicle as any,
+    (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
+    (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
+    (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracker_name: t.tracker_name, tracking_type: t.tracking_type, interval_value: t.interval_value, last_done_value: t.last_done_value, last_done_date: t.last_done_date, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
+    (damageItems || []).map(d => ({ vehicle_id: d.vehicle_id, severity: d.severity, resolved: d.resolved, requires_immediate_action: d.requires_immediate_action })),
+  );
+  const trackerIssues = (trackers || []).filter(t => computeTrackerStatus(t, currentKm).status !== "ok");
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
@@ -524,19 +602,16 @@ export default function VehicleDetail() {
               </div>
             </div>
 
-            {(() => {
-              const compliance = calculateVehicleComplianceScore(
-                vehicle as any,
-                (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
-                (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
-                (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracking_type: t.tracking_type, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
-              );
-              return <ComplianceScoreCard score={compliance.score} status={compliance.status} breakdown={compliance.breakdown} />;
-            })()}
+            <ComplianceScoreCard score={complianceResult.score} status={complianceResult.status} breakdown={complianceResult.breakdown} onIssueClick={(item) => {
+              const cert = getRequiredCertificates((vehicle.equipment as string[]) || []).find(c => item.label.toLowerCase().includes(c.toLowerCase().split(" ")[0]));
+              const tracker = trackerIssues.find(t => item.label.toLowerCase().includes(t.tracker_name.toLowerCase()));
+              if (tracker) openTrackerResolver(tracker); else if (cert) openCertificateResolver(cert);
+            }} />
 
             <ComplianceRequirements
               equipment={(vehicle.equipment as string[]) || []}
               certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
+              onRequirementClick={openCertificateResolver}
             />
           </div>
         </div>
@@ -811,6 +886,32 @@ export default function VehicleDetail() {
             <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-foreground">Update Odometer</h3><button onClick={() => setShowOdometer(false)} className="text-muted-foreground hover:text-foreground p-2 -m-2"><X className="w-5 h-5" /></button></div>
             <div><label className="block text-sm font-medium text-foreground mb-1">Current KM</label><input type="number" value={odometerValue} onChange={e => setOdometerValue(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px]" /></div>
             <button onClick={handleUpdateOdometer} disabled={savingOdometer} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]">{savingOdometer && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
+          </div>
+        </div>
+      )}
+
+      {resolving && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="hidden md:block flex-1 bg-background/50" onClick={() => setResolving(null)} />
+          <div className="w-full md:w-[450px] bg-card border-l border-border p-4 md:p-6 overflow-y-auto space-y-4 max-h-screen">
+            <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-foreground">Resolve {resolving.name}</h2><button onClick={() => setResolving(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button></div>
+            {resolving.kind === "certificate" ? (
+              <>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Certificate Type</label><input value={resolving.name} readOnly className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Certificate Number</label><input value={resolveCertForm.certificate_number} onChange={e => setResolveCertForm({ ...resolveCertForm, certificate_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Issue Date</label><input type="date" value={resolveCertForm.issue_date} onChange={e => setResolveCertForm({ ...resolveCertForm, issue_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label><input type="date" value={resolveCertForm.expiry_date} onChange={e => setResolveCertForm({ ...resolveCertForm, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Upload PDF</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setResolveFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" /></div>
+              </>
+            ) : (
+              <>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Tracker Name</label><input value={resolving.name} readOnly className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Last Done Date</label><input type="date" value={resolveTrackerForm.last_done_date} onChange={e => setResolveTrackerForm({ ...resolveTrackerForm, last_done_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                {resolving.tracker?.tracking_type !== "days" && <div><label className="block text-sm font-medium text-foreground mb-1">Last Done {resolving.tracker?.tracking_type === "km" ? "KM" : "Hours"}</label><input type="number" value={resolveTrackerForm.last_done_value} onChange={e => setResolveTrackerForm({ ...resolveTrackerForm, last_done_value: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>}
+                <div><label className="block text-sm font-medium text-foreground mb-1">Notes</label><textarea value={resolveTrackerForm.notes} onChange={e => setResolveTrackerForm({ ...resolveTrackerForm, notes: e.target.value })} rows={3} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+              </>
+            )}
+            <button onClick={handleResolveSave} disabled={resolveSaving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]">{resolveSaving && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
           </div>
         </div>
       )}

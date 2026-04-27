@@ -4,6 +4,7 @@ import { getEquipmentComplianceStatus } from "@/lib/vehicleEquipment";
 interface Props {
   equipment: string[];
   certificates: { certificate_type: string; expiry_date: string | null; status: string | null }[];
+  onRequirementClick?: (certificateType: string) => void;
 }
 
 const icons = {
@@ -27,7 +28,7 @@ const labels: Record<string, string> = {
   missing: "Missing",
 };
 
-export function ComplianceRequirements({ equipment, certificates }: Props) {
+export function ComplianceRequirements({ equipment, certificates, onRequirementClick }: Props) {
   if (!equipment || equipment.length === 0) {
     // Still show default requirements
   }
@@ -59,13 +60,13 @@ export function ComplianceRequirements({ equipment, certificates }: Props) {
         {required.map(certType => {
           const s = status[certType];
           return (
-            <div key={certType} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-secondary/30">
+            <button key={certType} type="button" onClick={() => onRequirementClick?.(certType)} className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg bg-secondary/30 hover:bg-secondary/60 text-left">
               <div className="flex items-center gap-2">
                 {icons[s]}
                 <span className="text-sm text-foreground">{certType}</span>
               </div>
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badges[s]}`}>{labels[s]}</span>
-            </div>
+            </button>
           );
         })}
       </div>

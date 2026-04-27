@@ -11,6 +11,21 @@ export const calcDocStatus = (expiry: string | null | undefined): DocStatus => {
   return "valid";
 };
 
+export const addMonths = (date: string, months: number) => {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+};
+
+export const toolboxExpiry = (dateConducted: string) => addMonths(dateConducted, 6);
+
+export const calcToolboxStatus = (dateConducted: string): Exclude<DocStatus, "missing"> => {
+  const days = Math.ceil((new Date(toolboxExpiry(dateConducted)).getTime() - Date.now()) / 86400000);
+  if (days <= 0) return "expired";
+  if (days <= 30) return "expiring";
+  return "valid";
+};
+
 export const docStatusLabel = (s: DocStatus) =>
   s === "valid" ? "Valid" : s === "expiring" ? "Expiring" : s === "expired" ? "Expired" : "Missing";
 
@@ -93,10 +108,12 @@ function resolveCategory(
   return { status: calcDocStatus(best.expiry), expiry: best.expiry, number: best.number, source: best.source };
 }
 
-export const lastToolboxStatus = (talks: { date_conducted: string }[]): { status: "valid" | "expired" | "missing"; lastDate: string | null; daysSince: number | null } => {
-  if (!talks || talks.length === 0) return { status: "missing", lastDate: null, daysSince: null };
+export const lastToolboxStatus = (talks: { date_conducted: string }[]): { status: "valid" | "expiring" | "expired" | "missing"; lastDate: string | null; daysSince: number | null; expiryDate: string | null; daysUntilExpiry: number | null } => {
+  if (!talks || talks.length === 0) return { status: "missing", lastDate: null, daysSince: null, expiryDate: null, daysUntilExpiry: null };
   const latestMs = talks.reduce((m, t) => Math.max(m, new Date(t.date_conducted).getTime()), 0);
   const days = Math.ceil((Date.now() - latestMs) / 86400000);
   const lastDate = new Date(latestMs).toISOString().split("T")[0];
-  return { status: days > 30 ? "expired" : "valid", lastDate, daysSince: days };
+  const expiryDate = toolboxExpiry(lastDate);
+  const daysUntilExpiry = Math.ceil((new Date(expiryDate).getTime() - Date.now()) / 86400000);
+  return { status: calcToolboxStatus(lastDate), lastDate, daysSince: days, expiryDate, daysUntilExpiry };
 };

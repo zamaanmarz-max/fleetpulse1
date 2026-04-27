@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { drawHeader, drawFooter, sectionHeading, statusColor, tableHeadStyles } from "./pdfTemplate";
 import { checkDriverCompliance } from "./driverCompliance";
-import { resolveLicence, resolvePrdp, resolveMedical, resolveCriminal, lastToolboxStatus, docStatusLabel, ResolvedDoc } from "./driverComplianceHelpers";
+import { resolveLicence, resolvePrdp, resolveMedical, resolveCriminal, lastToolboxStatus, docStatusLabel, toolboxExpiry } from "./driverComplianceHelpers";
 
 interface DriverDoc {
   id?: string;
@@ -16,6 +16,12 @@ interface ToolboxTalk {
   date_conducted: string;
   topic: string;
   conducted_by?: string | null;
+}
+interface DriverIncidentRow {
+  incident_date?: string | null;
+  incident_type?: string | null;
+  status?: string | null;
+  outcome?: string | null;
 }
 
 export interface DriverPdfInput {
@@ -37,6 +43,8 @@ export interface DriverPdfInput {
   companyName?: string;
   documents: DriverDoc[];
   toolboxTalks: ToolboxTalk[];
+  incidents?: DriverIncidentRow[];
+  complianceSettings?: { toolbox_talks?: boolean; criminal_background_checks?: boolean };
 }
 
 const drawStatusPill = (doc: jsPDF, x: number, y: number, label: string) => {
@@ -54,7 +62,7 @@ const drawStatusPill = (doc: jsPDF, x: number, y: number, label: string) => {
 };
 
 export function generateDriverComplianceReport(input: DriverPdfInput) {
-  const { driver, documents, toolboxTalks, branchName, companyName } = input;
+  const { driver, documents, toolboxTalks, branchName, companyName, incidents = [], complianceSettings = {} } = input;
   const doc = new jsPDF();
   let y = drawHeader(doc, {
     title: "Driver Compliance Report",
@@ -77,7 +85,8 @@ export function generateDriverComplianceReport(input: DriverPdfInput) {
       prdp_number: driver.prdp_number || null,
     },
     enriched as any,
-    toolboxTalks
+    toolboxTalks,
+    complianceSettings
   );
 
   const licence = resolveLicence({ licence_expiry: driver.licence_expiry || null, licence_number: driver.licence_number || null }, documents);
@@ -155,16 +164,16 @@ export function generateDriverComplianceReport(input: DriverPdfInput) {
   if (y > 230) { doc.addPage(); y = 20; }
   y = sectionHeading(doc, "Toolbox Talks", y);
   doc.setFontSize(9);
-  doc.text(`Last talk: ${toolbox.lastDate || "Never"}${toolbox.daysSince !== null ? ` (${toolbox.daysSince}d ago)` : ""} · Status: ${toolbox.status === "valid" ? "Done" : "Overdue"}`, 14, y);
+  doc.text(`Last talk: ${toolbox.lastDate || "Never"}${toolbox.expiryDate ? ` · Expires: ${toolbox.expiryDate}` : ""} · Status: ${toolbox.status.toUpperCase()}`, 14, y);
   y += 5;
   const recentTalks = toolboxTalks.slice(0, 5);
   if (recentTalks.length > 0) {
     autoTable(doc, {
       startY: y,
-      head: [["Date", "Topic", "Conducted By"]],
+      head: [["Date", "Topic", "Expires", "Status", "Conducted By"]],
       headStyles: tableHeadStyles,
       styles: { fontSize: 9 },
-      body: recentTalks.map(t => [t.date_conducted, t.topic, t.conducted_by || "-"]),
+      body: recentTalks.map(t => [t.date_conducted, t.topic, toolboxExpiry(t.date_conducted), lastToolboxStatus([t]).status.toUpperCase(), t.conducted_by || "-"]),
     });
     y = (doc as any).lastAutoTable.finalY + 6;
   } else {
@@ -193,6 +202,21 @@ export function generateDriverComplianceReport(input: DriverPdfInput) {
   doc.text(points >= 9 ? "Risk: HIGH — close to suspension" : points >= 5 ? "Risk: ELEVATED" : "Risk: LOW", 14, y);
   doc.setTextColor(0, 0, 0);
   y += 8;
+
+  if (y > 230) { doc.addPage(); y = 20; }
+  y = sectionHeading(doc, `Incidents (${incidents.length})`, y);
+  if (incidents.length === 0) {
+    doc.setFontSize(9); doc.setTextColor(34, 139, 90); doc.text("No recorded incidents.", 14, y); doc.setTextColor(0, 0, 0); y += 8;
+  } else {
+    autoTable(doc, {
+      startY: y,
+      head: [["Date", "Type", "Outcome", "Status"]],
+      headStyles: tableHeadStyles,
+      styles: { fontSize: 9 },
+      body: incidents.map(i => [i.incident_date || "-", i.incident_type || "-", i.outcome || "-", (i.status || "-").toUpperCase()]),
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
 
   // ---- Score breakdown ----
   if (compliance.breakdown.length > 0) {

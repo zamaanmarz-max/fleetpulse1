@@ -28,14 +28,14 @@ export function computeTrackerStatus(t: ServiceTracker, currentKm: number): Trac
     if (!t.next_due_date) return { status: "ok", remaining: 0, remainingLabel: "—" };
     const days = Math.ceil((new Date(t.next_due_date).getTime() - now) / 86400000);
     if (days <= 0) return { status: "overdue", remaining: days, remainingLabel: `${Math.abs(days)}d overdue` };
-    if (days <= 14) return { status: "due_soon", remaining: days, remainingLabel: `${days}d left` };
+    if (days <= 30) return { status: "due_soon", remaining: days, remainingLabel: `${days}d left` };
     return { status: "ok", remaining: days, remainingLabel: `${days}d left` };
   }
   if (t.tracking_type === "km") {
     const next = Number(t.next_due_value ?? 0);
     const remaining = next - currentKm;
     if (remaining <= 0) return { status: "overdue", remaining, remainingLabel: `${Math.abs(remaining).toLocaleString()} km overdue` };
-    if (remaining <= 1000) return { status: "due_soon", remaining, remainingLabel: `${remaining.toLocaleString()} km left` };
+    if (remaining <= 500) return { status: "due_soon", remaining, remainingLabel: `${remaining.toLocaleString()} km left` };
     return { status: "ok", remaining, remainingLabel: `${remaining.toLocaleString()} km left` };
   }
   // hours
