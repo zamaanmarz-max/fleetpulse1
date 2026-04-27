@@ -506,6 +506,7 @@ export default function VehicleDetail() {
     (certificates || []).map(c => ({ certificate_type: c.certificate_type, vehicle_id: c.vehicle_id, expiry_date: c.expiry_date, status: c.status })),
     (inspections || []).map(i => ({ vehicle_id: i.vehicle_id, inspection_date: i.inspection_date })),
     (trackers || []).map(t => ({ vehicle_id: t.vehicle_id, tracker_name: t.tracker_name, tracking_type: t.tracking_type, interval_value: t.interval_value, last_done_value: t.last_done_value, last_done_date: t.last_done_date, next_due_value: t.next_due_value, next_due_date: t.next_due_date })),
+    (damageItems || []).map(d => ({ vehicle_id: d.vehicle_id, severity: d.severity, resolved: d.resolved, requires_immediate_action: d.requires_immediate_action })),
   );
   const trackerIssues = (trackers || []).filter(t => computeTrackerStatus(t, currentKm).status !== "ok");
 
