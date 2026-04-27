@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { drawHeader, drawFooter, sectionHeading, statusColor, tableHeadStyles } from "./pdfTemplate";
 import { checkDriverCompliance } from "./driverCompliance";
-import { resolveLicence, resolvePrdp, resolveMedical, resolveCriminal, lastToolboxStatus, docStatusLabel, ResolvedDoc } from "./driverComplianceHelpers";
+import { resolveLicence, resolvePrdp, resolveMedical, resolveCriminal, lastToolboxStatus, docStatusLabel, toolboxExpiry } from "./driverComplianceHelpers";
 
 interface DriverDoc {
   id?: string;
@@ -164,16 +164,16 @@ export function generateDriverComplianceReport(input: DriverPdfInput) {
   if (y > 230) { doc.addPage(); y = 20; }
   y = sectionHeading(doc, "Toolbox Talks", y);
   doc.setFontSize(9);
-  doc.text(`Last talk: ${toolbox.lastDate || "Never"}${toolbox.daysSince !== null ? ` (${toolbox.daysSince}d ago)` : ""} · Status: ${toolbox.status === "valid" ? "Done" : "Overdue"}`, 14, y);
+  doc.text(`Last talk: ${toolbox.lastDate || "Never"}${toolbox.expiryDate ? ` · Expires: ${toolbox.expiryDate}` : ""} · Status: ${toolbox.status.toUpperCase()}`, 14, y);
   y += 5;
   const recentTalks = toolboxTalks.slice(0, 5);
   if (recentTalks.length > 0) {
     autoTable(doc, {
       startY: y,
-      head: [["Date", "Topic", "Conducted By"]],
+      head: [["Date", "Topic", "Expires", "Status", "Conducted By"]],
       headStyles: tableHeadStyles,
       styles: { fontSize: 9 },
-      body: recentTalks.map(t => [t.date_conducted, t.topic, t.conducted_by || "-"]),
+      body: recentTalks.map(t => [t.date_conducted, t.topic, toolboxExpiry(t.date_conducted), lastToolboxStatus([t]).status.toUpperCase(), t.conducted_by || "-"]),
     });
     y = (doc as any).lastAutoTable.finalY + 6;
   } else {
