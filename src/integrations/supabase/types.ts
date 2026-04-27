@@ -718,6 +718,7 @@ export type Database = {
       }
       driver_documents: {
         Row: {
+          conducted_by: string | null
           created_at: string | null
           document_name: string | null
           document_number: string | null
@@ -726,11 +727,14 @@ export type Database = {
           expiry_date: string | null
           file_url: string | null
           id: string
+          issue_date: string | null
           organisation_id: string | null
           status: string | null
+          talk_topic: string | null
           uploaded_by: string | null
         }
         Insert: {
+          conducted_by?: string | null
           created_at?: string | null
           document_name?: string | null
           document_number?: string | null
@@ -739,11 +743,14 @@ export type Database = {
           expiry_date?: string | null
           file_url?: string | null
           id?: string
+          issue_date?: string | null
           organisation_id?: string | null
           status?: string | null
+          talk_topic?: string | null
           uploaded_by?: string | null
         }
         Update: {
+          conducted_by?: string | null
           created_at?: string | null
           document_name?: string | null
           document_number?: string | null
@@ -752,8 +759,10 @@ export type Database = {
           expiry_date?: string | null
           file_url?: string | null
           id?: string
+          issue_date?: string | null
           organisation_id?: string | null
           status?: string | null
+          talk_topic?: string | null
           uploaded_by?: string | null
         }
         Relationships: [
@@ -1553,39 +1562,126 @@ export type Database = {
       organisations: {
         Row: {
           created_at: string | null
+          data_region: string | null
+          data_retention_days: number | null
           id: string
           logo_url: string | null
           name: string
+          popia_compliant: boolean | null
+          popia_consent_date: string | null
           primary_contact_email: string | null
           primary_contact_name: string | null
           primary_contact_phone: string | null
           registration_number: string | null
+          security_tier: string | null
           subscription_plan: string | null
           subscription_status: string | null
         }
         Insert: {
           created_at?: string | null
+          data_region?: string | null
+          data_retention_days?: number | null
           id?: string
           logo_url?: string | null
           name: string
+          popia_compliant?: boolean | null
+          popia_consent_date?: string | null
           primary_contact_email?: string | null
           primary_contact_name?: string | null
           primary_contact_phone?: string | null
           registration_number?: string | null
+          security_tier?: string | null
           subscription_plan?: string | null
           subscription_status?: string | null
         }
         Update: {
           created_at?: string | null
+          data_region?: string | null
+          data_retention_days?: number | null
           id?: string
           logo_url?: string | null
           name?: string
+          popia_compliant?: boolean | null
+          popia_consent_date?: string | null
           primary_contact_email?: string | null
           primary_contact_name?: string | null
           primary_contact_phone?: string | null
           registration_number?: string | null
+          security_tier?: string | null
           subscription_plan?: string | null
           subscription_status?: string | null
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          action: string
+          attempts: number | null
+          blocked_until: string | null
+          created_at: string | null
+          id: string
+          identifier: string
+          window_start: string | null
+        }
+        Insert: {
+          action: string
+          attempts?: number | null
+          blocked_until?: string | null
+          created_at?: string | null
+          id?: string
+          identifier: string
+          window_start?: string | null
+        }
+        Update: {
+          action?: string
+          attempts?: number | null
+          blocked_until?: string | null
+          created_at?: string | null
+          id?: string
+          identifier?: string
+          window_start?: string | null
+        }
+        Relationships: []
+      }
+      security_audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          id: string
+          ip_address: string | null
+          organisation_id: string | null
+          resource_id: string | null
+          resource_type: string | null
+          success: boolean | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          organisation_id?: string | null
+          resource_id?: string | null
+          resource_type?: string | null
+          success?: boolean | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          organisation_id?: string | null
+          resource_id?: string | null
+          resource_type?: string | null
+          success?: boolean | null
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1742,37 +1838,52 @@ export type Database = {
       }
       users: {
         Row: {
+          account_locked: boolean | null
           branch_id: string | null
           created_at: string | null
           email: string | null
+          failed_login_attempts: number | null
           full_name: string | null
           id: string
           is_active: boolean | null
           last_login: string | null
+          last_login_at: string | null
+          last_login_ip: string | null
+          mfa_enabled: boolean | null
           organisation_id: string | null
           phone: string | null
           role: string | null
         }
         Insert: {
+          account_locked?: boolean | null
           branch_id?: string | null
           created_at?: string | null
           email?: string | null
+          failed_login_attempts?: number | null
           full_name?: string | null
           id: string
           is_active?: boolean | null
           last_login?: string | null
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          mfa_enabled?: boolean | null
           organisation_id?: string | null
           phone?: string | null
           role?: string | null
         }
         Update: {
+          account_locked?: boolean | null
           branch_id?: string | null
           created_at?: string | null
           email?: string | null
+          failed_login_attempts?: number | null
           full_name?: string | null
           id?: string
           is_active?: boolean | null
           last_login?: string | null
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          mfa_enabled?: boolean | null
           organisation_id?: string | null
           phone?: string | null
           role?: string | null
@@ -1932,6 +2043,8 @@ export type Database = {
           engine_number: string | null
           engine_type: string | null
           equipment: Json | null
+          equipment_compliance_score: number | null
+          equipment_list: Json | null
           fleet_number: string | null
           fuel_type: string | null
           gross_vehicle_mass_kg: number | null
@@ -1985,6 +2098,8 @@ export type Database = {
           engine_number?: string | null
           engine_type?: string | null
           equipment?: Json | null
+          equipment_compliance_score?: number | null
+          equipment_list?: Json | null
           fleet_number?: string | null
           fuel_type?: string | null
           gross_vehicle_mass_kg?: number | null
@@ -2038,6 +2153,8 @@ export type Database = {
           engine_number?: string | null
           engine_type?: string | null
           equipment?: Json | null
+          equipment_compliance_score?: number | null
+          equipment_list?: Json | null
           fleet_number?: string | null
           fuel_type?: string | null
           gross_vehicle_mass_kg?: number | null
@@ -2111,6 +2228,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_rate_limits: { Args: never; Returns: undefined }
       get_user_organisation_id: { Args: never; Returns: string }
     }
     Enums: {
