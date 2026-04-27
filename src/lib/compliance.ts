@@ -145,18 +145,17 @@ export function calculateVehicleComplianceScore(
     }
   }
 
-  // Custom service trackers overdue
+  // Custom equipment/service trackers
   for (const t of vehicleTrackers) {
-    let isOverdue = false;
-    if (t.tracking_type === "days" && t.next_due_date) {
-      isOverdue = new Date(t.next_due_date).getTime() < now;
-    } else if ((t.tracking_type === "km" || t.tracking_type === "hours") && t.next_due_value !== null) {
-      // KM trackers compare to current odometer; hours are tracked manually
-      if (t.tracking_type === "km") isOverdue = (t.next_due_value as number) <= currentKm;
-    }
-    if (isOverdue) {
+    const tracker = { id: "", interval_value: 0, last_done_value: null, last_done_date: null, ...t } as any;
+    const trackerStatus = computeTrackerStatus(tracker, currentKm);
+    const name = t.tracker_name || "Equipment tracker";
+    if (trackerStatus.status === "overdue") {
       score -= 10;
-      breakdown.push({ label: `Custom service tracker overdue`, deduction: 10, severity: "warning" });
+      breakdown.push({ label: `${name} overdue — 10% deduction`, deduction: 10, severity: "warning" });
+    } else if (trackerStatus.status === "due_soon") {
+      score -= 5;
+      breakdown.push({ label: `${name} due soon — 5% deduction`, deduction: 5, severity: "warning" });
     }
   }
 
