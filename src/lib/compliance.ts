@@ -35,6 +35,13 @@ interface TrackerInput {
   next_due_date: string | null;
 }
 
+interface DamageInput {
+  vehicle_id: string | null;
+  severity?: string | null;
+  resolved?: boolean | null;
+  requires_immediate_action?: boolean | null;
+}
+
 export interface ComplianceBreakdownItem {
   label: string;
   deduction: number;
@@ -66,7 +73,8 @@ export function calculateVehicleComplianceScore(
   vehicle: VehicleComplianceInput,
   vehicleCerts: CertificateInput[],
   vehicleInspections: InspectionInput[] = [],
-  vehicleTrackers: TrackerInput[] = []
+  vehicleTrackers: TrackerInput[] = [],
+  damageItems: DamageInput[] = []
 ): ComplianceScoreResult {
   let score = 100;
   const breakdown: ComplianceBreakdownItem[] = [];
@@ -157,6 +165,12 @@ export function calculateVehicleComplianceScore(
       score -= 5;
       breakdown.push({ label: `${name} due soon — 5% deduction`, deduction: 5, severity: "warning" });
     }
+  }
+
+  const criticalDamage = damageItems.filter(d => !d.resolved && (d.requires_immediate_action || (d.severity || "").toLowerCase() === "critical"));
+  for (const d of criticalDamage) {
+    score -= 5;
+    breakdown.push({ label: "Unresolved critical damage — 5% deduction", deduction: 5, severity: "warning" });
   }
 
   score = Math.max(0, Math.min(100, score));
