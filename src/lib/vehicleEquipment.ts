@@ -14,11 +14,11 @@ export const EQUIPMENT_OPTIONS = [
   "Skip/Waste",
 ] as const;
 
-// Default certificates ALL vehicles require.
-// COF & Vehicle Licence is one combined annual document; Operator Card is annual and tied to company BRN.
+// Mandatory certificates ALL vehicles require.
+// These always affect compliance, regardless of organisation settings.
 export const DEFAULT_REQUIRED_CERTS = [
   "COF & Vehicle Licence",
-  "Operator Card",
+  "Fire Extinguisher Certificate",
 ];
 
 // Legacy/alternate names that should be treated as equivalent to a canonical required cert.
@@ -37,11 +37,11 @@ export const CERT_ALIASES: Record<string, string[]> = {
     "licence disc",
     "license disc",
   ],
-  "Operator Card": [
-    "operator card",
-    "operating licence",
-    "operator permit",
-    "operator's card",
+  "Fire Extinguisher Certificate": [
+    "fire extinguisher certificate",
+    "fire extinguisher",
+    "fire extinguisher inspection",
+    "fire equipment certificate",
   ],
 };
 
@@ -56,10 +56,9 @@ export function matchesCert(canonical: string, certTypeRaw: string): boolean {
 export const EQUIPMENT_CERT_MAP: Record<string, string[]> = {
   "Refrigeration Unit": ["Fridge Calibration Certificate"],
   "Tail Lift": ["Tail Lift Load Test Certificate"],
-  "Crane/Hiab": ["Lifting Equipment Certificate"],
+  "Crane/Hiab": ["Crane Certificate"],
   "Tanker": ["Tank Calibration Certificate", "Dangerous Goods Permit"],
-  "Dangerous Goods (ADR)": ["ADR Certificate", "Dangerous Goods Permit"],
-  "Passenger Carrier": ["Operator Permit", "Public Liability Certificate"],
+  "Dangerous Goods (ADR)": ["Dangerous Goods Permit"],
 };
 
 // Get all required certificates for a vehicle based on its equipment
