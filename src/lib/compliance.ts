@@ -208,17 +208,19 @@ export function calculateComplianceStatus(
 }
 
 export async function recalculateAllVehicleCompliance() {
-  const [vehiclesRes, certsRes, inspectionsRes, trackersRes] = await Promise.all([
+  const [vehiclesRes, certsRes, inspectionsRes, trackersRes, damageRes] = await Promise.all([
     supabase.from("vehicles").select("id, current_odometer_km, next_service_due_km, km_until_service, compliance_template_id, equipment").eq("is_active", true),
     supabase.from("certificates").select("certificate_type, vehicle_id, expiry_date, status"),
     supabase.from("damage_inspections").select("vehicle_id, inspection_date"),
     supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracker_name, tracking_type, interval_value, last_done_value, last_done_date, next_due_value, next_due_date"),
+    supabase.from("damage_items").select("vehicle_id, severity, resolved, requires_immediate_action"),
   ]);
 
   const vehicles = vehiclesRes.data || [];
   const certs = certsRes.data || [];
   const inspections = (inspectionsRes.data || []) as InspectionInput[];
   const trackers = ((trackersRes.data as any) || []) as TrackerInput[];
+  const damage = (damageRes.data || []) as DamageInput[];
 
   const certsByV: Record<string, CertificateInput[]> = {};
   for (const c of certs) {
@@ -235,13 +237,19 @@ export async function recalculateAllVehicleCompliance() {
     if (!t.vehicle_id) continue;
     (trackersByV[t.vehicle_id] = trackersByV[t.vehicle_id] || []).push(t);
   }
+  const damageByV: Record<string, DamageInput[]> = {};
+  for (const d of damage) {
+    if (!d.vehicle_id) continue;
+    (damageByV[d.vehicle_id] = damageByV[d.vehicle_id] || []).push(d);
+  }
 
   for (const v of vehicles) {
     const result = calculateVehicleComplianceScore(
       v,
       certsByV[v.id] || [],
       inspByV[v.id] || [],
-      trackersByV[v.id] || []
+      trackersByV[v.id] || [],
+      damageByV[v.id] || []
     );
     await supabase.from("vehicles").update({
       compliance_status: result.status,
