@@ -1561,6 +1561,7 @@ export type Database = {
       }
       organisations: {
         Row: {
+          compliance_settings: Json
           created_at: string | null
           data_region: string | null
           data_retention_days: number | null
@@ -1578,6 +1579,7 @@ export type Database = {
           subscription_status: string | null
         }
         Insert: {
+          compliance_settings?: Json
           created_at?: string | null
           data_region?: string | null
           data_retention_days?: number | null
@@ -1595,6 +1597,7 @@ export type Database = {
           subscription_status?: string | null
         }
         Update: {
+          compliance_settings?: Json
           created_at?: string | null
           data_region?: string | null
           data_retention_days?: number | null
