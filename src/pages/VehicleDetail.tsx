@@ -13,9 +13,10 @@ import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
 import { ServiceTrackersTab } from "@/components/vehicle/ServiceTrackersTab";
 import { ComplianceScoreCard } from "@/components/vehicle/ComplianceScoreCard";
-import { calculateVehicleComplianceScore } from "@/lib/compliance";
+import { calculateVehicleComplianceScore, recalculateAllVehicleCompliance } from "@/lib/compliance";
 import { generateVehiclePdfReport } from "@/lib/vehiclePdfReport";
-import { ServiceTracker } from "@/lib/serviceTrackers";
+import { computeNextDue, computeTrackerStatus, ServiceTracker } from "@/lib/serviceTrackers";
+import { getRequiredCertificates, matchesCert } from "@/lib/vehicleEquipment";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -106,6 +107,11 @@ export default function VehicleDetail() {
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
   const [transferring, setTransferring] = useState(false);
   const [editEquipment, setEditEquipment] = useState<string[]>([]);
+  const [resolving, setResolving] = useState<{ kind: "certificate" | "tracker"; name: string; tracker?: ServiceTracker } | null>(null);
+  const [resolveCertForm, setResolveCertForm] = useState({ certificate_number: "", issue_date: "", expiry_date: "" });
+  const [resolveTrackerForm, setResolveTrackerForm] = useState({ last_done_date: new Date().toISOString().split("T")[0], last_done_value: "", notes: "" });
+  const [resolveFile, setResolveFile] = useState<File | null>(null);
+  const [resolveSaving, setResolveSaving] = useState(false);
 
   const openPdf = async (fileUrl: string | null) => {
     if (!fileUrl) { toast.error("No file attached"); return; }
