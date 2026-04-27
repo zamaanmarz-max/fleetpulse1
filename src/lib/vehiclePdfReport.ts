@@ -23,7 +23,8 @@ interface VehicleData {
 
 interface CertRow { certificate_type: string; certificate_number?: string | null; expiry_date?: string | null; status?: string | null; }
 interface InspRow { inspection_date?: string | null; overall_condition?: string | null; total_damage_items?: number | null; new_damage_items?: number | null; has_critical_damage?: boolean | null; }
-interface JobRow { work_date?: string | null; job_type?: string | null; workshop_name?: string | null; total_cost?: number | string | null; status?: string | null; }
+interface JobRow { work_date?: string | null; job_card_number?: string | null; job_type?: string | null; description?: string | null; workshop_name?: string | null; labour_cost?: number | string | null; parts_cost?: number | string | null; total_cost?: number | string | null; status?: string | null; }
+interface DamageRow { location?: string | null; damage_type?: string | null; severity?: string | null; created_at?: string | null; resolved?: boolean | null; }
 
 export function generateVehiclePdfReport(opts: {
   vehicle: VehicleData;
@@ -32,10 +33,11 @@ export function generateVehiclePdfReport(opts: {
   trackers: ServiceTracker[];
   inspections: InspRow[];
   jobCards: JobRow[];
+  damageItems?: DamageRow[];
   companyName?: string;
   branchName?: string;
 }) {
-  const { vehicle, compliance, certificates, trackers, inspections, jobCards, companyName, branchName } = opts;
+  const { vehicle, compliance, certificates, trackers, inspections, jobCards, damageItems = [], companyName, branchName } = opts;
   const doc = new jsPDF();
   const now = new Date();
 
