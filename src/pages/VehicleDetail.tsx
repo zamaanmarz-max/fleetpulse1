@@ -399,6 +399,59 @@ export default function VehicleDetail() {
     queryClient.invalidateQueries({ queryKey: ["certificates"] });
   };
 
+  const refreshVehicleCompliance = async () => {
+    await recalculateAllVehicleCompliance();
+    queryClient.invalidateQueries({ queryKey: ["vehicle", id] });
+    queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    queryClient.invalidateQueries({ queryKey: ["vehicle_certificates", id] });
+    queryClient.invalidateQueries({ queryKey: ["service_trackers", id] });
+    queryClient.invalidateQueries({ queryKey: ["certificates"] });
+  };
+
+  const openCertificateResolver = (name: string) => {
+    const existing = (certificates || []).find(c => matchesCert(name, c.certificate_type));
+    setResolving({ kind: "certificate", name });
+    setResolveCertForm({ certificate_number: existing?.certificate_number || "", issue_date: existing?.issue_date || "", expiry_date: existing?.expiry_date || "" });
+    setResolveFile(null);
+  };
+
+  const openTrackerResolver = (tracker: ServiceTracker) => {
+    setResolving({ kind: "tracker", name: tracker.tracker_name, tracker });
+    setResolveTrackerForm({ last_done_date: new Date().toISOString().split("T")[0], last_done_value: tracker.tracking_type === "km" ? String(currentKm) : String(tracker.last_done_value ?? ""), notes: tracker.notes || "" });
+  };
+
+  const handleResolveSave = async () => {
+    if (!vehicle || !resolving) return;
+    setResolveSaving(true);
+    if (resolving.kind === "certificate") {
+      let fileUrl: string | null = null;
+      if (resolveFile) {
+        const path = `${vehicle.organisation_id}/${id}/${Date.now()}_${resolveFile.name}`;
+        const { error: upErr } = await supabase.storage.from("documents").upload(path, resolveFile);
+        if (upErr) { toast.error("File upload failed: " + upErr.message); setResolveSaving(false); return; }
+        fileUrl = path;
+      }
+      const days = resolveCertForm.expiry_date ? Math.ceil((new Date(resolveCertForm.expiry_date).getTime() - Date.now()) / 86400000) : null;
+      const payload: any = {
+        organisation_id: vehicle.organisation_id, vehicle_id: id, certificate_type: resolving.name,
+        certificate_number: resolveCertForm.certificate_number || null, issue_date: resolveCertForm.issue_date || null,
+        expiry_date: resolveCertForm.expiry_date || null, status: days === null ? "valid" : days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid",
+        days_until_expiry: days, uploaded_by: profile?.id || null,
+      };
+      if (fileUrl) payload.file_url = fileUrl;
+      const existing = (certificates || []).find(c => matchesCert(resolving.name, c.certificate_type));
+      const { error } = existing ? await supabase.from("certificates").update(payload).eq("id", existing.id) : await supabase.from("certificates").insert(payload);
+      if (error) { toast.error(error.message); setResolveSaving(false); return; }
+    } else if (resolving.tracker) {
+      const lastValue = resolving.tracker.tracking_type === "days" ? null : parseFloat(resolveTrackerForm.last_done_value);
+      const next = computeNextDue(resolving.tracker.tracking_type, Number(resolving.tracker.interval_value), lastValue, resolveTrackerForm.last_done_date);
+      const { error } = await supabase.from("vehicle_service_trackers" as any).update({ last_done_value: lastValue, last_done_date: resolveTrackerForm.last_done_date, notes: resolveTrackerForm.notes || null, ...next }).eq("id", resolving.tracker.id);
+      if (error) { toast.error(error.message); setResolveSaving(false); return; }
+    }
+    setResolveSaving(false); setResolving(null); toast.success("Compliance item updated");
+    refreshVehicleCompliance();
+  };
+
   const handleTransfer = async () => {
     if (!transferBranch || !vehicle) return;
     setTransferring(true);
