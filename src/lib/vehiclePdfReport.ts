@@ -68,7 +68,19 @@ export function generateVehiclePdfReport(opts: {
   y = (doc as any).lastAutoTable.finalY + 8;
 
   // COMPLIANCE SCORE
-  y = sectionHeading(doc, `Compliance Score: ${compliance.score}% — ${compliance.status.toUpperCase()}`, y);
+  const bannerColor = compliance.status === "compliant" ? statusColor("valid") : compliance.status === "warning" ? statusColor("warning") : statusColor("expired");
+  doc.setFillColor(...bannerColor);
+  doc.roundedRect(14, y, 182, 18, 2, 2, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text(`${compliance.score}%`, 20, y + 12);
+  doc.setFontSize(11);
+  doc.text(`OVERALL COMPLIANCE — ${compliance.status.toUpperCase()}`, 60, y + 12);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
+  y += 26;
+  y = sectionHeading(doc, "Compliance Breakdown", y);
   if (compliance.breakdown.length === 0) {
     doc.setFontSize(9);
     doc.setTextColor(34, 139, 90);
