@@ -97,6 +97,26 @@ export default function DriverDetail() {
     enabled: !!id,
   });
 
+  const { data: organisation } = useQuery({
+    queryKey: ["driver_org", driver?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organisations").select("name, compliance_settings").eq("id", driver!.organisation_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!driver?.organisation_id,
+  });
+
+  const { data: branch } = useQuery({
+    queryKey: ["driver_branch", driver?.branch_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("name").eq("id", driver!.branch_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!driver?.branch_id,
+  });
+
   const now = Date.now();
 
   const enrichedDocs = (documents || []).map(d => {
@@ -114,7 +134,8 @@ export default function DriverDetail() {
       prdp_number: driver.prdp_number,
     },
     enrichedDocs,
-    toolboxTalks || []
+    toolboxTalks || [],
+    (organisation as any)?.compliance_settings || {}
   ) : null;
 
   const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
