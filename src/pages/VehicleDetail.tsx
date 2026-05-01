@@ -682,6 +682,8 @@ export default function VehicleDetail() {
                   >
                     <option value="COF & Vehicle Licence">COF & Vehicle Licence</option>
                     <option value="Operator Card">Operator Card</option>
+                    <option value="Certificate of Acceptability">Certificate of Acceptability</option>
+                    <option value="Load Test Certificate">Load Test Certificate</option>
                     <option value="Other">Other (specify)</option>
                   </select>
                   {uploadCertForm.certificate_type === "Other" && (
