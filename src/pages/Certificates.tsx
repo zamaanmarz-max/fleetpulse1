@@ -20,7 +20,13 @@ const statusStyles: Record<string, string> = {
 };
 
 // Preset categories. "Other" lets users type a custom name (e.g. equipment cert).
-const certTypes = ["COF & Vehicle Licence", "Operator Card", "Other"];
+const certTypes = [
+  "COF & Vehicle Licence",
+  "Operator Card",
+  "Certificate of Acceptability",
+  "Load Test Certificate",
+  "Other",
+];
 
 export default function Certificates() {
   const [search, setSearch] = useState("");
