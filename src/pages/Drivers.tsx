@@ -259,23 +259,39 @@ export default function Drivers() {
               <h2 className="text-lg font-bold text-foreground">Add Driver</h2>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Staff Type *</label>
+              <select value={form.staff_type} onChange={(e) => setForm({ ...form, staff_type: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="driver">Driver</option>
+                <option value="office">Office Staff</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="manager">Manager</option>
+              </select>
+              {form.staff_type !== "driver" && (
+                <p className="text-[11px] text-muted-foreground mt-1">Office staff don't require a Licence or PrDP. Compliance score is not calculated.</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Branch</label>
+              <BranchFilter value={form.branch_id} onChange={(v) => setForm({ ...form, branch_id: v })} />
+            </div>
             {[
-              { key: "full_name", label: "Full Name *", placeholder: "John Smith" },
-              { key: "id_number", label: "ID Number", placeholder: "8501015800086" },
-              { key: "licence_number", label: "Licence Number", placeholder: "" },
-              { key: "licence_expiry", label: "Licence Expiry", placeholder: "", type: "date" },
-              { key: "prdp_number", label: "PrDP Number", placeholder: "" },
-              { key: "prdp_expiry", label: "PrDP Expiry", placeholder: "", type: "date" },
-              { key: "phone", label: "Phone", placeholder: "+27..." },
-              { key: "email", label: "Email", placeholder: "driver@company.co.za" },
-            ].map((f) => (
+              { key: "full_name", label: "Full Name *", placeholder: "John Smith", show: true },
+              { key: "id_number", label: "ID Number", placeholder: "8501015800086", show: true },
+              { key: "licence_number", label: "Licence Number", placeholder: "", show: form.staff_type === "driver" },
+              { key: "licence_expiry", label: "Licence Expiry", placeholder: "", type: "date", show: form.staff_type === "driver" },
+              { key: "prdp_number", label: "PrDP Number", placeholder: "", show: form.staff_type === "driver" },
+              { key: "prdp_expiry", label: "PrDP Expiry", placeholder: "", type: "date", show: form.staff_type === "driver" },
+              { key: "phone", label: "Phone", placeholder: "+27...", show: true },
+              { key: "email", label: "Email", placeholder: "driver@company.co.za", show: true },
+            ].filter(f => f.show).map((f) => (
               <div key={f.key}>
                 <label className="block text-sm font-medium text-foreground mb-1">{f.label}</label>
                 <input type={f.type || "text"} value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save Driver
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save
             </button>
           </div>
         </div>
