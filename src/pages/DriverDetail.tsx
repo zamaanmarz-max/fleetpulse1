@@ -44,7 +44,7 @@ export default function DriverDetail() {
   const [talkFile, setTalkFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingTalk, setSavingTalk] = useState(false);
-  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
+  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "", not_done: false });
   const [talkForm, setTalkForm] = useState({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
