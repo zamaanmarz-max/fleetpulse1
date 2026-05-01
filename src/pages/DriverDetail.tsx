@@ -743,6 +743,7 @@ export default function DriverDetail() {
                 </label>
               </div>
             )}
+            <div>
               <label className="block text-sm font-medium text-foreground mb-1">{editingDocId ? "Replace File (optional)" : "Upload File (PDF/Image)"}</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
               {editingDocId && <p className="text-xs text-muted-foreground mt-1">Leave empty to keep existing file</p>}
