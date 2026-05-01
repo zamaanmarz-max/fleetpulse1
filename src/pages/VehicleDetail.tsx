@@ -655,8 +655,8 @@ export default function VehicleDetail() {
                   onClick={() => {
                     setUploadCertForm(prev => ({
                       ...prev,
-                      certificate_type: "Other",
-                      certificate_type_other: "Certificate of Acceptability",
+                      certificate_type: "Certificate of Acceptability",
+                      certificate_type_other: "",
                     }));
                     setShowUploadCert(true);
                   }}
