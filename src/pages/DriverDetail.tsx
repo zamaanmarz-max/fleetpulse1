@@ -125,8 +125,10 @@ export default function DriverDetail() {
     return { ...d, daysRemaining: days, calcStatus };
   });
 
-  // Compute full driver compliance
-  const compliance = driver ? checkDriverCompliance(
+  const isDriver = !driver || (driver.staff_type || "driver") === "driver";
+
+  // Compute full driver compliance (only for actual drivers)
+  const compliance = driver && isDriver ? checkDriverCompliance(
     {
       licence_expiry: driver.licence_expiry,
       prdp_expiry: driver.prdp_expiry,
@@ -139,6 +141,23 @@ export default function DriverDetail() {
   ) : null;
 
   const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
+  const yearProgress = toolboxYearProgress(toolboxTalks || []);
+
+  // Damages reported by this driver
+  const { data: reportedDamages } = useQuery({
+    queryKey: ["driver_reported_damages", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("damage_items")
+        .select("*, vehicles(registration_number, fleet_number)")
+        .eq("reported_by_driver_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+  const totalRepairCost = (reportedDamages || []).reduce((s, d: any) => s + (Number(d.repair_cost) || 0), 0);
 
   // Map a document_type to driver-table fields to keep in sync
   const driverFieldsForDocType = (docType: string, expiryDate: string | null, docNumber: string | null) => {
