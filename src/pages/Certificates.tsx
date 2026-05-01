@@ -100,12 +100,13 @@ export default function Certificates() {
       uploaded_by: user?.id || null,
       status,
       days_until_expiry: days,
+      last_inspection_date: form.last_inspection_date || null,
     });
     setSaving(false);
     if (error) { toast.error(error.message); } else {
       toast.success("Certificate uploaded");
       setShowForm(false);
-      setForm({ vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "" });
+      setForm({ vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "", last_inspection_date: "" });
       setFile(null);
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
     }
