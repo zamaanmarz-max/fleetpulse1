@@ -17,7 +17,34 @@ export const addMonths = (date: string, months: number) => {
   return d.toISOString().split("T")[0];
 };
 
-export const toolboxExpiry = (dateConducted: string) => addMonths(dateConducted, 6);
+export const toolboxExpiry = (dateConducted: string) => addMonths(dateConducted, 12);
+
+// Required talks per year (one per month)
+export const TOOLBOX_TALKS_REQUIRED_PER_YEAR = 12;
+
+/**
+ * Counts the number of toolbox talks conducted in the current calendar year.
+ * Returns { done, required, onTrack } where onTrack = done meets the monthly average so far.
+ */
+export const toolboxYearProgress = (
+  talks: { date_conducted: string }[]
+): { done: number; required: number; expected: number; onTrack: boolean } => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const done = (talks || []).filter(t => {
+    const d = new Date(t.date_conducted);
+    return !isNaN(d.getTime()) && d.getFullYear() === year;
+  }).length;
+  // Expected so far: 1 per month elapsed (including current month)
+  const monthsElapsed = now.getMonth() + 1;
+  const expected = monthsElapsed;
+  return {
+    done,
+    required: TOOLBOX_TALKS_REQUIRED_PER_YEAR,
+    expected,
+    onTrack: done >= expected,
+  };
+};
 
 export const calcToolboxStatus = (dateConducted: string): Exclude<DocStatus, "missing"> => {
   const days = Math.ceil((new Date(toolboxExpiry(dateConducted)).getTime() - Date.now()) / 86400000);

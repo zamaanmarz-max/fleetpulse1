@@ -21,6 +21,20 @@ export const DEFAULT_REQUIRED_CERTS = [
   "Fire Extinguisher Certificate",
 ];
 
+// Required certs for trailers specifically
+export const TRAILER_REQUIRED_CERTS = [
+  "Certificate of Acceptability",
+];
+
+// Returns required certs taking vehicle type into account
+export function getRequiredCertificatesForVehicle(equipment: string[], vehicleType?: string | null): string[] {
+  const base = getRequiredCertificates(equipment);
+  if ((vehicleType || "").toLowerCase() === "trailer") {
+    for (const c of TRAILER_REQUIRED_CERTS) if (!base.includes(c)) base.push(c);
+  }
+  return base;
+}
+
 // Legacy/alternate names that should be treated as equivalent to a canonical required cert.
 // Used so historic uploads (e.g. "COF Certificate", "Vehicle Licence", "Licence Disk") still satisfy compliance.
 export const CERT_ALIASES: Record<string, string[]> = {

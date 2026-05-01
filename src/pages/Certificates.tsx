@@ -20,7 +20,13 @@ const statusStyles: Record<string, string> = {
 };
 
 // Preset categories. "Other" lets users type a custom name (e.g. equipment cert).
-const certTypes = ["COF & Vehicle Licence", "Operator Card", "Other"];
+const certTypes = [
+  "COF & Vehicle Licence",
+  "Operator Card",
+  "Certificate of Acceptability",
+  "Load Test Certificate",
+  "Other",
+];
 
 export default function Certificates() {
   const [search, setSearch] = useState("");
@@ -45,8 +51,14 @@ export default function Certificates() {
   const now = Date.now();
   const enriched = (certificates || []).map((c) => {
     const days = c.expiry_date ? Math.ceil((new Date(c.expiry_date).getTime() - now) / 86400000) : 999;
-    const status = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
-    return { ...c, daysRemaining: days, calcStatus: status };
+    let status: string = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
+    // Load test certs require an inspection within the last 6 months
+    const isLoadTest = (c.certificate_type || "").toLowerCase().includes("load test");
+    const lastInsp = (c as any).last_inspection_date ? new Date((c as any).last_inspection_date).getTime() : null;
+    const monthsSinceInsp = lastInsp ? (now - lastInsp) / (86400000 * 30) : null;
+    const inspectionOverdue = isLoadTest && (lastInsp === null || (monthsSinceInsp !== null && monthsSinceInsp > 6));
+    if (status === "valid" && inspectionOverdue) status = "expiring";
+    return { ...c, daysRemaining: days, calcStatus: status, inspectionOverdue };
   });
 
   const filtered = enriched.filter(
@@ -57,7 +69,7 @@ export default function Certificates() {
 
   const [form, setForm] = useState({
     vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "",
-    issue_date: "", expiry_date: "", issuing_authority: "", notes: "",
+    issue_date: "", expiry_date: "", issuing_authority: "", notes: "", last_inspection_date: "",
   });
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -94,12 +106,13 @@ export default function Certificates() {
       uploaded_by: user?.id || null,
       status,
       days_until_expiry: days,
+      last_inspection_date: form.last_inspection_date || null,
     });
     setSaving(false);
     if (error) { toast.error(error.message); } else {
       toast.success("Certificate uploaded");
       setShowForm(false);
-      setForm({ vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "" });
+      setForm({ vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "", issue_date: "", expiry_date: "", issuing_authority: "", notes: "", last_inspection_date: "" });
       setFile(null);
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
     }

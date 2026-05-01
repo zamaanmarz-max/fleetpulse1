@@ -47,22 +47,25 @@ export default function Drivers() {
   const now = Date.now();
 
   const driversWithCompliance = (drivers || []).map(d => {
+    const isDriver = (d.staff_type || "driver") === "driver";
     const docs = (allDocuments || []).filter(doc => doc.driver_id === d.id).map(doc => {
       const days = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date).getTime() - now) / 86400000) : 999;
       return { ...doc, calcStatus: days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid" };
     });
     const talks = (allToolboxTalks || []).filter(t => t.driver_id === d.id);
-    const compliance = checkDriverCompliance(
-      {
-        licence_expiry: d.licence_expiry,
-        prdp_expiry: d.prdp_expiry,
-        licence_number: d.licence_number,
-        prdp_number: d.prdp_number,
-      },
-      docs,
-      talks
-    );
-    return { ...d, compliance };
+    const compliance = isDriver
+      ? checkDriverCompliance(
+          {
+            licence_expiry: d.licence_expiry,
+            prdp_expiry: d.prdp_expiry,
+            licence_number: d.licence_number,
+            prdp_number: d.prdp_number,
+          },
+          docs,
+          talks
+        )
+      : { isCompliant: true, status: "compliant" as const, score: 100, issues: [], breakdown: [] };
+    return { ...d, isDriver, compliance };
   });
 
   const filtered = driversWithCompliance.filter(
@@ -76,7 +79,7 @@ export default function Drivers() {
   const [form, setForm] = useState({
     full_name: "", id_number: "", licence_number: "", licence_expiry: "",
     licence_code: "EC", prdp_number: "", prdp_expiry: "", prdp_category: "G",
-    phone: "", email: "",
+    phone: "", email: "", staff_type: "driver", branch_id: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -85,23 +88,26 @@ export default function Drivers() {
       toast.error("Full name is required");
       return;
     }
+    const isDriver = form.staff_type === "driver";
     setSaving(true);
     const { error } = await supabase.from("drivers").insert({
       organisation_id: profile.organisation_id,
       full_name: form.full_name,
       id_number: form.id_number || null,
-      licence_number: form.licence_number || null,
-      licence_expiry: form.licence_expiry || null,
-      licence_code: form.licence_code || null,
-      prdp_number: form.prdp_number || null,
-      prdp_expiry: form.prdp_expiry || null,
-      prdp_category: form.prdp_category || null,
+      staff_type: form.staff_type || "driver",
+      branch_id: form.branch_id || null,
+      licence_number: isDriver ? (form.licence_number || null) : null,
+      licence_expiry: isDriver ? (form.licence_expiry || null) : null,
+      licence_code: isDriver ? (form.licence_code || null) : null,
+      prdp_number: isDriver ? (form.prdp_number || null) : null,
+      prdp_expiry: isDriver ? (form.prdp_expiry || null) : null,
+      prdp_category: isDriver ? (form.prdp_category || null) : null,
       phone: form.phone || null,
       email: form.email || null,
     });
     setSaving(false);
     if (error) { toast.error(error.message); } else {
-      toast.success("Driver added");
+      toast.success(`${isDriver ? "Driver" : "Staff member"} added`);
       setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
     }
@@ -253,23 +259,39 @@ export default function Drivers() {
               <h2 className="text-lg font-bold text-foreground">Add Driver</h2>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Staff Type *</label>
+              <select value={form.staff_type} onChange={(e) => setForm({ ...form, staff_type: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="driver">Driver</option>
+                <option value="office">Office Staff</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="manager">Manager</option>
+              </select>
+              {form.staff_type !== "driver" && (
+                <p className="text-[11px] text-muted-foreground mt-1">Office staff don't require a Licence or PrDP. Compliance score is not calculated.</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Branch</label>
+              <BranchFilter value={form.branch_id} onChange={(v) => setForm({ ...form, branch_id: v })} />
+            </div>
             {[
-              { key: "full_name", label: "Full Name *", placeholder: "John Smith" },
-              { key: "id_number", label: "ID Number", placeholder: "8501015800086" },
-              { key: "licence_number", label: "Licence Number", placeholder: "" },
-              { key: "licence_expiry", label: "Licence Expiry", placeholder: "", type: "date" },
-              { key: "prdp_number", label: "PrDP Number", placeholder: "" },
-              { key: "prdp_expiry", label: "PrDP Expiry", placeholder: "", type: "date" },
-              { key: "phone", label: "Phone", placeholder: "+27..." },
-              { key: "email", label: "Email", placeholder: "driver@company.co.za" },
-            ].map((f) => (
+              { key: "full_name", label: "Full Name *", placeholder: "John Smith", show: true },
+              { key: "id_number", label: "ID Number", placeholder: "8501015800086", show: true },
+              { key: "licence_number", label: "Licence Number", placeholder: "", show: form.staff_type === "driver" },
+              { key: "licence_expiry", label: "Licence Expiry", placeholder: "", type: "date", show: form.staff_type === "driver" },
+              { key: "prdp_number", label: "PrDP Number", placeholder: "", show: form.staff_type === "driver" },
+              { key: "prdp_expiry", label: "PrDP Expiry", placeholder: "", type: "date", show: form.staff_type === "driver" },
+              { key: "phone", label: "Phone", placeholder: "+27...", show: true },
+              { key: "email", label: "Email", placeholder: "driver@company.co.za", show: true },
+            ].filter(f => f.show).map((f) => (
               <div key={f.key}>
                 <label className="block text-sm font-medium text-foreground mb-1">{f.label}</label>
                 <input type={f.type || "text"} value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
             <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save Driver
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save
             </button>
           </div>
         </div>

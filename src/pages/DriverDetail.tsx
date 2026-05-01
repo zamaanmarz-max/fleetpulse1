@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
 import { generateDriverComplianceReport } from "@/lib/driverPdfReport";
-import { calcToolboxStatus, toolboxExpiry } from "@/lib/driverComplianceHelpers";
+import { calcToolboxStatus, toolboxExpiry, toolboxYearProgress } from "@/lib/driverComplianceHelpers";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -20,6 +20,7 @@ const statusStyles: Record<string, string> = {
   expiring: "bg-warning/20 text-warning",
   expired: "bg-destructive/20 text-destructive",
   missing: "bg-destructive/20 text-destructive",
+  not_done: "bg-destructive/20 text-destructive",
 };
 
 const documentTypes = [
@@ -43,7 +44,7 @@ export default function DriverDetail() {
   const [talkFile, setTalkFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingTalk, setSavingTalk] = useState(false);
-  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
+  const [form, setForm] = useState({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "", not_done: false });
   const [talkForm, setTalkForm] = useState({ topic: "", date_conducted: new Date().toISOString().split("T")[0], conducted_by: "" });
   const [editing, setEditing] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -121,12 +122,15 @@ export default function DriverDetail() {
 
   const enrichedDocs = (documents || []).map(d => {
     const days = d.expiry_date ? Math.ceil((new Date(d.expiry_date).getTime() - now) / 86400000) : 999;
-    const calcStatus = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
+    const isNotDone = (d.status || "").toLowerCase() === "not_done";
+    const calcStatus = isNotDone ? "not_done" : (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid");
     return { ...d, daysRemaining: days, calcStatus };
   });
 
-  // Compute full driver compliance
-  const compliance = driver ? checkDriverCompliance(
+  const isDriver = !driver || (driver.staff_type || "driver") === "driver";
+
+  // Compute full driver compliance (only for actual drivers)
+  const compliance = driver && isDriver ? checkDriverCompliance(
     {
       licence_expiry: driver.licence_expiry,
       prdp_expiry: driver.prdp_expiry,
@@ -139,6 +143,23 @@ export default function DriverDetail() {
   ) : null;
 
   const alertDocs = enrichedDocs.filter(d => d.daysRemaining <= 30);
+  const yearProgress = toolboxYearProgress(toolboxTalks || []);
+
+  // Damages reported by this driver
+  const { data: reportedDamages } = useQuery({
+    queryKey: ["driver_reported_damages", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("damage_items")
+        .select("*, vehicles(registration_number, fleet_number)")
+        .eq("reported_by_driver_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+  const totalRepairCost = (reportedDamages || []).reduce((s, d: any) => s + (Number(d.repair_cost) || 0), 0);
 
   // Map a document_type to driver-table fields to keep in sync
   const driverFieldsForDocType = (docType: string, expiryDate: string | null, docNumber: string | null) => {
@@ -165,7 +186,7 @@ export default function DriverDetail() {
       fileUrl = path;
     }
     const days = form.expiry_date ? Math.ceil((new Date(form.expiry_date).getTime() - now) / 86400000) : null;
-    const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
+    const status = form.not_done ? "not_done" : (days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid");
 
     if (editingDocId) {
       const updatePayload: any = {
@@ -196,7 +217,7 @@ export default function DriverDetail() {
     }
 
     setShowForm(false); setFile(null); setEditingDocId(null);
-    setForm({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
+    setForm({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "", not_done: false });
     queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
     queryClient.invalidateQueries({ queryKey: ["driver", id] });
     queryClient.invalidateQueries({ queryKey: ["drivers"] });
@@ -211,6 +232,7 @@ export default function DriverDetail() {
       document_number: doc.document_number || "",
       issue_date: doc.issue_date || "",
       expiry_date: doc.expiry_date || "",
+      not_done: (doc.status || "").toLowerCase() === "not_done",
     });
     setFile(null);
     setShowForm(true);
@@ -513,7 +535,7 @@ export default function DriverDetail() {
                     <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{doc.document_number || "-"}</td>
                     <td className="px-4 py-3 text-sm text-center text-foreground">{doc.expiry_date || "-"}</td>
                     <td className="px-4 py-3 text-center">{doc.expiry_date && <span className={`text-sm font-semibold ${doc.daysRemaining <= 0 ? "text-destructive" : doc.daysRemaining <= 30 ? "text-warning" : "text-success"}`}>{doc.daysRemaining <= 0 ? `${Math.abs(doc.daysRemaining)}d overdue` : `${doc.daysRemaining}d`}</span>}</td>
-                    <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[doc.calcStatus]}`}>{doc.calcStatus === "valid" ? "Valid" : doc.calcStatus === "expiring" ? "Expiring" : "Expired"}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyles[doc.calcStatus]}`}>{doc.calcStatus === "valid" ? "Valid" : doc.calcStatus === "expiring" ? "Expiring" : doc.calcStatus === "not_done" ? "Not Done" : "Expired"}</span></td>
                     <td className="px-4 py-3 text-center">{doc.file_url ? <button onClick={async () => { const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url!, 3600); if (data?.signedUrl) window.open(data.signedUrl, "_blank"); }} className="text-xs text-primary hover:underline">View</button> : <span className="text-xs text-muted-foreground">-</span>}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -535,12 +557,20 @@ export default function DriverDetail() {
 
       {/* Toolbox Talks */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 flex-wrap">
             <MessageSquare className="w-5 h-5" /> Toolbox Talks ({(toolboxTalks || []).length})
+            <span
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${
+                yearProgress.onTrack ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
+              }`}
+              title={`Expected by now: ${yearProgress.expected}`}
+            >
+              {yearProgress.done}/{yearProgress.required} talks done this year
+            </span>
             {talkDays !== null && (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${talkDays <= 30 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
-                {talkDays <= 30 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${talkDays <= 365 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                {talkDays <= 365 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
               </span>
             )}
           </h3>
@@ -615,6 +645,54 @@ export default function DriverDetail() {
         </div>
       )}
 
+      {/* Damages Reported by this driver */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 flex-wrap">
+            <AlertTriangle className="w-5 h-5" /> Damages Reported ({(reportedDamages || []).length})
+            {totalRepairCost > 0 && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning">
+                Total repair cost: R {totalRepairCost.toLocaleString()}
+              </span>
+            )}
+          </h3>
+        </div>
+        <div className="glass-card overflow-hidden">
+          {(reportedDamages || []).length === 0 ? (
+            <p className="text-sm text-muted-foreground p-6 text-center">No damages reported by this driver.</p>
+          ) : (
+            <table className="w-full">
+              <thead><tr className="border-b border-border">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Date</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Vehicle</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Location</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Damage</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Severity</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Repair Cost</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+              </tr></thead>
+              <tbody>
+                {(reportedDamages || []).map((d: any) => (
+                  <tr key={d.id} className="border-b border-border/50">
+                    <td className="px-4 py-3 text-sm text-foreground">{(d.created_at || "").split("T")[0]}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-foreground">{d.vehicles?.registration_number || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{d.location || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{d.damage_type || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-center capitalize text-foreground">{d.severity || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-foreground">R {(Number(d.repair_cost) || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${d.resolved ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                        {d.resolved ? "Resolved" : "Open"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
       {/* Add/Edit Document Form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
@@ -649,6 +727,22 @@ export default function DriverDetail() {
               <label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label>
               <input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
+            {(form.document_type === "Criminal Background Check" || form.document_type === "Defensive Driving Certificate") && (
+              <div className="bg-secondary/40 border border-border rounded-lg p-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.not_done}
+                    onChange={(e) => setForm({ ...form, not_done: e.target.checked })}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Mark as Not Done</p>
+                    <p className="text-[11px] text-muted-foreground">Use this when the {form.document_type === "Criminal Background Check" ? "background check" : "defensive driving course"} has not been completed yet. Shows a red "Not Done" badge.</p>
+                  </div>
+                </label>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">{editingDocId ? "Replace File (optional)" : "Upload File (PDF/Image)"}</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />

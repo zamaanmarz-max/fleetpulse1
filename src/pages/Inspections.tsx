@@ -119,6 +119,10 @@ export default function Inspections() {
         if (!upErr) photoUrls.push(path);
       }
 
+      const reportedByDriverId = item.driver_id || form.assigned_driver_id || null;
+      const reportedByName = reportedByDriverId
+        ? (drivers || []).find(d => d.id === reportedByDriverId)?.full_name || null
+        : null;
       await supabase.from("damage_items").insert({
         organisation_id: profile.organisation_id,
         inspection_id: inspection.id,
@@ -130,6 +134,8 @@ export default function Inspections() {
         requires_immediate_action: item.requires_immediate_action,
         is_new_damage: true,
         photo_urls: photoUrls,
+        reported_by_driver_id: reportedByDriverId,
+        reported_by_name: reportedByName,
       });
     }
 
@@ -317,7 +323,7 @@ export default function Inspections() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">Driver Responsible</label>
+                      <label className="block text-xs font-medium text-foreground mb-1">Reported By Driver</label>
                       <select value={item.driver_id} onChange={(e) => updateDamageItem(idx, "driver_id", e.target.value)} className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground">
                         <option value="">Select driver (optional)</option>
                         {(drivers || []).map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}

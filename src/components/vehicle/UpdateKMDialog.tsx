@@ -27,11 +27,14 @@ export function UpdateKMDialog({ vehicleId, organisationId, currentKm, registrat
       if (!confirm(`New reading (${km.toLocaleString()}) is lower than current (${currentKm.toLocaleString()}). Continue?`)) return;
     }
     setSaving(true);
-    // Update vehicle (also bump updated_at so the "KM Updated" badge refreshes)
+    // Update vehicle and stamp km_last_updated_at so the "KM Updated" badge can use the dedicated column.
+    const nowIso = new Date().toISOString();
     const { error: vErr } = await supabase.from("vehicles").update({
       current_odometer_km: km,
       last_odometer_update: date,
-      updated_at: new Date().toISOString(),
+      km_last_updated_at: nowIso,
+      km_last_updated_by: user?.id || null,
+      updated_at: nowIso,
     }).eq("id", vehicleId);
     if (vErr) { toast.error(vErr.message); setSaving(false); return; }
     // Insert history record

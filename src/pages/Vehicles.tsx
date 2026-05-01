@@ -168,7 +168,7 @@ export default function Vehicles() {
               const trackerWarning = ((allTrackers || []) as any[]).filter(t => t.vehicle_id === v.id).some(t => computeTrackerStatus(t, v.current_odometer_km ?? 0).status !== "ok");
               const kmUntil = compliance.km_until_service;
               const now = new Date();
-              const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
+              const lastUpdate = (v as any).km_last_updated_at ? new Date((v as any).km_last_updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
               const daysSinceUpdate = lastUpdate ? Math.floor((now.getTime() - lastUpdate.getTime()) / 86400000) : null;
               const updateBadge = daysSinceUpdate === null
                 ? { text: "Never updated", cls: "bg-destructive/20 text-destructive" }
@@ -246,8 +246,8 @@ export default function Vehicles() {
                   const trackerWarning = ((allTrackers || []) as any[]).filter(t => t.vehicle_id === v.id).some(t => computeTrackerStatus(t, v.current_odometer_km ?? 0).status !== "ok");
                   const kmUntil = compliance.km_until_service;
                   const now = new Date();
-                  // Use updated_at (bumped on every KM save) so badge refreshes immediately
-                  const lastUpdate = v.updated_at ? new Date(v.updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
+                  // Use km_last_updated_at (set on every KM save) so badge reflects only KM updates
+                  const lastUpdate = (v as any).km_last_updated_at ? new Date((v as any).km_last_updated_at) : (v.last_odometer_update ? new Date(v.last_odometer_update) : null);
                   const daysSinceUpdate = lastUpdate ? Math.floor((now.getTime() - lastUpdate.getTime()) / 86400000) : null;
                   const updateBadge = daysSinceUpdate === null
                     ? { text: "Never updated", cls: "bg-destructive/20 text-destructive" }
