@@ -319,6 +319,7 @@ export default function DriverDetail() {
       full_name: driver.full_name || "", id_number: driver.id_number || "",
       phone: driver.phone || "", email: driver.email || "",
       employment_status: driver.employment_status || "active",
+      staff_type: (driver as any).staff_type || "driver",
       licence_number: driver.licence_number || "", licence_code: driver.licence_code || "",
       licence_expiry: driver.licence_expiry || "",
       prdp_number: driver.prdp_number || "", prdp_category: driver.prdp_category || "",
@@ -330,14 +331,20 @@ export default function DriverDetail() {
 
   const handleSaveEdit = async () => {
     setEditSaving(true);
+    const staffType = editForm.staff_type || "driver";
+    const isDriverRole = staffType === "driver";
     const { error } = await supabase.from("drivers").update({
       full_name: editForm.full_name, id_number: editForm.id_number || null,
       phone: editForm.phone || null, email: editForm.email || null,
       employment_status: editForm.employment_status || "active",
-      licence_number: editForm.licence_number || null, licence_code: editForm.licence_code || null,
-      licence_expiry: editForm.licence_expiry || null,
-      prdp_number: editForm.prdp_number || null, prdp_category: editForm.prdp_category || null,
-      prdp_expiry: editForm.prdp_expiry || null, shift_type: editForm.shift_type || "day",
+      staff_type: staffType,
+      licence_number: isDriverRole ? (editForm.licence_number || null) : null,
+      licence_code: isDriverRole ? (editForm.licence_code || null) : null,
+      licence_expiry: isDriverRole ? (editForm.licence_expiry || null) : null,
+      prdp_number: isDriverRole ? (editForm.prdp_number || null) : null,
+      prdp_category: isDriverRole ? (editForm.prdp_category || null) : null,
+      prdp_expiry: isDriverRole ? (editForm.prdp_expiry || null) : null,
+      shift_type: editForm.shift_type || "day",
       notes: editForm.notes || null,
     }).eq("id", id!);
     setEditSaving(false);
@@ -441,6 +448,22 @@ export default function DriverDetail() {
               <EditField label="Phone" value={editForm.phone} onChange={v => setEditForm({ ...editForm, phone: v })} />
               <EditField label="Email" value={editForm.email} onChange={v => setEditForm({ ...editForm, email: v })} type="email" />
               <EditField label="Employment" value={editForm.employment_status} onChange={v => setEditForm({ ...editForm, employment_status: v })} />
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">Staff Type</label>
+                <select
+                  value={editForm.staff_type || "driver"}
+                  onChange={(e) => setEditForm({ ...editForm, staff_type: e.target.value })}
+                  className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="driver">Driver</option>
+                  <option value="office">Office Staff</option>
+                  <option value="supervisor">Supervisor</option>
+                  <option value="manager">Manager</option>
+                </select>
+                {editForm.staff_type && editForm.staff_type !== "driver" && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Non-drivers don't require Licence/PrDP and skip compliance scoring.</p>
+                )}
+              </div>
               <EditField label="Shift Type" value={editForm.shift_type} onChange={v => setEditForm({ ...editForm, shift_type: v })} />
             </div>
           ) : (
