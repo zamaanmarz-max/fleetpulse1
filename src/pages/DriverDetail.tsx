@@ -186,7 +186,7 @@ export default function DriverDetail() {
       fileUrl = path;
     }
     const days = form.expiry_date ? Math.ceil((new Date(form.expiry_date).getTime() - now) / 86400000) : null;
-    const status = days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid";
+    const status = form.not_done ? "not_done" : (days !== null ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "valid");
 
     if (editingDocId) {
       const updatePayload: any = {
