@@ -245,9 +245,11 @@ export type Database = {
           expiry_date: string | null
           file_url: string | null
           id: string
+          inspection_interval_months: number | null
           is_mandatory: boolean | null
           issue_date: string | null
           issuing_authority: string | null
+          last_inspection_date: string | null
           notes: string | null
           organisation_id: string | null
           reminder_sent_14_days: boolean | null
@@ -270,9 +272,11 @@ export type Database = {
           expiry_date?: string | null
           file_url?: string | null
           id?: string
+          inspection_interval_months?: number | null
           is_mandatory?: boolean | null
           issue_date?: string | null
           issuing_authority?: string | null
+          last_inspection_date?: string | null
           notes?: string | null
           organisation_id?: string | null
           reminder_sent_14_days?: boolean | null
@@ -295,9 +299,11 @@ export type Database = {
           expiry_date?: string | null
           file_url?: string | null
           id?: string
+          inspection_interval_months?: number | null
           is_mandatory?: boolean | null
           issue_date?: string | null
           issuing_authority?: string | null
+          last_inspection_date?: string | null
           notes?: string | null
           organisation_id?: string | null
           reminder_sent_14_days?: boolean | null
@@ -539,6 +545,7 @@ export type Database = {
           has_critical_damage: boolean | null
           id: string
           inspection_date: string | null
+          inspection_report_url: string | null
           inspector_id: string | null
           inspector_signature_url: string | null
           new_damage_items: number | null
@@ -558,6 +565,7 @@ export type Database = {
           has_critical_damage?: boolean | null
           id?: string
           inspection_date?: string | null
+          inspection_report_url?: string | null
           inspector_id?: string | null
           inspector_signature_url?: string | null
           new_damage_items?: number | null
@@ -577,6 +585,7 @@ export type Database = {
           has_critical_damage?: boolean | null
           id?: string
           inspection_date?: string | null
+          inspection_report_url?: string | null
           inspector_id?: string | null
           inspector_signature_url?: string | null
           new_damage_items?: number | null
@@ -643,7 +652,10 @@ export type Database = {
           repair_cost: number | null
           repair_date: string | null
           repair_notes: string | null
+          repair_workshop: string | null
           repaired_by: string | null
+          reported_by_driver_id: string | null
+          reported_by_name: string | null
           requires_immediate_action: boolean | null
           resolved: boolean | null
           resolved_at: string | null
@@ -664,7 +676,10 @@ export type Database = {
           repair_cost?: number | null
           repair_date?: string | null
           repair_notes?: string | null
+          repair_workshop?: string | null
           repaired_by?: string | null
+          reported_by_driver_id?: string | null
+          reported_by_name?: string | null
           requires_immediate_action?: boolean | null
           resolved?: boolean | null
           resolved_at?: string | null
@@ -685,7 +700,10 @@ export type Database = {
           repair_cost?: number | null
           repair_date?: string | null
           repair_notes?: string | null
+          repair_workshop?: string | null
           repaired_by?: string | null
+          reported_by_driver_id?: string | null
+          reported_by_name?: string | null
           requires_immediate_action?: boolean | null
           resolved?: boolean | null
           resolved_at?: string | null
@@ -705,6 +723,13 @@ export type Database = {
             columns: ["organisation_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "damage_items_reported_by_driver_id_fkey"
+            columns: ["reported_by_driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
             referencedColumns: ["id"]
           },
           {
@@ -730,8 +755,10 @@ export type Database = {
           issue_date: string | null
           organisation_id: string | null
           status: string | null
+          talk_number: number | null
           talk_topic: string | null
           uploaded_by: string | null
+          year_conducted: number | null
         }
         Insert: {
           conducted_by?: string | null
@@ -746,8 +773,10 @@ export type Database = {
           issue_date?: string | null
           organisation_id?: string | null
           status?: string | null
+          talk_number?: number | null
           talk_topic?: string | null
           uploaded_by?: string | null
+          year_conducted?: number | null
         }
         Update: {
           conducted_by?: string | null
@@ -762,8 +791,10 @@ export type Database = {
           issue_date?: string | null
           organisation_id?: string | null
           status?: string | null
+          talk_number?: number | null
           talk_topic?: string | null
           uploaded_by?: string | null
+          year_conducted?: number | null
         }
         Relationships: [
           {
@@ -802,6 +833,7 @@ export type Database = {
           estimated_damage_cost: number | null
           id: string
           incident_date: string
+          incident_report_url: string | null
           incident_type: string
           injury_details: string | null
           injury_reported: boolean | null
@@ -830,6 +862,7 @@ export type Database = {
           estimated_damage_cost?: number | null
           id?: string
           incident_date?: string
+          incident_report_url?: string | null
           incident_type: string
           injury_details?: string | null
           injury_reported?: boolean | null
@@ -858,6 +891,7 @@ export type Database = {
           estimated_damage_cost?: number | null
           id?: string
           incident_date?: string
+          incident_report_url?: string | null
           incident_type?: string
           injury_details?: string | null
           injury_reported?: boolean | null
@@ -912,9 +946,11 @@ export type Database = {
           branch_id: string | null
           compliance_score: number | null
           created_at: string | null
+          dangerous_goods_cert_url: string | null
           dangerous_goods_certified: boolean | null
           dangerous_goods_expiry: string | null
           date_of_birth: string | null
+          defensive_driving_cert_url: string | null
           defensive_driving_expiry: string | null
           demerit_points: number | null
           department: string | null
@@ -924,13 +960,16 @@ export type Database = {
           employment_status: string | null
           full_name: string
           id: string
+          id_copy_url: string | null
           id_number: string | null
           induction_completed: boolean | null
           induction_date: string | null
           last_toolbox_talk_date: string | null
           licence_code: string | null
+          licence_copy_url: string | null
           licence_expiry: string | null
           licence_number: string | null
+          medical_certificate_url: string | null
           next_of_kin_name: string | null
           next_of_kin_phone: string | null
           next_of_kin_relationship: string | null
@@ -940,9 +979,11 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           prdp_category: string | null
+          prdp_copy_url: string | null
           prdp_expiry: string | null
           prdp_number: string | null
           shift_type: string | null
+          staff_type: string | null
           total_demerits_this_year: number | null
           updated_at: string | null
           vehicle_types_authorised: string | null
@@ -953,9 +994,11 @@ export type Database = {
           branch_id?: string | null
           compliance_score?: number | null
           created_at?: string | null
+          dangerous_goods_cert_url?: string | null
           dangerous_goods_certified?: boolean | null
           dangerous_goods_expiry?: string | null
           date_of_birth?: string | null
+          defensive_driving_cert_url?: string | null
           defensive_driving_expiry?: string | null
           demerit_points?: number | null
           department?: string | null
@@ -965,13 +1008,16 @@ export type Database = {
           employment_status?: string | null
           full_name: string
           id?: string
+          id_copy_url?: string | null
           id_number?: string | null
           induction_completed?: boolean | null
           induction_date?: string | null
           last_toolbox_talk_date?: string | null
           licence_code?: string | null
+          licence_copy_url?: string | null
           licence_expiry?: string | null
           licence_number?: string | null
+          medical_certificate_url?: string | null
           next_of_kin_name?: string | null
           next_of_kin_phone?: string | null
           next_of_kin_relationship?: string | null
@@ -981,9 +1027,11 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           prdp_category?: string | null
+          prdp_copy_url?: string | null
           prdp_expiry?: string | null
           prdp_number?: string | null
           shift_type?: string | null
+          staff_type?: string | null
           total_demerits_this_year?: number | null
           updated_at?: string | null
           vehicle_types_authorised?: string | null
@@ -994,9 +1042,11 @@ export type Database = {
           branch_id?: string | null
           compliance_score?: number | null
           created_at?: string | null
+          dangerous_goods_cert_url?: string | null
           dangerous_goods_certified?: boolean | null
           dangerous_goods_expiry?: string | null
           date_of_birth?: string | null
+          defensive_driving_cert_url?: string | null
           defensive_driving_expiry?: string | null
           demerit_points?: number | null
           department?: string | null
@@ -1006,13 +1056,16 @@ export type Database = {
           employment_status?: string | null
           full_name?: string
           id?: string
+          id_copy_url?: string | null
           id_number?: string | null
           induction_completed?: boolean | null
           induction_date?: string | null
           last_toolbox_talk_date?: string | null
           licence_code?: string | null
+          licence_copy_url?: string | null
           licence_expiry?: string | null
           licence_number?: string | null
+          medical_certificate_url?: string | null
           next_of_kin_name?: string | null
           next_of_kin_phone?: string | null
           next_of_kin_relationship?: string | null
@@ -1022,9 +1075,11 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           prdp_category?: string | null
+          prdp_copy_url?: string | null
           prdp_expiry?: string | null
           prdp_number?: string | null
           shift_type?: string | null
+          staff_type?: string | null
           total_demerits_this_year?: number | null
           updated_at?: string | null
           vehicle_types_authorised?: string | null
@@ -1059,6 +1114,7 @@ export type Database = {
           enforcement_order: boolean | null
           enforcement_order_date: string | null
           fine_amount_rands: number | null
+          fine_notice_url: string | null
           fine_number: string | null
           id: string
           issuing_authority: string | null
@@ -1068,6 +1124,7 @@ export type Database = {
           organisation_id: string | null
           payment_amount: number | null
           payment_date: string | null
+          payment_proof_url: string | null
           payment_status: string | null
           redirect_date: string | null
           redirected_to_driver: boolean | null
@@ -1087,6 +1144,7 @@ export type Database = {
           enforcement_order?: boolean | null
           enforcement_order_date?: string | null
           fine_amount_rands?: number | null
+          fine_notice_url?: string | null
           fine_number?: string | null
           id?: string
           issuing_authority?: string | null
@@ -1096,6 +1154,7 @@ export type Database = {
           organisation_id?: string | null
           payment_amount?: number | null
           payment_date?: string | null
+          payment_proof_url?: string | null
           payment_status?: string | null
           redirect_date?: string | null
           redirected_to_driver?: boolean | null
@@ -1115,6 +1174,7 @@ export type Database = {
           enforcement_order?: boolean | null
           enforcement_order_date?: string | null
           fine_amount_rands?: number | null
+          fine_notice_url?: string | null
           fine_number?: string | null
           id?: string
           issuing_authority?: string | null
@@ -1124,6 +1184,7 @@ export type Database = {
           organisation_id?: string | null
           payment_amount?: number | null
           payment_date?: string | null
+          payment_proof_url?: string | null
           payment_status?: string | null
           redirect_date?: string | null
           redirected_to_driver?: boolean | null
@@ -1258,6 +1319,7 @@ export type Database = {
           invoice_number: string | null
           is_breakdown: boolean | null
           job_card_number: string | null
+          job_date: string | null
           job_priority: string | null
           job_type: string
           labour_cost: number | null
@@ -1289,6 +1351,7 @@ export type Database = {
           invoice_number?: string | null
           is_breakdown?: boolean | null
           job_card_number?: string | null
+          job_date?: string | null
           job_priority?: string | null
           job_type?: string
           labour_cost?: number | null
@@ -1320,6 +1383,7 @@ export type Database = {
           invoice_number?: string | null
           is_breakdown?: boolean | null
           job_card_number?: string | null
+          job_date?: string | null
           job_priority?: string | null
           job_type?: string
           labour_cost?: number | null
@@ -1975,6 +2039,8 @@ export type Database = {
           organisation_id: string | null
           repair_cost: number | null
           repair_description: string | null
+          repair_invoice_url: string | null
+          repair_quote_url: string | null
           status: string
           updated_at: string | null
           updated_by: string | null
@@ -1991,6 +2057,8 @@ export type Database = {
           organisation_id?: string | null
           repair_cost?: number | null
           repair_description?: string | null
+          repair_invoice_url?: string | null
+          repair_quote_url?: string | null
           status?: string
           updated_at?: string | null
           updated_by?: string | null
@@ -2007,6 +2075,8 @@ export type Database = {
           organisation_id?: string | null
           repair_cost?: number | null
           repair_description?: string | null
+          repair_invoice_url?: string | null
+          repair_quote_url?: string | null
           status?: string
           updated_at?: string | null
           updated_by?: string | null
@@ -2062,14 +2132,18 @@ export type Database = {
           gross_vehicle_mass_kg: number | null
           home_base: string | null
           id: string
+          insurance_cert_url: string | null
           insurance_company: string | null
           insurance_expiry: string | null
           insurance_policy_number: string | null
           is_active: boolean | null
+          km_last_updated_at: string | null
+          km_last_updated_by: string | null
           km_until_service: number | null
           last_fuel_reading_litres: number | null
           last_odometer_update: string | null
           last_service_km: number | null
+          licence_disc_url: string | null
           make: string | null
           model: string | null
           next_service_due_km: number | null
@@ -2081,7 +2155,9 @@ export type Database = {
           purchase_date: string | null
           purchase_price: number | null
           registration_number: string
+          registration_papers_url: string | null
           risk_score: number | null
+          roadworthy_cert_url: string | null
           tare_weight_kg: number | null
           total_fuel_cost: number | null
           tracker_company: string | null
@@ -2117,14 +2193,18 @@ export type Database = {
           gross_vehicle_mass_kg?: number | null
           home_base?: string | null
           id?: string
+          insurance_cert_url?: string | null
           insurance_company?: string | null
           insurance_expiry?: string | null
           insurance_policy_number?: string | null
           is_active?: boolean | null
+          km_last_updated_at?: string | null
+          km_last_updated_by?: string | null
           km_until_service?: number | null
           last_fuel_reading_litres?: number | null
           last_odometer_update?: string | null
           last_service_km?: number | null
+          licence_disc_url?: string | null
           make?: string | null
           model?: string | null
           next_service_due_km?: number | null
@@ -2136,7 +2216,9 @@ export type Database = {
           purchase_date?: string | null
           purchase_price?: number | null
           registration_number: string
+          registration_papers_url?: string | null
           risk_score?: number | null
+          roadworthy_cert_url?: string | null
           tare_weight_kg?: number | null
           total_fuel_cost?: number | null
           tracker_company?: string | null
@@ -2172,14 +2254,18 @@ export type Database = {
           gross_vehicle_mass_kg?: number | null
           home_base?: string | null
           id?: string
+          insurance_cert_url?: string | null
           insurance_company?: string | null
           insurance_expiry?: string | null
           insurance_policy_number?: string | null
           is_active?: boolean | null
+          km_last_updated_at?: string | null
+          km_last_updated_by?: string | null
           km_until_service?: number | null
           last_fuel_reading_litres?: number | null
           last_odometer_update?: string | null
           last_service_km?: number | null
+          licence_disc_url?: string | null
           make?: string | null
           model?: string | null
           next_service_due_km?: number | null
@@ -2191,7 +2277,9 @@ export type Database = {
           purchase_date?: string | null
           purchase_price?: number | null
           registration_number?: string
+          registration_papers_url?: string | null
           risk_score?: number | null
+          roadworthy_cert_url?: string | null
           tare_weight_kg?: number | null
           total_fuel_cost?: number | null
           tracker_company?: string | null
