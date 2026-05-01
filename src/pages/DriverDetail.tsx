@@ -20,6 +20,7 @@ const statusStyles: Record<string, string> = {
   expiring: "bg-warning/20 text-warning",
   expired: "bg-destructive/20 text-destructive",
   missing: "bg-destructive/20 text-destructive",
+  not_done: "bg-destructive/20 text-destructive",
 };
 
 const documentTypes = [
