@@ -127,6 +127,7 @@ export default function Certificates() {
       expiry_date: c.expiry_date || "",
       issuing_authority: c.issuing_authority || "",
       notes: c.notes || "",
+      last_inspection_date: c.last_inspection_date || "",
     });
     setEditFile(null);
   };
@@ -141,6 +142,7 @@ export default function Certificates() {
       expiry_date: editForm.expiry_date || null,
       issuing_authority: editForm.issuing_authority || null,
       notes: editForm.notes || null,
+      last_inspection_date: editForm.last_inspection_date || null,
     };
     if (editFile && profile?.organisation_id) {
       const path = `${profile.organisation_id}/certificates/${editingId}/${Date.now()}_${editFile.name}`;
