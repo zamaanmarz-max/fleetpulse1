@@ -79,7 +79,7 @@ export default function Drivers() {
   const [form, setForm] = useState({
     full_name: "", id_number: "", licence_number: "", licence_expiry: "",
     licence_code: "EC", prdp_number: "", prdp_expiry: "", prdp_category: "G",
-    phone: "", email: "",
+    phone: "", email: "", staff_type: "driver", branch_id: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -88,23 +88,26 @@ export default function Drivers() {
       toast.error("Full name is required");
       return;
     }
+    const isDriver = form.staff_type === "driver";
     setSaving(true);
     const { error } = await supabase.from("drivers").insert({
       organisation_id: profile.organisation_id,
       full_name: form.full_name,
       id_number: form.id_number || null,
-      licence_number: form.licence_number || null,
-      licence_expiry: form.licence_expiry || null,
-      licence_code: form.licence_code || null,
-      prdp_number: form.prdp_number || null,
-      prdp_expiry: form.prdp_expiry || null,
-      prdp_category: form.prdp_category || null,
+      staff_type: form.staff_type || "driver",
+      branch_id: form.branch_id || null,
+      licence_number: isDriver ? (form.licence_number || null) : null,
+      licence_expiry: isDriver ? (form.licence_expiry || null) : null,
+      licence_code: isDriver ? (form.licence_code || null) : null,
+      prdp_number: isDriver ? (form.prdp_number || null) : null,
+      prdp_expiry: isDriver ? (form.prdp_expiry || null) : null,
+      prdp_category: isDriver ? (form.prdp_category || null) : null,
       phone: form.phone || null,
       email: form.email || null,
     });
     setSaving(false);
     if (error) { toast.error(error.message); } else {
-      toast.success("Driver added");
+      toast.success(`${isDriver ? "Driver" : "Staff member"} added`);
       setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
     }
