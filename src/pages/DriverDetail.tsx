@@ -727,7 +727,22 @@ export default function DriverDetail() {
               <label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label>
               <input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
-            <div>
+            {(form.document_type === "Criminal Background Check" || form.document_type === "Defensive Driving Certificate") && (
+              <div className="bg-secondary/40 border border-border rounded-lg p-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.not_done}
+                    onChange={(e) => setForm({ ...form, not_done: e.target.checked })}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Mark as Not Done</p>
+                    <p className="text-[11px] text-muted-foreground">Use this when the {form.document_type === "Criminal Background Check" ? "background check" : "defensive driving course"} has not been completed yet. Shows a red "Not Done" badge.</p>
+                  </div>
+                </label>
+              </div>
+            )}
               <label className="block text-sm font-medium text-foreground mb-1">{editingDocId ? "Replace File (optional)" : "Upload File (PDF/Image)"}</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
               {editingDocId && <p className="text-xs text-muted-foreground mt-1">Leave empty to keep existing file</p>}
