@@ -232,6 +232,7 @@ export default function DriverDetail() {
       document_number: doc.document_number || "",
       issue_date: doc.issue_date || "",
       expiry_date: doc.expiry_date || "",
+      not_done: (doc.status || "").toLowerCase() === "not_done",
     });
     setFile(null);
     setShowForm(true);
