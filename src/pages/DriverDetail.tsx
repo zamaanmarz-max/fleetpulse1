@@ -644,6 +644,54 @@ export default function DriverDetail() {
         </div>
       )}
 
+      {/* Damages Reported by this driver */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 flex-wrap">
+            <AlertTriangle className="w-5 h-5" /> Damages Reported ({(reportedDamages || []).length})
+            {totalRepairCost > 0 && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/20 text-warning">
+                Total repair cost: R {totalRepairCost.toLocaleString()}
+              </span>
+            )}
+          </h3>
+        </div>
+        <div className="glass-card overflow-hidden">
+          {(reportedDamages || []).length === 0 ? (
+            <p className="text-sm text-muted-foreground p-6 text-center">No damages reported by this driver.</p>
+          ) : (
+            <table className="w-full">
+              <thead><tr className="border-b border-border">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Date</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Vehicle</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Location</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Damage</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Severity</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Repair Cost</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+              </tr></thead>
+              <tbody>
+                {(reportedDamages || []).map((d: any) => (
+                  <tr key={d.id} className="border-b border-border/50">
+                    <td className="px-4 py-3 text-sm text-foreground">{(d.created_at || "").split("T")[0]}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-foreground">{d.vehicles?.registration_number || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{d.location || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{d.damage_type || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-center capitalize text-foreground">{d.severity || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-right font-mono text-foreground">R {(Number(d.repair_cost) || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${d.resolved ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                        {d.resolved ? "Resolved" : "Open"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
       {/* Add/Edit Document Form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex">
