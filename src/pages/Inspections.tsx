@@ -323,7 +323,7 @@ export default function Inspections() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">Driver Responsible</label>
+                      <label className="block text-xs font-medium text-foreground mb-1">Reported By Driver</label>
                       <select value={item.driver_id} onChange={(e) => updateDamageItem(idx, "driver_id", e.target.value)} className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground">
                         <option value="">Select driver (optional)</option>
                         {(drivers || []).map(d => <option key={d.id} value={d.id}>{d.full_name}</option>)}
