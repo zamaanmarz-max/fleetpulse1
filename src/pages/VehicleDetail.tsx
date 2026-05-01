@@ -637,6 +637,38 @@ export default function VehicleDetail() {
             </button>
           </div>
 
+          {/* COA pending banner for trailers */}
+          {((vehicle.vehicle_type || "").toLowerCase() === "trailer") && (() => {
+            const coa = (certificates || []).find(c => (c.certificate_type || "").toLowerCase().includes("certificate of acceptability"));
+            const isPending = !coa || (coa.status || "").toLowerCase() === "pending";
+            if (!isPending) return null;
+            return (
+              <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-warning" />
+                  <div>
+                    <p className="text-sm font-semibold text-warning">Certificate of Acceptability — Pending</p>
+                    <p className="text-xs text-muted-foreground">Trailers require a Certificate of Acceptability (COA). Upload it now to clear this alert.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setUploadCertForm(prev => ({
+                      ...prev,
+                      certificate_type: "Other",
+                      certificate_type_other: "Certificate of Acceptability",
+                    }));
+                    setShowUploadCert(true);
+                  }}
+                  className="bg-warning text-warning-foreground px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90 whitespace-nowrap"
+                >
+                  Upload COA
+                </button>
+              </div>
+            );
+          })()}
+
+
           {showUploadCert && (
             <div className="stat-card space-y-3">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase">Upload New Certificate</h4>
