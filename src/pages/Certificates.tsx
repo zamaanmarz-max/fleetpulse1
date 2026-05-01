@@ -63,7 +63,7 @@ export default function Certificates() {
 
   const [form, setForm] = useState({
     vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "",
-    issue_date: "", expiry_date: "", issuing_authority: "", notes: "",
+    issue_date: "", expiry_date: "", issuing_authority: "", notes: "", last_inspection_date: "",
   });
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
