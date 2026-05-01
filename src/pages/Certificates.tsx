@@ -127,6 +127,7 @@ export default function Certificates() {
       expiry_date: c.expiry_date || "",
       issuing_authority: c.issuing_authority || "",
       notes: c.notes || "",
+      last_inspection_date: c.last_inspection_date || "",
     });
     setEditFile(null);
   };
@@ -141,6 +142,7 @@ export default function Certificates() {
       expiry_date: editForm.expiry_date || null,
       issuing_authority: editForm.issuing_authority || null,
       notes: editForm.notes || null,
+      last_inspection_date: editForm.last_inspection_date || null,
     };
     if (editFile && profile?.organisation_id) {
       const path = `${profile.organisation_id}/certificates/${editingId}/${Date.now()}_${editFile.name}`;
@@ -304,6 +306,18 @@ export default function Certificates() {
                 <input type={f.type} value={editForm[f.key] || ""} onChange={(e) => setEditForm({ ...editForm, [f.key]: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
+            {editForm.certificate_type === "Load Test Certificate" && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Last Inspection Date *</label>
+                <input
+                  type="date"
+                  value={editForm.last_inspection_date || ""}
+                  onChange={(e) => setEditForm({ ...editForm, last_inspection_date: e.target.value })}
+                  className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Load tests require an inspection within the last 6 months to stay valid.</p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Replace PDF</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setEditFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
@@ -358,6 +372,18 @@ export default function Certificates() {
                 <input type={f.type} value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
+            {form.certificate_type === "Load Test Certificate" && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Last Inspection Date *</label>
+                <input
+                  type="date"
+                  value={form.last_inspection_date}
+                  onChange={(e) => setForm({ ...form, last_inspection_date: e.target.value })}
+                  className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Load tests require an inspection within the last 6 months to stay valid.</p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Document File (PDF)</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
