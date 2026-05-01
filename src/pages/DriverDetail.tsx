@@ -556,12 +556,20 @@ export default function DriverDetail() {
 
       {/* Toolbox Talks */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 flex-wrap">
             <MessageSquare className="w-5 h-5" /> Toolbox Talks ({(toolboxTalks || []).length})
+            <span
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${
+                yearProgress.onTrack ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
+              }`}
+              title={`Expected by now: ${yearProgress.expected}`}
+            >
+              {yearProgress.done}/{yearProgress.required} talks done this year
+            </span>
             {talkDays !== null && (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${talkDays <= 30 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
-                {talkDays <= 30 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${talkDays <= 365 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                {talkDays <= 365 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
               </span>
             )}
           </h3>
