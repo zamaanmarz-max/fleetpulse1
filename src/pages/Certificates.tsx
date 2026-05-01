@@ -51,8 +51,14 @@ export default function Certificates() {
   const now = Date.now();
   const enriched = (certificates || []).map((c) => {
     const days = c.expiry_date ? Math.ceil((new Date(c.expiry_date).getTime() - now) / 86400000) : 999;
-    const status = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
-    return { ...c, daysRemaining: days, calcStatus: status };
+    let status: string = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
+    // Load test certs require an inspection within the last 6 months
+    const isLoadTest = (c.certificate_type || "").toLowerCase().includes("load test");
+    const lastInsp = (c as any).last_inspection_date ? new Date((c as any).last_inspection_date).getTime() : null;
+    const monthsSinceInsp = lastInsp ? (now - lastInsp) / (86400000 * 30) : null;
+    const inspectionOverdue = isLoadTest && (lastInsp === null || (monthsSinceInsp !== null && monthsSinceInsp > 6));
+    if (status === "valid" && inspectionOverdue) status = "expiring";
+    return { ...c, daysRemaining: days, calcStatus: status, inspectionOverdue };
   });
 
   const filtered = enriched.filter(
