@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
 import { generateDriverComplianceReport } from "@/lib/driverPdfReport";
-import { calcToolboxStatus, toolboxExpiry } from "@/lib/driverComplianceHelpers";
+import { calcToolboxStatus, toolboxExpiry, toolboxYearProgress } from "@/lib/driverComplianceHelpers";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
