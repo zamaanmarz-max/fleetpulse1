@@ -121,7 +121,8 @@ export default function DriverDetail() {
 
   const enrichedDocs = (documents || []).map(d => {
     const days = d.expiry_date ? Math.ceil((new Date(d.expiry_date).getTime() - now) / 86400000) : 999;
-    const calcStatus = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
+    const isNotDone = (d.status || "").toLowerCase() === "not_done";
+    const calcStatus = isNotDone ? "not_done" : (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid");
     return { ...d, daysRemaining: days, calcStatus };
   });
 
