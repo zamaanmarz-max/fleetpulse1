@@ -358,6 +358,18 @@ export default function Certificates() {
                 <input type={f.type} value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
+            {form.certificate_type === "Load Test Certificate" && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Last Inspection Date *</label>
+                <input
+                  type="date"
+                  value={form.last_inspection_date}
+                  onChange={(e) => setForm({ ...form, last_inspection_date: e.target.value })}
+                  className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Load tests require an inspection within the last 6 months to stay valid.</p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Document File (PDF)</label>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" />
