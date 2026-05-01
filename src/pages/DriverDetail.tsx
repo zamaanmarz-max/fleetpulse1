@@ -217,7 +217,7 @@ export default function DriverDetail() {
     }
 
     setShowForm(false); setFile(null); setEditingDocId(null);
-    setForm({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "" });
+    setForm({ document_type: "", document_name: "", document_number: "", issue_date: "", expiry_date: "", not_done: false });
     queryClient.invalidateQueries({ queryKey: ["driver_documents", id] });
     queryClient.invalidateQueries({ queryKey: ["driver", id] });
     queryClient.invalidateQueries({ queryKey: ["drivers"] });
