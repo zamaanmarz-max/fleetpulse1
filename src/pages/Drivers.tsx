@@ -47,22 +47,25 @@ export default function Drivers() {
   const now = Date.now();
 
   const driversWithCompliance = (drivers || []).map(d => {
+    const isDriver = (d.staff_type || "driver") === "driver";
     const docs = (allDocuments || []).filter(doc => doc.driver_id === d.id).map(doc => {
       const days = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date).getTime() - now) / 86400000) : 999;
       return { ...doc, calcStatus: days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid" };
     });
     const talks = (allToolboxTalks || []).filter(t => t.driver_id === d.id);
-    const compliance = checkDriverCompliance(
-      {
-        licence_expiry: d.licence_expiry,
-        prdp_expiry: d.prdp_expiry,
-        licence_number: d.licence_number,
-        prdp_number: d.prdp_number,
-      },
-      docs,
-      talks
-    );
-    return { ...d, compliance };
+    const compliance = isDriver
+      ? checkDriverCompliance(
+          {
+            licence_expiry: d.licence_expiry,
+            prdp_expiry: d.prdp_expiry,
+            licence_number: d.licence_number,
+            prdp_number: d.prdp_number,
+          },
+          docs,
+          talks
+        )
+      : { isCompliant: true, status: "compliant" as const, score: 100, issues: [], breakdown: [] };
+    return { ...d, isDriver, compliance };
   });
 
   const filtered = driversWithCompliance.filter(
