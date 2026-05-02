@@ -537,7 +537,7 @@ export default function DriverDetail() {
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2"><FileText className="w-5 h-5" /> Documents ({enrichedDocs.length})</h3>
           <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90"><Plus className="w-4 h-4" /> Add Document</button>
         </div>
-        <div className="glass-card overflow-hidden">
+        <div className="glass-card overflow-x-auto">
           {enrichedDocs.length === 0 ? (
             <p className="text-sm text-muted-foreground p-6 text-center">No documents uploaded yet.</p>
           ) : (
@@ -599,7 +599,7 @@ export default function DriverDetail() {
           </h3>
           <button onClick={() => setShowTalkForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90"><Plus className="w-4 h-4" /> Add Talk</button>
         </div>
-        <div className="glass-card overflow-hidden">
+        <div className="glass-card overflow-x-auto">
           {(toolboxTalks || []).length === 0 ? (
             <p className="text-sm text-muted-foreground p-6 text-center">No toolbox talks recorded yet.</p>
           ) : (
@@ -643,7 +643,7 @@ export default function DriverDetail() {
             <h3 className="text-lg font-semibold text-foreground">Fines ({driverFines!.length})</h3>
             {totalOutstanding > 0 && <span className="text-sm font-bold text-destructive">Outstanding: R {totalOutstanding.toLocaleString()}</span>}
           </div>
-          <div className="glass-card overflow-hidden">
+          <div className="glass-card overflow-x-auto">
             <table className="w-full">
               <thead><tr className="border-b border-border">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Fine No</th>
@@ -680,7 +680,7 @@ export default function DriverDetail() {
             )}
           </h3>
         </div>
-        <div className="glass-card overflow-hidden">
+        <div className="glass-card overflow-x-auto">
           {(reportedDamages || []).length === 0 ? (
             <p className="text-sm text-muted-foreground p-6 text-center">No damages reported by this driver.</p>
           ) : (
