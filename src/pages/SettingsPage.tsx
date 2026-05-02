@@ -13,6 +13,7 @@ const tabs = [
   { id: "users", icon: Users, label: "Users" },
   { id: "compliance", icon: ShieldCheck, label: "Compliance" },
   { id: "notifications", icon: Bell, label: "Notifications" },
+  { id: "profile", icon: Users, label: "My Profile" },
 ];
 
 export default function SettingsPage() {
@@ -41,6 +42,7 @@ export default function SettingsPage() {
         {activeTab === "users" && <UsersTab />}
         {activeTab === "compliance" && <ComplianceSettingsTab />}
         {activeTab === "notifications" && <p className="text-muted-foreground text-sm">Notification settings coming soon.</p>}
+        {activeTab === "profile" && <ProfileTab />}
       </div>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
@@ -389,6 +391,65 @@ function UsersTab() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfileTab() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ full_name: "", phone: "" });
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const { data: user } = useQuery({
+    queryKey: ["my_profile", profile?.id],
+    enabled: !!profile?.id,
+    queryFn: async () => {
+      const { data } = await supabase.from("users").select("full_name, phone").eq("id", profile!.id).single();
+      return data;
+    },
+  });
+
+  if (user && !loaded) {
+    setForm({ full_name: (user as any).full_name || "", phone: (user as any).phone || "" });
+    setLoaded(true);
+  }
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("users").update({
+      full_name: form.full_name || null,
+      phone: form.phone || null,
+    }).eq("id", profile!.id);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Profile updated");
+    queryClient.invalidateQueries({ queryKey: ["my_profile"] });
+  };
+
+  return (
+    <div className="space-y-5 max-w-md">
+      <div>
+        <h3 className="text-base font-semibold text-foreground mb-1">My Profile</h3>
+        <p className="text-sm text-muted-foreground">Update your name and WhatsApp number so MARZ AI can identify you.</p>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
+        <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Your full name" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">WhatsApp Number</label>
+        <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+27821234567" className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+        <p className="text-xs text-muted-foreground mt-1">Format: +27 then your number. Links your WhatsApp to MARZ AI.</p>
+      </div>
+      <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
+        <p className="text-xs text-primary font-medium">WhatsApp AI is active</p>
+        <p className="text-xs text-muted-foreground mt-1">Once your number is saved, WhatsApp the MARZ AI number and it will know your fleet automatically.</p>
+      </div>
+      <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Profile
+      </button>
     </div>
   );
 }
