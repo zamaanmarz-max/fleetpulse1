@@ -110,7 +110,7 @@ export function HSScoreCard() {
       {open && (
         <div className="mt-4 space-y-2 text-xs">
           <Row label="Drivers with valid medical" pct={pcts.medical} />
-          <Row label="Drivers with recent toolbox talk (30d)" pct={pcts.talks} />
+          <Row label="Drivers with toolbox talk this year" pct={pcts.talks} />
           <Row label="Drivers with criminal check" pct={pcts.criminal} />
           <Row label="Vehicles inspected in last 90 days" pct={pcts.inspections} />
           <Row label="Damage items resolved" pct={pcts.damage} />
