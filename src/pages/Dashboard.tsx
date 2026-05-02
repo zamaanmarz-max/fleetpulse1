@@ -53,7 +53,7 @@ export default function Dashboard() {
   const { data: allDriverDocs } = useQuery({
     queryKey: ["all_driver_documents", profile?.organisation_id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("driver_documents").select("driver_id, document_type, expiry_date");
+      const { data, error } = await supabase.from("driver_documents").select("driver_id, document_type, expiry_date, status, document_number");
       if (error) throw error;
       return data || [];
     },
