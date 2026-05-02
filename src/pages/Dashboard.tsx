@@ -49,6 +49,37 @@ export default function Dashboard() {
     enabled: !!profile?.organisation_id,
   });
 
+  const { data: allDriverDocs } = useQuery({
+    queryKey: ["all_driver_documents", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("driver_documents").select("driver_id, document_type, expiry_date");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: allToolboxTalks } = useQuery({
+    queryKey: ["all_toolbox_talks", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("toolbox_talks").select("driver_id, date_conducted");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: organisation } = useQuery({
+    queryKey: ["organisation_compliance_settings", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organisations").select("compliance_settings").eq("id", profile!.organisation_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
