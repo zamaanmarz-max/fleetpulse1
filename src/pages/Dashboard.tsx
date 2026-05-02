@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
 import { recalculateAllVehicleCompliance } from "@/lib/compliance";
+import { checkDriverCompliance } from "@/lib/driverCompliance";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +50,37 @@ export default function Dashboard() {
     enabled: !!profile?.organisation_id,
   });
 
+  const { data: allDriverDocs } = useQuery({
+    queryKey: ["all_driver_documents", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("driver_documents").select("driver_id, document_type, expiry_date");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: allToolboxTalks } = useQuery({
+    queryKey: ["all_toolbox_talks", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("toolbox_talks").select("driver_id, date_conducted");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const { data: organisation } = useQuery({
+    queryKey: ["organisation_compliance_settings", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organisations").select("compliance_settings").eq("id", profile!.organisation_id!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
@@ -87,16 +119,41 @@ export default function Dashboard() {
   }, [fetchInsights]);
 
   const now = new Date();
-  const totalDrivers = (drivers || []).length;
-  const driversWithExpired = (drivers || []).filter(d => {
-    const licExpired = d.licence_expiry && new Date(d.licence_expiry) < now;
-    const prdpExpired = d.prdp_expiry && new Date(d.prdp_expiry) < now;
-    return licExpired || prdpExpired;
-  }).length;
-  const driverCompliance = totalDrivers > 0 ? Math.round(((totalDrivers - driversWithExpired) / totalDrivers) * 100) : 100;
+  const nowMs = now.getTime();
+  const complianceSettings = (organisation as any)?.compliance_settings || {};
+
+  // Only actual drivers count toward driver compliance %
+  const actualDrivers = (drivers || []).filter(d => (d.staff_type || "driver") === "driver");
+  const totalDrivers = actualDrivers.length;
+
+  const driverComplianceResults = actualDrivers.map(d => {
+    const docs = (allDriverDocs || []).filter(doc => doc.driver_id === d.id).map(doc => {
+      const days = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date).getTime() - nowMs) / 86400000) : 999;
+      return {
+        document_type: doc.document_type,
+        expiry_date: doc.expiry_date,
+        calcStatus: doc.expiry_date ? (days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid") : "missing",
+      };
+    });
+    const talks = (allToolboxTalks || []).filter(t => t.driver_id === d.id).map(t => ({ date_conducted: t.date_conducted as string }));
+    return checkDriverCompliance(
+      { licence_expiry: d.licence_expiry, prdp_expiry: d.prdp_expiry, licence_number: d.licence_number, prdp_number: d.prdp_number },
+      docs,
+      talks,
+      complianceSettings
+    );
+  });
+
+  const compliantDrivers = driverComplianceResults.filter(r => r.isCompliant).length;
+  const nonCompliantDrivers = totalDrivers - compliantDrivers;
+  const driverCompliance = totalDrivers > 0 ? Math.round((compliantDrivers / totalDrivers) * 100) : 0;
+
+  // Keep `driversWithExpired` semantics for the existing alert banner — now means non-compliant drivers
+  const driversWithExpired = nonCompliantDrivers;
 
   const vehicleScore = stats?.complianceScore ?? 0;
   const combinedScore = totalDrivers > 0 ? Math.round((vehicleScore + driverCompliance) / 2) : vehicleScore;
+
 
   // Build critical items list
   const criticalItems: { type: string; label: string; detail: string; link: string; severity: number }[] = [];

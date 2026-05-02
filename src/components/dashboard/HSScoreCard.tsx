@@ -32,23 +32,38 @@ export function HSScoreCard() {
   });
 
   const now = Date.now();
+  const currentYear = new Date().getFullYear();
 
   const driverIds = (data?.drivers || []).map(d => d.id);
   const totalDrivers = driverIds.length || 1;
 
+  // Driver counts as having a valid medical only when at least one Medical Certificate
+  // has a future expiry_date. NULL/missing = NOT valid.
   const validMedical = driverIds.filter(id => {
-    const med = (data?.docs || []).find(x => x.driver_id === id && x.document_type === "Medical Certificate");
-    if (!med || !med.expiry_date) return false;
-    return new Date(med.expiry_date).getTime() > now;
+    return (data?.docs || []).some(x =>
+      x.driver_id === id &&
+      x.document_type === "Medical Certificate" &&
+      x.expiry_date &&
+      new Date(x.expiry_date).getTime() > now
+    );
   }).length;
 
+  // Toolbox talk counts only if at least one was conducted in the current calendar year.
   const recentTalks = driverIds.filter(id => {
-    const ts = (data?.talks || []).filter(x => x.driver_id === id).map(x => new Date(x.date_conducted).getTime());
-    if (ts.length === 0) return false;
-    return Math.max(...ts) > now - 30 * 86400000;
+    return (data?.talks || []).some(x => {
+      if (x.driver_id !== id || !x.date_conducted) return false;
+      const d = new Date(x.date_conducted);
+      return !isNaN(d.getTime()) && d.getFullYear() === currentYear;
+    });
   }).length;
 
-  const validCriminal = driverIds.filter(id => (data?.docs || []).some(x => x.driver_id === id && x.document_type === "Criminal Background Check")).length;
+  // Criminal check requires a record with a future expiry. NULL = not valid.
+  const validCriminal = driverIds.filter(id => (data?.docs || []).some(x =>
+    x.driver_id === id &&
+    x.document_type === "Criminal Background Check" &&
+    x.expiry_date &&
+    new Date(x.expiry_date).getTime() > now
+  )).length;
 
   const totalVehicles = (data?.vehicles || []).length || 1;
   const lastInsp = new Map<string, string>();
@@ -95,7 +110,7 @@ export function HSScoreCard() {
       {open && (
         <div className="mt-4 space-y-2 text-xs">
           <Row label="Drivers with valid medical" pct={pcts.medical} />
-          <Row label="Drivers with recent toolbox talk (30d)" pct={pcts.talks} />
+          <Row label="Drivers with toolbox talk this year" pct={pcts.talks} />
           <Row label="Drivers with criminal check" pct={pcts.criminal} />
           <Row label="Vehicles inspected in last 90 days" pct={pcts.inspections} />
           <Row label="Damage items resolved" pct={pcts.damage} />

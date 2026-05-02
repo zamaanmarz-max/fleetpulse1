@@ -65,14 +65,20 @@ export function checkDriverCompliance(
   const issues: DriverComplianceResult["issues"] = [];
   const breakdown: DriverComplianceResult["breakdown"] = [];
   let score = 100;
+  // Track which of the 4 mandatory conditions pass.
+  // A driver is only compliant when ALL are TRUE.
+  let licenceOk = false;
+  let prdpOk = false;
+  let medicalOk = false;
+  let toolboxOk = false;
 
-  // ---- Licence: check drivers table OR driver_documents ----
-  const licenceKeywords = ["licence", "license"]; // matches "drivers_licence", "Driver's Licence", "license"
+  // ---- Licence: must have a future-dated expiry from drivers table OR documents ----
+  const licenceKeywords = ["licence", "license"];
   const licenceFromDoc = futureValidDoc(documents, licenceKeywords, now);
   const driverLicenceFuture = driver.licence_expiry && new Date(driver.licence_expiry).getTime() > now;
 
   if (licenceFromDoc || driverLicenceFuture) {
-    // Compliant — but still flag "expiring soon" using whichever expiry is latest
+    licenceOk = true;
     const effectiveExpiry = [
       driver.licence_expiry,
       latestExpiryDoc(documents, licenceKeywords)?.expiry_date,
@@ -85,24 +91,24 @@ export function checkDriverCompliance(
       }
     }
   } else {
-    // Not compliant: missing or expired
     const anyLicenceDoc = latestExpiryDoc(documents, licenceKeywords);
     const hasAnyExpiry = driver.licence_expiry || anyLicenceDoc?.expiry_date;
-    if (!hasAnyExpiry || (!driver.licence_number && !anyLicenceDoc)) {
+    if (!hasAnyExpiry) {
       issues.push({ field: "Driver's Licence", status: "missing" });
-      score -= 35; breakdown.push({ label: "No driver's licence on file", deduction: 35, severity: "critical" });
+      score -= 35; breakdown.push({ label: "Licence expiry date not captured (NON-COMPLIANT)", deduction: 35, severity: "critical" });
     } else {
       issues.push({ field: "Driver's Licence", status: "expired" });
-      score -= 35; breakdown.push({ label: "Driver's licence expired", deduction: 35, severity: "critical" });
+      score -= 35; breakdown.push({ label: "Driver's licence expired (NON-COMPLIANT)", deduction: 35, severity: "critical" });
     }
   }
 
-  // ---- PrDP: check drivers table OR driver_documents ----
+  // ---- PrDP: must have a future-dated expiry ----
   const prdpKeywords = ["prdp", "professionaldriving"];
   const prdpFromDoc = futureValidDoc(documents, prdpKeywords, now);
   const driverPrdpFuture = driver.prdp_expiry && new Date(driver.prdp_expiry).getTime() > now;
 
   if (prdpFromDoc || driverPrdpFuture) {
+    prdpOk = true;
     const effectiveExpiry = [
       driver.prdp_expiry,
       latestExpiryDoc(documents, prdpKeywords)?.expiry_date,
@@ -117,28 +123,31 @@ export function checkDriverCompliance(
   } else {
     const anyPrdpDoc = latestExpiryDoc(documents, prdpKeywords);
     const hasAnyExpiry = driver.prdp_expiry || anyPrdpDoc?.expiry_date;
-    if (!hasAnyExpiry || (!driver.prdp_number && !anyPrdpDoc)) {
+    if (!hasAnyExpiry) {
       issues.push({ field: "PrDP", status: "missing" });
-      score -= 30; breakdown.push({ label: "No PrDP on file (NON-COMPLIANT)", deduction: 30, severity: "critical" });
+      score -= 30; breakdown.push({ label: "PrDP expiry date not captured (NON-COMPLIANT)", deduction: 30, severity: "critical" });
     } else {
       issues.push({ field: "PrDP", status: "expired" });
       score -= 30; breakdown.push({ label: "PrDP expired (NON-COMPLIANT)", deduction: 30, severity: "critical" });
     }
   }
 
-  // ---- Medical Certificate ----
-  // Missing OR expired = NON-COMPLIANT (force critical band)
+  // ---- Medical Certificate: must have at least 1 with status=valid ----
   const medicalKeywords = ["medical"];
-  const medical = documents.find(d => matchesType(d.document_type, medicalKeywords));
-  if (!medical) {
+  const medicals = documents.filter(d => matchesType(d.document_type, medicalKeywords));
+  const validMedical = medicals.find(m => m.calcStatus === "valid" || m.calcStatus === "expiring");
+  if (!medicals.length) {
     issues.push({ field: "Medical Certificate", status: "missing" });
-    score -= 20; breakdown.push({ label: "No medical certificate (NON-COMPLIANT)", deduction: 20, severity: "critical" });
-  } else if (medical.calcStatus === "expired") {
+    score -= 20; breakdown.push({ label: "Medical certificate not captured (NON-COMPLIANT)", deduction: 20, severity: "critical" });
+  } else if (!validMedical) {
     issues.push({ field: "Medical Certificate", status: "expired" });
     score -= 20; breakdown.push({ label: "Medical certificate expired (NON-COMPLIANT)", deduction: 20, severity: "critical" });
-  } else if (medical.calcStatus === "expiring") {
-    issues.push({ field: "Medical Certificate", status: "expiring" });
-    score -= 5; breakdown.push({ label: "Medical certificate expiring soon", deduction: 5, severity: "warning" });
+  } else {
+    medicalOk = true;
+    if (validMedical.calcStatus === "expiring") {
+      issues.push({ field: "Medical Certificate", status: "expiring" });
+      score -= 5; breakdown.push({ label: "Medical certificate expiring soon", deduction: 5, severity: "warning" });
+    }
   }
 
   if (complianceSettings.criminal_background_checks !== false) {
@@ -153,34 +162,58 @@ export function checkDriverCompliance(
     }
   }
 
+  // ---- Toolbox Talk: must have at least 1 in the current calendar year ----
   if (complianceSettings.toolbox_talks !== false) {
+    const currentYear = new Date().getFullYear();
+    const talksThisYear = toolboxTalks.filter(t => {
+      const d = new Date(t.date_conducted);
+      return !isNaN(d.getTime()) && d.getFullYear() === currentYear;
+    });
     if (toolboxTalks.length === 0) {
       issues.push({ field: "Toolbox Talk", status: "missing" });
-      score -= 15; breakdown.push({ label: "No toolbox talk on record", deduction: 15, severity: "critical" });
+      score -= 15; breakdown.push({ label: "No toolbox talk on record (NON-COMPLIANT)", deduction: 15, severity: "critical" });
+    } else if (talksThisYear.length === 0) {
+      issues.push({ field: "Toolbox Talk", status: "missing" });
+      score -= 15; breakdown.push({ label: `No toolbox talk in ${currentYear} (NON-COMPLIANT)`, deduction: 15, severity: "critical" });
     } else {
+      toolboxOk = true;
       const latest = toolboxTalks.reduce((m, t) => Math.max(m, new Date(t.date_conducted).getTime()), 0);
       const latestDate = new Date(latest).toISOString().split("T")[0];
       const status = calcToolboxStatus(latestDate);
       if (status === "expired") {
         issues.push({ field: "Toolbox Talk", status: "expired" });
-        score -= 10; breakdown.push({ label: "Toolbox talk expired", deduction: 10, severity: "critical" });
+        score -= 10; breakdown.push({ label: "Latest toolbox talk expired", deduction: 10, severity: "critical" });
       } else if (status === "expiring") {
         issues.push({ field: "Toolbox Talk", status: "expiring" });
       }
     }
+  } else {
+    toolboxOk = true; // org disabled this requirement
   }
 
   score = Math.max(0, Math.min(100, score));
+
+  // STRICT: A driver is only compliant when ALL 4 mandatory conditions are TRUE.
+  // Any missing/expired licence, PrDP, medical, or toolbox-this-year forces NON-COMPLIANT.
+  const allMandatoryOk = licenceOk && prdpOk && medicalOk && toolboxOk;
+
   let status: "compliant" | "warning" | "critical";
-  if (score >= 80) status = "compliant";
-  else if (score >= 50) status = "warning";
-  else status = "critical";
+  if (!allMandatoryOk) {
+    status = "critical";
+  } else if (score >= 80) {
+    status = "compliant";
+  } else if (score >= 50) {
+    status = "warning";
+  } else {
+    status = "critical";
+  }
 
   return {
-    isCompliant: issues.length === 0,
+    isCompliant: allMandatoryOk && issues.filter(i => i.status !== "expiring").length === 0,
     status,
     score,
     issues,
     breakdown,
   };
 }
+
