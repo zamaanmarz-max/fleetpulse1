@@ -83,6 +83,42 @@
     textarea {
       font-size: 16px !important;
     }
+
+    /* Make all tables horizontally scrollable on mobile */
+    table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      white-space: nowrap;
+    }
+
+    thead, tbody, tfoot {
+      display: block;
+    }
+
+    tr {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    /* Table wrapper scroll */
+    .glass-card:has(table),
+    div:has(> table) {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Modals full screen on mobile */
+    .fixed.w-\[450px\],
+    .fixed.w-\[450px\] {
+      width: 100vw !important;
+    }
+
+    /* Forms full width */
+    .w-\[450px\] {
+      width: 100% !important;
+    }
   }
 }
 

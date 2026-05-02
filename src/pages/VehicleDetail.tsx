@@ -767,7 +767,7 @@ export default function VehicleDetail() {
               <div className="flex flex-wrap gap-2">{missingCerts.map((c: string) => <span key={c} className="bg-destructive/20 text-destructive text-xs font-semibold px-2 py-1 rounded">{c}</span>)}</div>
             </div>
           )}
-          <div className="glass-card overflow-hidden">
+          <div className="glass-card overflow-x-auto">
             {(certificates || []).length === 0 ? (
               <p className="text-sm text-muted-foreground p-6 text-center">No certificates found.</p>
             ) : (
@@ -821,7 +821,7 @@ export default function VehicleDetail() {
       {activeTab === "inspections" && (
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Inspections ({(inspections || []).length})</h3>
-          <div className="glass-card overflow-hidden">
+          <div className="glass-card overflow-x-auto">
             {(inspections || []).length === 0 ? (
               <p className="text-sm text-muted-foreground p-6 text-center">No inspections recorded.</p>
             ) : (
@@ -856,7 +856,7 @@ export default function VehicleDetail() {
             <h3 className="text-sm font-semibold text-foreground">Fines ({(fines || []).length})</h3>
             {totalOutstandingFines > 0 && <span className="text-sm font-bold text-destructive">Outstanding: R {totalOutstandingFines.toLocaleString()}</span>}
           </div>
-          <div className="glass-card overflow-hidden">
+          <div className="glass-card overflow-x-auto">
             {(fines || []).length === 0 ? (
               <p className="text-sm text-muted-foreground p-6 text-center">No fines recorded.</p>
             ) : (
