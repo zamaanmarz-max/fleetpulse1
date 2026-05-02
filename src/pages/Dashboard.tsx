@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
 import { recalculateAllVehicleCompliance } from "@/lib/compliance";
+import { checkDriverCompliance } from "@/lib/driverCompliance";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
