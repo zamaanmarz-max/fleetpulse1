@@ -314,7 +314,7 @@ export default function Vehicles() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex flex-col md:flex-row">
           <div className="hidden md:block flex-1 bg-background/50" onClick={() => setShowForm(false)} />
           <div className="w-full md:w-[450px] bg-card border-l border-border p-4 md:p-6 overflow-y-auto space-y-4 max-h-screen">
             <div className="flex items-center justify-between">

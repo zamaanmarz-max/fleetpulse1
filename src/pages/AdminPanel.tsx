@@ -159,9 +159,9 @@ export default function AdminPanel() {
 
       {/* Add Client Form */}
       {showAddClient && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex flex-col md:flex-row">
           <div className="flex-1 bg-background/50" onClick={() => setShowAddClient(false)} />
-          <div className="w-[450px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
+          <div className="w-full md:w-[450px] bg-card border-l border-border p-4 md:p-6 overflow-y-auto space-y-4 max-h-screen md:max-h-full">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-foreground">Add New Client</h2>
               <button onClick={() => setShowAddClient(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>

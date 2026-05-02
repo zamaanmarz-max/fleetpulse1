@@ -141,7 +141,7 @@ export default function ComplianceTemplates() {
 
       {/* Create/Edit Panel */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex flex-col md:flex-row">
           <div className="flex-1 bg-background/50" onClick={() => setShowCreate(false)} />
           <div className="w-[480px] bg-card border-l border-border p-6 overflow-y-auto space-y-4">
             <div className="flex items-center justify-between">
