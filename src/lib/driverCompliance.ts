@@ -65,6 +65,12 @@ export function checkDriverCompliance(
   const issues: DriverComplianceResult["issues"] = [];
   const breakdown: DriverComplianceResult["breakdown"] = [];
   let score = 100;
+  // Track which of the 4 mandatory conditions pass.
+  // A driver is only compliant when ALL are TRUE.
+  let licenceOk = false;
+  let prdpOk = false;
+  let medicalOk = false;
+  let toolboxOk = false;
 
   // ---- Licence: check drivers table OR driver_documents ----
   const licenceKeywords = ["licence", "license"]; // matches "drivers_licence", "Driver's Licence", "license"
