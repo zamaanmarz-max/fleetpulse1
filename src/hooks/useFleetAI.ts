@@ -26,7 +26,7 @@ async function callFleetAI(
 
   if (profileError || !profile?.organisation_id) {
     console.error("[FleetAI] Missing organisation_id for user", session.user.id, profileError);
-    return "Session error — please refresh.";
+    return "Your account is not linked to a fleet organisation yet. Please contact your administrator or log in with your main account.";
   }
 
   const requestBody = {
