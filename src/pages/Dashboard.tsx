@@ -204,21 +204,21 @@ export default function Dashboard() {
   const vehicleBreakdown = (vehicles || []).map(v => {
     const kmUntil = (v.next_service_due_km ?? 0) - (v.current_odometer_km ?? 0);
     let status = v.compliance_status || "compliant";
-    if (kmUntil < 0) status = "critical";
-    else if (kmUntil < 2000) status = "warning";
     return { ...v, effectiveStatus: status, kmUntil };
   }).filter(v => v.effectiveStatus !== "compliant").sort((a, b) => a.kmUntil - b.kmUntil);
 
   const driverBreakdown = (drivers || []).map(d => {
-    const licDays = d.licence_expiry ? Math.ceil((new Date(d.licence_expiry).getTime() - now.getTime()) / 86400000) : null;
-    const prdpDays = d.prdp_expiry ? Math.ceil((new Date(d.prdp_expiry).getTime() - now.getTime()) / 86400000) : null;
-    const issues: string[] = [];
-    let status = "compliant";
-    if (licDays !== null && licDays <= 0) { issues.push(`Licence expired ${Math.abs(licDays)}d ago`); status = "critical"; }
-    else if (licDays !== null && licDays <= 30) { issues.push(`Licence expiring in ${licDays}d`); if (status !== "critical") status = "warning"; }
-    if (prdpDays !== null && prdpDays <= 0) { issues.push(`PrDP expired ${Math.abs(prdpDays)}d ago`); status = "critical"; }
-    else if (prdpDays !== null && prdpDays <= 30) { issues.push(`PrDP expiring in ${prdpDays}d`); if (status !== "critical") status = "warning"; }
-    return { ...d, issues, driverStatus: status, licDays, prdpDays };
+    const isDriver = (d.staff_type || "driver") === "driver";
+    const docs = (allDriverDocs || []).filter((doc: any) => doc.driver_id === d.id).map((doc: any) => {
+      const days = doc.expiry_date ? Math.ceil((new Date(doc.expiry_date).getTime() - now.getTime()) / 86400000) : 999;
+      return { ...doc, calcStatus: days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid" };
+    });
+    const talks = (allToolboxTalks || []).filter((t: any) => t.driver_id === d.id).map((t: any) => ({ date_conducted: t.date_conducted as string }));
+    const compliance = isDriver
+      ? checkDriverCompliance({ licence_expiry: d.licence_expiry, prdp_expiry: d.prdp_expiry, licence_number: d.licence_number, prdp_number: d.prdp_number }, docs, talks, complianceSettings)
+      : { isCompliant: true, status: "compliant" as const, score: 100, issues: [], breakdown: [] };
+    const issues = compliance.issues.map(i => `${i.field} — ${i.status}`);
+    return { ...d, issues, driverStatus: compliance.status, compliance };
   });
 
   const handleCardClick = (panel: PanelType) => setActivePanel(prev => prev === panel ? null : panel);

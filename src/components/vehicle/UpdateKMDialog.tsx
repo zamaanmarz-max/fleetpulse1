@@ -3,6 +3,7 @@ import { Loader2, X, Gauge } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { recalculateAllVehicleCompliance } from "@/lib/compliance";
 
 interface Props {
   vehicleId: string;
@@ -48,7 +49,10 @@ export function UpdateKMDialog({ vehicleId, organisationId, currentKm, registrat
     });
     setSaving(false);
     toast.success(`KM updated for ${registration}`);
-    onSaved();
+    // Recalculate compliance scores so all pages show consistent status
+    recalculateAllVehicleCompliance().then(() => {
+      onSaved();
+    });
     onClose();
   };
 
