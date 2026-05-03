@@ -1,6 +1,6 @@
 import { Search, Plus, Loader2, X, IdCard, Stethoscope, BadgeCheck, MessageSquare } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDrivers } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +23,8 @@ export default function Drivers() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlFilter = searchParams.get("filter"); // 'non-compliant', 'warning', etc
 
   const { data: allDocuments } = useQuery({
     queryKey: ["all_driver_documents", profile?.organisation_id],
@@ -73,7 +75,8 @@ export default function Drivers() {
       (d.full_name.toLowerCase().includes(search.toLowerCase()) ||
       (d.id_number || "").includes(search) ||
       (d.licence_code || "").toLowerCase().includes(search.toLowerCase())) &&
-      (!branchFilter || d.branch_id === branchFilter)
+      (!branchFilter || d.branch_id === branchFilter) &&
+      (!urlFilter || urlFilter !== "non-compliant" || !d.compliance.isCompliant)
   );
 
   const [form, setForm] = useState({

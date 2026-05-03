@@ -233,9 +233,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         <StatCard icon={Truck} label="Active Vehicles" value={statsLoading ? "..." : stats?.totalVehicles ?? 0} color="text-primary" />
         <StatCard icon={ShieldCheck} label="Fleet Score" value={statsLoading ? "..." : `${combinedScore}%`} color="text-primary" onClick={() => handleCardClick("fleet")} active={activePanel === "fleet"} />
-        <StatCard icon={Users} label="Driver Compliance" value={statsLoading ? "..." : `${driverCompliance}%`} color={driversWithExpired > 0 ? "text-destructive" : "text-primary"} highlight={driversWithExpired > 0} onClick={() => handleCardClick("drivers")} active={activePanel === "drivers"} />
-        <StatCard icon={FileWarning} label="Expiring This Month" value={statsLoading ? "..." : expiringCertsList.length} color="text-warning" onClick={() => handleCardClick("expiring")} active={activePanel === "expiring"} />
-        <StatCard icon={AlertTriangle} label="Critical Alerts" value={statsLoading ? "..." : trueAlertCount} color="text-destructive" highlight={trueAlertCount > 0} onClick={() => handleCardClick("critical")} active={activePanel === "critical"} />
+        <StatCard icon={Users} label="Driver Compliance" value={statsLoading ? "..." : `${driverCompliance}%`} color={driversWithExpired > 0 ? "text-destructive" : "text-primary"} highlight={driversWithExpired > 0} onClick={() => navigate("/drivers?filter=non-compliant")} active={activePanel === "drivers"} />
+        <StatCard icon={FileWarning} label="Expiring This Month" value={statsLoading ? "..." : expiringCertsList.length} color="text-warning" onClick={() => navigate("/certificates?filter=expiring")} active={activePanel === "expiring"} />
+        <StatCard icon={AlertTriangle} label="Critical Alerts" value={statsLoading ? "..." : trueAlertCount} color="text-destructive" highlight={trueAlertCount > 0} onClick={() => navigate("/vehicles?filter=critical")} active={activePanel === "critical"} />
       </div>
 
       {activePanel && (

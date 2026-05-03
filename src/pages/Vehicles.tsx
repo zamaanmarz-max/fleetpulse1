@@ -1,6 +1,6 @@
 import { Search, Plus, Download, Loader2, X, Gauge } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVehicles, useCertificates } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +41,8 @@ export default function Vehicles() {
   });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlFilter = searchParams.get("filter"); // 'critical', 'warning', 'expired'
 
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
@@ -53,7 +55,8 @@ export default function Vehicles() {
       (v.registration_number.toLowerCase().includes(search.toLowerCase()) ||
       (v.fleet_number || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.make || "").toLowerCase().includes(search.toLowerCase())) &&
-      (!branchFilter || v.branch_id === branchFilter)
+      (!branchFilter || v.branch_id === branchFilter) &&
+      (!urlFilter || v.compliance_status === urlFilter || (urlFilter === "non-compliant" && v.compliance_status !== "compliant"))
   ).sort((a, b) => {
     const numA = parseInt(a.fleet_number || "0", 10) || 0;
     const numB = parseInt(b.fleet_number || "0", 10) || 0;
