@@ -293,29 +293,70 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
 async function buildFleetSnapshot(supabase: any, orgId: string): Promise<string> {
   const today = new Date().toISOString().split("T")[0];
-  const [vehicles, certs, drivers, fines, statuses] = await Promise.all([
-    supabase.from("vehicles").select("registration_number, fleet_number, make, model, current_odometer_km, next_service_due_km, compliance_status").eq("organisation_id", orgId).limit(200),
-    supabase.from("certificates").select("certificate_type, expiry_date, status, days_until_expiry, vehicle_id").eq("organisation_id", orgId).limit(300),
-    supabase.from("drivers").select("full_name, licence_expiry, prdp_expiry, demerit_points, employment_status").eq("organisation_id", orgId).limit(200),
-    supabase.from("fines").select("fine_number, amount, payment_status, offence_date").eq("organisation_id", orgId).order("offence_date", { ascending: false }).limit(50),
-    supabase.from("vehicle_status").select("vehicle_id, status, estimated_return_date").eq("organisation_id", orgId).limit(200),
+  const [vehicles, certs, drivers, fines, statuses, damages, trackers, driverDocs] = await Promise.all([
+    supabase.from("vehicles").select("id, registration_number, fleet_number, make, model, year, vehicle_type, current_odometer_km, last_service_km, next_service_due_km, compliance_status, compliance_score, km_last_updated_at").eq("organisation_id", orgId).limit(200),
+    // Join vehicle registration directly so AI never has to guess
+    supabase.from("certificates").select("certificate_type, certificate_number, expiry_date, status, vehicle_id, vehicles(registration_number, fleet_number)").eq("organisation_id", orgId).limit(300),
+    supabase.from("drivers").select("id, full_name, licence_expiry, prdp_expiry, licence_code, demerit_points, employment_status, phone, branch_id").eq("organisation_id", orgId).limit(200),
+    supabase.from("fines").select("fine_number, amount, payment_status, offence_date, offence_description, vehicle_id, vehicles(registration_number)").eq("organisation_id", orgId).order("offence_date", { ascending: false }).limit(50),
+    supabase.from("vehicle_status").select("vehicle_id, status, workshop_name, estimated_return_date, vehicles(registration_number)").eq("organisation_id", orgId).limit(200),
+    // Damage items with vehicle registration AND driver name
+    supabase.from("damage_items").select("id, vehicle_id, location, damage_type, severity, description, resolved, repair_cost, repair_date, reported_by_driver_id, reported_by_name, requires_immediate_action, vehicles(registration_number, fleet_number)").eq("organisation_id", orgId).limit(200),
+    // Service trackers
+    supabase.from("vehicle_service_trackers").select("tracker_name, tracking_type, last_done_date, last_done_value, next_due_date, next_due_value, vehicle_id, vehicles(registration_number)").eq("organisation_id", orgId).limit(200),
+    // Driver documents for compliance
+    supabase.from("driver_documents").select("driver_id, document_type, expiry_date, status").limit(300),
   ]);
+
+  // Build driver damage summary with correct registrations
+  const damageData = (damages.data || []).map((d: any) => ({
+    registration: d.vehicles?.registration_number || "Unknown",
+    fleet: d.vehicles?.fleet_number || "",
+    location: d.location,
+    type: d.damage_type,
+    severity: d.severity,
+    description: d.description,
+    resolved: d.resolved,
+    repair_cost: d.repair_cost,
+    reported_by: d.reported_by_name,
+    reported_by_driver_id: d.reported_by_driver_id,
+    urgent: d.requires_immediate_action,
+  }));
+
+  // Build per-driver damage summary
+  const driverDamageSummary = (drivers.data || []).map((d: any) => {
+    const driverDamages = damageData.filter((dm: any) => dm.reported_by_driver_id === d.id);
+    const totalCost = driverDamages.reduce((s: number, dm: any) => s + (Number(dm.repair_cost) || 0), 0);
+    return {
+      driver: d.full_name,
+      damages_caused: driverDamages.length,
+      total_repair_cost: totalCost,
+      vehicles_damaged: [...new Set(driverDamages.map((dm: any) => dm.registration))],
+      damage_details: driverDamages,
+    };
+  }).filter((d: any) => d.damages_caused > 0);
 
   return `# Fleet Snapshot (today ${today})
 Vehicles (${vehicles.data?.length || 0}): ${JSON.stringify(vehicles.data || [])}
-Certificates (${certs.data?.length || 0}): ${JSON.stringify(certs.data || [])}
+Certificates with vehicle registrations (${certs.data?.length || 0}): ${JSON.stringify(certs.data || [])}
 Drivers (${drivers.data?.length || 0}): ${JSON.stringify(drivers.data || [])}
+Driver Documents: ${JSON.stringify(driverDocs.data || [])}
 Recent Fines (${fines.data?.length || 0}): ${JSON.stringify(fines.data || [])}
-Vehicle Statuses (${statuses.data?.length || 0}): ${JSON.stringify(statuses.data || [])}`;
+Vehicle Statuses: ${JSON.stringify(statuses.data || [])}
+Damage Items with EXACT vehicle registrations (${damages.data?.length || 0}): ${JSON.stringify(damageData)}
+Driver Damage Summary (who caused what): ${JSON.stringify(driverDamageSummary)}
+Service Trackers: ${JSON.stringify(trackers.data || [])}
+
+IMPORTANT: Always use the exact registration_number from the data above. Never guess or modify registrations.`;
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const ANTHROPIC_API_KEY = Deno.env.get("MARZ KEY");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || Deno.env.get("CLAUDE_API_KEY") || Deno.env.get("MARZ KEY");
     if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "MARZ KEY secret is not configured" }), {
+      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY secret is not configured in Supabase Edge Function secrets" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
