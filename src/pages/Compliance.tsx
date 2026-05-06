@@ -215,7 +215,19 @@ export default function Compliance() {
                   <div className="bg-secondary/50 rounded-lg p-2.5 text-xs text-muted-foreground space-y-1">
                     <div className="flex justify-between"><span>Last logged:</span><span className="text-foreground">{latest.completion_date}</span></div>
                     <div className="flex justify-between"><span>By:</span><span className="text-foreground">{latest.completed_by}</span></div>
-                    {latest.file_url && <p className="text-primary">📄 PDF attached</p>}
+                    {latest.file_url && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+                          const url = `${supabaseUrl}/storage/v1/object/public/certificates/${latest.file_url}`;
+                          window.open(url, "_blank");
+                        }}
+                        className="text-primary text-xs flex items-center gap-1 hover:underline"
+                      >
+                        📄 View attached PDF
+                      </button>
+                    )}
                     {latest.notes && <p className="text-foreground/70 truncate">"{latest.notes}"</p>}
                   </div>
                 ) : (

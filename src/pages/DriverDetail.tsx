@@ -583,17 +583,28 @@ export default function DriverDetail() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 flex-wrap">
             <MessageSquare className="w-5 h-5" /> Toolbox Talks ({(toolboxTalks || []).length})
-            <span
-              className={`text-xs font-semibold px-2 py-0.5 rounded-full ml-2 ${
-                yearProgress.onTrack ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
-              }`}
-              title={`Expected by now: ${yearProgress.expected}`}
-            >
-              {yearProgress.done}/{yearProgress.required} talks done this year
-            </span>
+            {(() => {
+              const thisMonth = new Date().toISOString().substring(0, 7);
+              const thisMonthCount = (toolboxTalks || []).filter(t => t.date_conducted?.startsWith(thisMonth)).length;
+              const done12 = (toolboxTalks || []).filter(t => {
+                const d = new Date(t.date_conducted);
+                const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 12);
+                return d >= cutoff;
+              }).length;
+              return (
+                <>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${thisMonthCount >= 1 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                    This month: {thisMonthCount} talk{thisMonthCount !== 1 ? "s" : ""}
+                  </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${done12 >= 12 ? "bg-success/20 text-success" : "bg-warning/20 text-warning"}`}>
+                    Last 12 months: {done12}/12
+                  </span>
+                </>
+              );
+            })()}
             {talkDays !== null && (
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${talkDays <= 365 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
-                {talkDays <= 365 ? `Last: ${talkDays}d ago` : `Overdue: ${talkDays}d ago`}
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                Last done: {talkDays}d ago
               </span>
             )}
           </h3>

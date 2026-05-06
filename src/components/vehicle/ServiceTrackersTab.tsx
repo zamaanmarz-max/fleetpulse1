@@ -17,11 +17,18 @@ interface Props {
 }
 
 const PRESETS = [
-  { name: "Tyre Rotation", type: "km" as const, interval: 10000 },
-  { name: "Oil Change", type: "km" as const, interval: 5000 },
+  { name: "Engine Service (20k)", type: "km" as const, interval: 20000 },
+  { name: "Oil & Filter Change", type: "km" as const, interval: 10000 },
+  { name: "Tyre Rotation", type: "km" as const, interval: 20000 },
   { name: "Brake Inspection", type: "km" as const, interval: 20000 },
+  { name: "Wheel Alignment", type: "km" as const, interval: 40000 },
+  { name: "COF (Roadworthy)", type: "days" as const, interval: 365 },
+  { name: "Fire Extinguisher Service", type: "days" as const, interval: 365 },
+  { name: "Tail Lift Service + Load Test", type: "days" as const, interval: 365 },
+  { name: "Reefer / Fridge Service", type: "hours" as const, interval: 500 },
   { name: "Fifth Wheel Greasing", type: "days" as const, interval: 90 },
-  { name: "Fridge Service", type: "hours" as const, interval: 500 },
+  { name: "Air Filter Replacement", type: "km" as const, interval: 40000 },
+  { name: "Coolant Flush", type: "km" as const, interval: 60000 },
 ];
 
 const statusBadge: Record<string, string> = {

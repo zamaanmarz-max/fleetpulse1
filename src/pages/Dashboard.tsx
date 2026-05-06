@@ -6,7 +6,7 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useDashboardStats, useUpcomingExpiries, useRecentInspections, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
+import { useDashboardStats, useUpcomingExpiries, useRecentAlerts, useDrivers, useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useFleetInsights } from "@/hooks/useFleetAI";
 import { recalculateAllVehicleCompliance } from "@/lib/compliance";
 import { checkDriverCompliance } from "@/lib/driverCompliance";
@@ -16,6 +16,54 @@ import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import { ActionRequired } from "@/components/dashboard/ActionRequired";
 import { HSScoreCard } from "@/components/dashboard/HSScoreCard";
+
+function RecentDamages() {
+  const navigate = useNavigate();
+  const { data, isLoading } = useQuery({
+    queryKey: ["recent_damages_dash"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("damages")
+        .select("id, description, severity, urgency, status, created_at, vehicles(registration_number, id), drivers(full_name)")
+        .order("created_at", { ascending: false })
+        .limit(6);
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 0, refetchOnMount: "always",
+  });
+
+  if (isLoading) return <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />;
+  if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">No damages logged yet</p>;
+
+  return (
+    <div className="space-y-2">
+      {data.map(d => {
+        const vid = (d as any).vehicles?.id;
+        const reg = (d as any).vehicles?.registration_number || "Unknown";
+        const driver = (d as any).drivers?.full_name;
+        const sev = (d as any).severity || "minor";
+        return (
+          <button key={d.id} onClick={() => vid && navigate(`/vehicles/${vid}`)}
+            className="w-full flex items-center justify-between py-2 border-b border-border last:border-0 hover:opacity-80 text-left">
+            <div>
+              <p className="text-sm font-medium text-foreground">{reg}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[160px]">{(d.description || "").substring(0, 45)}</p>
+              {driver && <p className="text-xs text-primary">Driver: {driver}</p>}
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${
+                sev === "critical" ? "bg-destructive/20 text-destructive" :
+                sev === "major"    ? "bg-orange-500/20 text-orange-400" :
+                "bg-yellow-500/20 text-yellow-400"}`}>{sev}</span>
+              <span className="text-xs text-muted-foreground">{new Date(d.created_at!).toLocaleDateString("en-ZA")}</span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const conditionColors: Record<string, string> = {
   good: "bg-success/20 text-success",
@@ -31,7 +79,6 @@ export default function Dashboard() {
   const { profile } = useAuth();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: expiries } = useUpcomingExpiries();
-  const { data: inspections } = useRecentInspections();
   const { data: alerts } = useRecentAlerts();
   const { data: drivers } = useDrivers();
   const { data: vehicles } = useVehicles();
@@ -231,11 +278,11 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-        <StatCard icon={Truck} label="Active Vehicles" value={statsLoading ? "..." : stats?.totalVehicles ?? 0} color="text-primary" />
+        <StatCard icon={Truck} label="Active Vehicles" value={statsLoading ? "..." : stats?.totalVehicles ?? 0} color="text-primary" onClick={() => navigate("/vehicles")} />
         <StatCard icon={ShieldCheck} label="Fleet Score" value={statsLoading ? "..." : `${combinedScore}%`} color="text-primary" onClick={() => handleCardClick("fleet")} active={activePanel === "fleet"} />
-        <StatCard icon={Users} label="Driver Compliance" value={statsLoading ? "..." : `${driverCompliance}%`} color={driversWithExpired > 0 ? "text-destructive" : "text-primary"} highlight={driversWithExpired > 0} onClick={() => navigate("/drivers?filter=non-compliant")} active={activePanel === "drivers"} />
-        <StatCard icon={FileWarning} label="Expiring This Month" value={statsLoading ? "..." : expiringCertsList.length} color="text-warning" onClick={() => navigate("/certificates?filter=expiring")} active={activePanel === "expiring"} />
-        <StatCard icon={AlertTriangle} label="Critical Alerts" value={statsLoading ? "..." : trueAlertCount} color="text-destructive" highlight={trueAlertCount > 0} onClick={() => navigate("/vehicles?filter=critical")} active={activePanel === "critical"} />
+        <StatCard icon={Users} label="Driver Compliance" value={statsLoading ? "..." : `${driverCompliance}%`} color={driversWithExpired > 0 ? "text-destructive" : "text-primary"} highlight={driversWithExpired > 0} onClick={() => handleCardClick("drivers")} active={activePanel === "drivers"} />
+        <StatCard icon={FileWarning} label="Expiring This Month" value={statsLoading ? "..." : expiringCertsList.length} color="text-warning" onClick={() => handleCardClick("expiring")} active={activePanel === "expiring"} />
+        <StatCard icon={AlertTriangle} label="Critical Alerts" value={statsLoading ? "..." : trueAlertCount} color="text-destructive" highlight={trueAlertCount > 0} onClick={() => handleCardClick("critical")} active={activePanel === "critical"} />
       </div>
 
       {activePanel && (
@@ -402,38 +449,25 @@ export default function Dashboard() {
           <div className="space-y-2">
             {(expiries || []).map((item) => {
               const days = item.expiry_date ? Math.ceil((new Date(item.expiry_date).getTime() - Date.now()) / 86400000) : 0;
+              const vid = (item as any).vehicles?.id;
               return (
-                <div key={item.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                <button key={item.id} onClick={() => vid && navigate(`/vehicles/${vid}`)}
+                  className="w-full flex items-center justify-between py-2 border-b border-border last:border-0 hover:opacity-80 text-left">
                   <div>
                     <p className="text-sm font-medium text-foreground">{(item as any).vehicles?.registration_number || "N/A"}</p>
                     <p className="text-xs text-muted-foreground">{item.certificate_type}</p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-1 rounded ${days <= 7 ? "bg-destructive/20 text-destructive" : days <= 30 ? "bg-warning/20 text-warning" : "bg-primary/20 text-primary"}`}>{days}d</span>
-                </div>
+                </button>
               );
             })}
-            {(!expiries || expiries.length === 0) && <p className="text-sm text-muted-foreground">No upcoming expiries</p>}
+            {(!expiries || expiries.length === 0) && <p className="text-sm text-muted-foreground">No upcoming expiries in 60 days</p>}
           </div>
         </div>
 
         <div className="stat-card">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Recent Inspections</h3>
-          <div className="space-y-2">
-            {(inspections || []).map((item) => (
-              <div key={item.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{(item as any).vehicles?.registration_number || "N/A"}</p>
-                  <p className="text-xs text-muted-foreground">{item.inspection_date}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium px-2 py-1 rounded capitalize ${conditionColors[item.overall_condition || "good"]}`}>{item.overall_condition}</span>
-                  <span className="text-xs text-muted-foreground">{item.total_damage_items} items</span>
-                </div>
-              </div>
-            ))}
-            {(!inspections || inspections.length === 0) && <p className="text-sm text-muted-foreground">No recent inspections</p>}
-          </div>
-        </div>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Recent Damages</h3>
+          <RecentDamages /></div>
 
         <div className="stat-card">
           <h3 className="text-sm font-semibold text-foreground mb-3">Recent Alerts</h3>
