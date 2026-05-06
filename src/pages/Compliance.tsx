@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Shield, Plus, X, Loader2, CheckCircle, AlertTriangle, Building2, Upload } from "lucide-react";
+import { Shield, Plus, X, Loader2, CheckCircle, AlertTriangle, Building2, Upload, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
+import { ComplianceAuditTab } from "@/components/compliance/ComplianceAuditTab";
 
 const FREQUENCY_LABELS: Record<string, string> = {
   daily: "Daily", weekly: "Weekly", monthly: "Monthly",
@@ -29,6 +30,7 @@ function statusLabel(s: "completed" | "overdue" | "due") {
 
 export default function Compliance() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"registers" | "audit">("registers");
   const [selectedSite, setSelectedSite] = useState<string>("all");
   const [showLogForm, setShowLogForm] = useState<string | null>(null);
   const [showNewRegister, setShowNewRegister] = useState(false);
@@ -169,15 +171,27 @@ export default function Compliance() {
         <div className="stat-card"><p className="text-xs text-muted-foreground uppercase tracking-wider">Overdue</p><p className={`text-2xl font-bold mt-1 ${overdueCount > 0 ? "text-destructive" : "text-success"}`}>{overdueCount}</p></div>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm text-muted-foreground">Site:</span>
-        <button onClick={() => setSelectedSite("all")} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedSite === "all" ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>All Sites</button>
-        {(sites || []).map(s => (
-          <button key={s.id} onClick={() => setSelectedSite(s.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedSite === s.id ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
-            <Building2 className="w-3.5 h-3.5" /> {s.name}
-          </button>
-        ))}
+      <div className="flex gap-1 border-b border-border">
+        <button onClick={() => setActiveTab("registers")} className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === "registers" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <Shield className="w-4 h-4" /> Registers
+        </button>
+        <button onClick={() => setActiveTab("audit")} className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === "audit" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <ClipboardList className="w-4 h-4" /> OHSA Audit Score
+        </button>
       </div>
+
+      {activeTab === "audit" && <ComplianceAuditTab sites={sites || []} />}
+
+      {activeTab === "registers" && (<>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Site:</span>
+          <button onClick={() => setSelectedSite("all")} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedSite === "all" ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>All Sites</button>
+          {(sites || []).map(s => (
+            <button key={s.id} onClick={() => setSelectedSite(s.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedSite === s.id ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
+              <Building2 className="w-3.5 h-3.5" /> {s.name}
+            </button>
+          ))}
+        </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -312,6 +326,7 @@ export default function Compliance() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }

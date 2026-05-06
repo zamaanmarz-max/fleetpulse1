@@ -584,8 +584,12 @@ export default function DriverDetail() {
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 flex-wrap">
             <MessageSquare className="w-5 h-5" /> Toolbox Talks ({(toolboxTalks || []).length})
             {(() => {
-              const thisMonth = new Date().toISOString().substring(0, 7);
-              const thisMonthCount = (toolboxTalks || []).filter(t => t.date_conducted?.startsWith(thisMonth)).length;
+              // 3 talks per week per OHS Act audit requirement
+              const now = new Date();
+              const startOfWeek = new Date(now);
+              startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
+              startOfWeek.setHours(0,0,0,0);
+              const thisWeekCount = (toolboxTalks || []).filter(t => t.date_conducted && new Date(t.date_conducted) >= startOfWeek).length;
               const done12 = (toolboxTalks || []).filter(t => {
                 const d = new Date(t.date_conducted);
                 const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 12);
@@ -593,8 +597,8 @@ export default function DriverDetail() {
               }).length;
               return (
                 <>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${thisMonthCount >= 1 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
-                    This month: {thisMonthCount} talk{thisMonthCount !== 1 ? "s" : ""}
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${thisWeekCount >= 3 ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                    This week: {thisWeekCount}/3
                   </span>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${done12 >= 12 ? "bg-success/20 text-success" : "bg-warning/20 text-warning"}`}>
                     Last 12 months: {done12}/12
