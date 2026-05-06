@@ -2,8 +2,8 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, Bell, Menu,
-  FileCheck, ClipboardCheck, Receipt, BarChart3, Settings,
-  Sparkles, Warehouse, Upload, UserCog, LogOut, X,
+  FileCheck, Receipt, BarChart3, Settings, Shield,
+  Sparkles, Warehouse, Upload, UserCog, LogOut, X, Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -27,8 +27,9 @@ export function MobileNav({ onOpenAI }: { onOpenAI?: () => void }) {
   const isAdmin = profile?.role === "superadmin";
 
   const moreItems: MoreItem[] = [
+    { to: "/maintenance", icon: Wrench, label: "Maintenance" },
+    { to: "/compliance", icon: Shield, label: "Compliance" },
     { to: "/certificates", icon: FileCheck, label: "Certificates" },
-    { to: "/inspections", icon: ClipboardCheck, label: "Inspections" },
     { to: "/fines", icon: Receipt, label: "Fines & AARTO" },
     { to: "/reports", icon: BarChart3, label: "Reports" },
     { to: "/fleet-availability", icon: Warehouse, label: "Availability" },

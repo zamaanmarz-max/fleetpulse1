@@ -833,38 +833,6 @@ export default function VehicleDetail() {
         <VehiclePhotosTab vehicleId={id!} registration={vehicle.registration_number} />
       )}
 
-      {activeTab === "inspections" && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">Inspections ({(inspections || []).length})</h3>
-          <div className="glass-card overflow-x-auto">
-            {(inspections || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground p-6 text-center">No inspections recorded.</p>
-            ) : (
-              <table className="w-full">
-                <thead><tr className="border-b border-border">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Inspector</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Condition</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Items</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
-                </tr></thead>
-                <tbody>
-                  {(inspections || []).map(insp => (
-                    <tr key={insp.id} onClick={() => navigate(`/inspections/${insp.id}`)} className="border-b border-border/50 hover:bg-secondary/30 cursor-pointer transition-colors">
-                      <td className="px-4 py-3 text-sm text-foreground">{insp.inspection_date}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">{(insp as any).inspector?.full_name || "-"}</td>
-                      <td className="px-4 py-3 text-center"><span className={`text-xs font-medium px-2 py-1 rounded capitalize ${conditionColors[insp.overall_condition || "good"]}`}>{insp.overall_condition}</span></td>
-                      <td className="px-4 py-3 text-sm text-right font-mono text-foreground">{insp.total_damage_items ?? 0}</td>
-                      <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${insp.status === "completed" ? "bg-success/20 text-success" : "bg-warning/20 text-warning"}`}>{insp.status || "draft"}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
-
       {activeTab === "fines" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">

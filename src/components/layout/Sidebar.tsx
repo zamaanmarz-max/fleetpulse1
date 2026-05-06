@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
 import {
-  LayoutDashboard, Truck, Users, FileCheck, Shield, ClipboardCheck,
+  LayoutDashboard, Truck, Users, FileCheck, Shield,
   BarChart3, Settings, ChevronLeft, ChevronRight,
   Receipt, Bell, UserCog, LogOut, Upload, Warehouse, Wrench
 } from "lucide-react";
@@ -16,7 +16,6 @@ const navItems = [
   { to: "/maintenance",       icon: Wrench,          label: "Maintenance" },
   { to: "/compliance",        icon: Shield,          label: "Compliance" },
   { to: "/certificates",      icon: FileCheck,       label: "Certificates" },
-  { to: "/inspections",       icon: ClipboardCheck,  label: "Inspections" },
   { to: "/fines",             icon: Receipt,         label: "Fines & AARTO" },
   { to: "/reports",           icon: BarChart3,       label: "Reports" },
   { to: "/alerts",            icon: Bell,            label: "Alerts" },
