@@ -1,25 +1,28 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+
 import {
   LayoutDashboard, Truck, Users, FileCheck, Shield, ClipboardCheck,
   BarChart3, Settings, ChevronLeft, ChevronRight,
-  Receipt, Bell, UserCog, LogOut, Upload, Warehouse
+  Receipt, Bell, UserCog, LogOut, Upload, Warehouse, Wrench
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/vehicles", icon: Truck, label: "Vehicles" },
-  { to: "/drivers", icon: Users, label: "Drivers" },
-  { to: "/certificates", icon: FileCheck, label: "Certificates" },
-  { to: "/inspections", icon: ClipboardCheck, label: "Inspections" },
-  { to: "/fines", icon: Receipt, label: "Fines & AARTO" },
-  { to: "/reports", icon: BarChart3, label: "Reports" },
-  { to: "/alerts", icon: Bell, label: "Alerts" },
-  { to: "/fleet-availability", icon: Warehouse, label: "Availability" },
-  { to: "/import", icon: Upload, label: "Import" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/dashboard",         icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/vehicles",          icon: Truck,           label: "Vehicles" },
+  { to: "/drivers",           icon: Users,           label: "Drivers" },
+  { to: "/maintenance",       icon: Wrench,          label: "Maintenance" },
+  { to: "/compliance",        icon: Shield,          label: "Compliance" },
+  { to: "/certificates",      icon: FileCheck,       label: "Certificates" },
+  { to: "/inspections",       icon: ClipboardCheck,  label: "Inspections" },
+  { to: "/fines",             icon: Receipt,         label: "Fines & AARTO" },
+  { to: "/reports",           icon: BarChart3,       label: "Reports" },
+  { to: "/alerts",            icon: Bell,            label: "Alerts" },
+  { to: "/fleet-availability",icon: Warehouse,       label: "Availability" },
+  { to: "/import",            icon: Upload,          label: "Import" },
+  { to: "/settings",          icon: Settings,        label: "Settings" },
 ];
 
 const adminItems = [
