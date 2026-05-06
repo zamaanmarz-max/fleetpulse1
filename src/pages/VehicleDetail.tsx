@@ -6,12 +6,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Truck, ShieldCheck, FileText, ClipboardCheck,
   DollarSign, History, Loader2, AlertTriangle, X, Eye, Pencil, Save, Trash2,
-  ArrowRightLeft, Wrench, ClipboardList, FileDown,
+  ArrowRightLeft, Wrench, ClipboardList, FileDown, Camera,
 } from "lucide-react";
 import { ComplianceRequirements } from "@/components/vehicle/ComplianceRequirements";
 import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
 import { ServiceTrackersTab } from "@/components/vehicle/ServiceTrackersTab";
+import { VehicleMaintenanceTab } from "@/components/vehicle/VehicleMaintenanceTab";
+import { VehiclePhotosTab } from "@/components/vehicle/VehiclePhotosTab";
 import { ComplianceScoreCard } from "@/components/vehicle/ComplianceScoreCard";
 import { calculateVehicleComplianceScore, recalculateAllVehicleCompliance } from "@/lib/compliance";
 import { generateVehiclePdfReport } from "@/lib/vehiclePdfReport";
@@ -62,13 +64,14 @@ function kmProgressColor(km: number) {
 }
 
 const tabs = [
-  { id: "overview", label: "Overview", icon: Truck },
-  { id: "certificates", label: "Certificates", icon: FileText },
-  { id: "trackers", label: "Service Trackers", icon: ClipboardList },
-  { id: "jobcards", label: "Job Cards", icon: Wrench },
-  { id: "inspections", label: "Inspections", icon: ClipboardCheck },
-  { id: "fines", label: "Fines", icon: DollarSign },
-  { id: "history", label: "History", icon: History },
+  { id: "overview",      label: "Overview",     icon: Truck },
+  { id: "certificates",  label: "Certificates", icon: FileText },
+  { id: "trackers",      label: "Service Trackers", icon: ClipboardList },
+  { id: "jobcards",      label: "Job Cards",    icon: Wrench },
+  { id: "damages",       label: "Damages",      icon: AlertTriangle },
+  { id: "photos",        label: "Photos",       icon: Camera },
+  { id: "fines",         label: "Fines",        icon: DollarSign },
+  { id: "history",       label: "History",      icon: History },
 ];
 
 export default function VehicleDetail() {
@@ -816,6 +819,18 @@ export default function VehicleDetail() {
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === "damages" && vehicle && (
+        <VehicleMaintenanceTab
+          vehicleId={id!}
+          registration={vehicle.registration_number}
+          operationalStatus={(vehicle as any).operational_status}
+        />
+      )}
+
+      {activeTab === "photos" && vehicle && (
+        <VehiclePhotosTab vehicleId={id!} registration={vehicle.registration_number} />
       )}
 
       {activeTab === "inspections" && (
