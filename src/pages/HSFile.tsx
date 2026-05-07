@@ -68,14 +68,15 @@ export default function HSFile() {
     staleTime: 0,
   });
 
-  const { data: requirements } = useQuery({
+  const { data: requirements, refetch: refetchReqs } = useQuery({
     queryKey: ["hs_document_requirements"],
     queryFn: async () => {
       const { data, error } = await supabase.from("hs_document_requirements" as any).select("*").order("section_number").order("sort_order");
       if (error) throw error;
       return (data || []) as any[];
     },
-    staleTime: Infinity,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const { data: documents, refetch: refetchDocs } = useQuery({
