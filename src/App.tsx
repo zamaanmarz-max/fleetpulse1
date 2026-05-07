@@ -24,6 +24,7 @@ import AdminPanel from "./pages/AdminPanel";
 import VehicleDetail from "./pages/VehicleDetail";
 import InspectionDetail from "./pages/InspectionDetail";
 import DataImport from "./pages/DataImport";
+import DoctorDemo from "./pages/DoctorDemo";
 import HSFile from "./pages/HSFile";
 import Maintenance from "./pages/Maintenance";
 import Compliance from "./pages/Compliance";
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/demo/healthcare" element={<DoctorDemo />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/vehicles" element={<Vehicles />} />
