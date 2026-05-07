@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, FileCheck, Shield,
   BarChart3, Settings, ChevronLeft, ChevronRight,
-  Receipt, Bell, UserCog, LogOut, Upload, Warehouse, Wrench
+  Receipt, Bell, UserCog, LogOut, Upload, Warehouse, Wrench, HeartPulse
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,7 @@ const navItems = [
   { to: "/vehicles",          icon: Truck,           label: "Vehicles" },
   { to: "/drivers",           icon: Users,           label: "Drivers" },
   { to: "/maintenance",       icon: Wrench,          label: "Maintenance" },
+  { to: "/hs-file",           icon: HeartPulse,      label: "H&S File" },
   { to: "/compliance",        icon: Shield,          label: "Compliance" },
   { to: "/certificates",      icon: FileCheck,       label: "Certificates" },
   { to: "/fines",             icon: Receipt,         label: "Fines & AARTO" },

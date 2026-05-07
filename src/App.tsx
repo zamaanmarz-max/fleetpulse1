@@ -24,6 +24,7 @@ import AdminPanel from "./pages/AdminPanel";
 import VehicleDetail from "./pages/VehicleDetail";
 import InspectionDetail from "./pages/InspectionDetail";
 import DataImport from "./pages/DataImport";
+import HSFile from "./pages/HSFile";
 import Maintenance from "./pages/Maintenance";
 import Compliance from "./pages/Compliance";
 import FleetAvailability from "./pages/FleetAvailability";
@@ -66,6 +67,7 @@ const App = () => (
               <Route path="/reports" element={<Reports />} />
               <Route path="/reports/driver-compliance" element={<DriverComplianceReport />} />
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/hs-file" element={<HSFile />} />
               <Route path="/maintenance" element={<Maintenance />} />
               <Route path="/compliance" element={<Compliance />} />
               <Route path="/fleet-availability" element={<FleetAvailability />} />

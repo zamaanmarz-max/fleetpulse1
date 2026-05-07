@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, Bell, Menu,
   FileCheck, Receipt, BarChart3, Settings, Shield,
-  Sparkles, Warehouse, Upload, UserCog, LogOut, X, Wrench,
+  Sparkles, Warehouse, Upload, UserCog, LogOut, X, Wrench, HeartPulse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -27,14 +27,15 @@ export function MobileNav({ onOpenAI }: { onOpenAI?: () => void }) {
   const isAdmin = profile?.role === "superadmin";
 
   const moreItems: MoreItem[] = [
-    { to: "/maintenance", icon: Wrench, label: "Maintenance" },
-    { to: "/compliance", icon: Shield, label: "Compliance" },
-    { to: "/certificates", icon: FileCheck, label: "Certificates" },
-    { to: "/fines", icon: Receipt, label: "Fines & AARTO" },
-    { to: "/reports", icon: BarChart3, label: "Reports" },
+    { to: "/maintenance",   icon: Wrench,      label: "Maintenance" },
+    { to: "/hs-file",       icon: HeartPulse,  label: "H&S File" },
+    { to: "/compliance",    icon: Shield,      label: "Compliance" },
+    { to: "/certificates",  icon: FileCheck,   label: "Certificates" },
+    { to: "/fines",         icon: Receipt,     label: "Fines & AARTO" },
+    { to: "/reports",       icon: BarChart3,   label: "Reports" },
     { to: "/fleet-availability", icon: Warehouse, label: "Availability" },
-    { to: "/import", icon: Upload, label: "Import" },
-    { to: "/settings", icon: Settings, label: "Settings" },
+    { to: "/import",        icon: Upload,      label: "Import" },
+    { to: "/settings",      icon: Settings,    label: "Settings" },
     ...(isAdmin ? [{ to: "/admin", icon: UserCog, label: "Admin Panel" }] : []),
     { icon: Sparkles, label: "AI Chat", action: "ai" as const },
     { icon: LogOut, label: "Sign Out", action: "signout" as const },
