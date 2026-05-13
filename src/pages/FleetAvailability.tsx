@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVehicles } from "@/hooks/useOrgData";
 import {
-  Truck, Wrench, MapPin, Ban, Clock, Loader2, X, Download,
+  Truck, Wrench, MapPin, Ban, Clock, Loader2, X, Download, Plus,
   Search, Building2, BarChart2, AlertTriangle, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -345,6 +345,10 @@ export default function FleetAvailability() {
   const labelCls = "block text-sm font-medium text-foreground mb-1";
 
   if (vLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+
+  // Safety check
+  const safeVehicles = vehicles || [];
+  const safeStatuses = statuses || [];
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
