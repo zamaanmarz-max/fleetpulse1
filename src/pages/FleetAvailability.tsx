@@ -550,44 +550,41 @@ export default function FleetAvailability() {
                 </div>
               </div>
 
-              {form.status === "out_for_repair" && (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>Date Sent Out</label>
-                      <input type="date" value={form.date_sent_for_repair} onChange={e => setForm({ ...form, date_sent_for_repair: e.target.value })} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>ETA Return</label>
-                      <input type="date" value={form.estimated_return_date} onChange={e => setForm({ ...form, estimated_return_date: e.target.value })} className={inputCls} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Waiting For</label>
-                    <select
-                      value={waitingIsOther ? "Other" : (form.waiting_for || "—")}
-                      onChange={e => {
-                        if (e.target.value === "Other") { setWaitingIsOther(true); setForm({ ...form, waiting_for: "" }); }
-                        else { setWaitingIsOther(false); setForm({ ...form, waiting_for: e.target.value }); }
-                      }}
-                      className={inputCls}>
-                      {WAITING_FOR_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    {waitingIsOther && (
-                      <input value={form.waiting_for} onChange={e => setForm({ ...form, waiting_for: e.target.value })}
-                        placeholder="Describe what you're waiting for" className={`${inputCls} mt-2`} autoFocus />
-                    )}
-                  </div>
-                  <div>
-                    <label className={labelCls}>Repair Description</label>
-                    <textarea value={form.repair_description} onChange={e => setForm({ ...form, repair_description: e.target.value })} rows={2} className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Estimated Cost (R)</label>
-                    <input type="number" value={form.repair_cost} onChange={e => setForm({ ...form, repair_cost: e.target.value })} placeholder="0" className={inputCls} />
-                  </div>
-                </>
-              )}
+              {/* Always show repair fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Date Sent Out</label>
+                  <input type="date" value={form.date_sent_for_repair} onChange={e => setForm({ ...form, date_sent_for_repair: e.target.value })} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>ETA Return</label>
+                  <input type="date" value={form.estimated_return_date} onChange={e => setForm({ ...form, estimated_return_date: e.target.value })} className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Waiting For</label>
+                <select
+                  value={waitingIsOther ? "Other" : (form.waiting_for || "—")}
+                  onChange={e => {
+                    if (e.target.value === "Other") { setWaitingIsOther(true); setForm({ ...form, waiting_for: "" }); }
+                    else { setWaitingIsOther(false); setForm({ ...form, waiting_for: e.target.value }); }
+                  }}
+                  className={inputCls}>
+                  {WAITING_FOR_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                {waitingIsOther && (
+                  <input value={form.waiting_for} onChange={e => setForm({ ...form, waiting_for: e.target.value })}
+                    placeholder="Describe what you're waiting for" className={`${inputCls} mt-2`} />
+                )}
+              </div>
+              <div>
+                <label className={labelCls}>Repair Description</label>
+                <textarea value={form.repair_description} onChange={e => setForm({ ...form, repair_description: e.target.value })} rows={2} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Estimated Cost (R)</label>
+                <input type="number" value={form.repair_cost} onChange={e => setForm({ ...form, repair_cost: e.target.value })} placeholder="0" className={inputCls} />
+              </div>
 
               <div>
                 <label className={labelCls}>Comments / Notes</label>
