@@ -68,15 +68,24 @@ export default function HSFile() {
     staleTime: 0,
   });
 
-  const { data: requirements, refetch: refetchReqs } = useQuery({
+  const { data: requirements, refetch: refetchReqs, error: reqError, isLoading: reqLoading } = useQuery({
     queryKey: ["hs_document_requirements"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("hs_document_requirements" as any).select("*").order("section_number").order("sort_order");
-      if (error) throw error;
+      const { data, error } = await supabase
+        .from("hs_document_requirements" as any)
+        .select("*")
+        .order("section_number")
+        .order("sort_order");
+      if (error) {
+        console.error("H&S requirements error:", error);
+        throw error;
+      }
+      console.log("H&S requirements loaded:", data?.length, "rows");
       return (data || []) as any[];
     },
     staleTime: 0,
     refetchOnMount: "always",
+    retry: 3,
   });
 
   const { data: documents, refetch: refetchDocs } = useQuery({
@@ -212,7 +221,15 @@ Respond ONLY in JSON (no markdown):
 
     const path = `hs/${showUpload.site_id}/${showUpload.req.id}/${Date.now()}_${uploadFile.name}`;
     const { error: upErr } = await supabase.storage.from("certificates").upload(path, uploadFile);
-    if (upErr) { toast.error(upErr.message); setUploading(false); return; }
+    if (upErr) {
+      if (upErr.message?.includes("Bucket not found") || upErr.message?.includes("bucket")) {
+        toast.error("Storage not set up. Run storage_fix.sql in Supabase SQL Editor first.");
+      } else {
+        toast.error(upErr.message);
+      }
+      setUploading(false);
+      return;
+    }
 
     const status = uploadForm.expiry_date
       ? (new Date(uploadForm.expiry_date) < new Date() ? "expired" : "valid")
@@ -362,6 +379,47 @@ Respond ONLY in JSON (no markdown):
             </div>
           )
       }
+
+      {/* Error state */}
+      {reqError && (
+        <div className="glass-card p-5 border border-destructive/30 bg-destructive/10 space-y-3">
+          <p className="text-sm font-semibold text-destructive flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" /> H&S document requirements failed to load
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Run <strong>phase5_permissions_fix.sql</strong> in Supabase SQL Editor, then click Reload below.
+          </p>
+          <p className="text-xs text-destructive/70 font-mono">{String(reqError)}</p>
+          <button onClick={() => refetchReqs()}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
+            <RefreshCw className="w-4 h-4" /> Reload
+          </button>
+        </div>
+      )}
+
+      {/* Loading state for requirements */}
+      {reqLoading && !reqError && (
+        <div className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          Loading H&S document requirements...
+        </div>
+      )}
+
+      {/* Empty state — data loaded but 0 rows */}
+      {!reqLoading && !reqError && (requirements || []).length === 0 && (
+        <div className="glass-card p-6 border border-warning/30 bg-warning/10 space-y-3">
+          <p className="text-sm font-semibold text-warning flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" /> 44 required documents not found in database
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Run <strong>phase5_seed_only.sql</strong> in Supabase SQL Editor to load the 44 required documents, then click Reload.
+          </p>
+          <button onClick={() => refetchReqs()}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
+            <RefreshCw className="w-4 h-4" /> Reload
+          </button>
+        </div>
+      )}
 
       {/* Score card */}
       {selectedSite && (

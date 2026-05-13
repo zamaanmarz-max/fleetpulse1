@@ -69,7 +69,15 @@ export function VehiclePhotosTab({ vehicleId, registration }: Props) {
       const ext = file.name.split(".").pop() || "jpg";
       const path = `vehicle-photos/${vehicleId}/${form.photo_type}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("certificates").upload(path, file);
-      if (upErr) { errors.push(file.name); continue; }
+      if (upErr) {
+        if (upErr.message?.includes("Bucket not found") || upErr.message?.includes("bucket")) {
+          toast.error("Storage not set up — run storage_fix.sql in Supabase first");
+          setUploading(false);
+          return;
+        }
+        errors.push(file.name);
+        continue;
+      }
       await supabase.from("vehicle_photos").insert({
         vehicle_id: vehicleId,
         photo_url: path,
