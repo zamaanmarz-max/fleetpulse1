@@ -45,6 +45,8 @@ export default function FleetAvailability() {
   const [search, setSearch] = useState("");
   const [modalVehicle, setModalVehicle] = useState<any>(null);
   const [form, setForm] = useState<Record<string, any>>({});
+  const [workshopIsOther, setWorkshopIsOther] = useState(false);
+  const [waitingIsOther, setWaitingIsOther] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showWorkshopAnalysis, setShowWorkshopAnalysis] = useState(false);
   const [activeTab, setActiveTab] = useState<"fleet" | "analysis">("fleet");
@@ -121,9 +123,13 @@ export default function FleetAvailability() {
 
   const openModal = (v: any) => {
     const st = v.statusRecord;
+    const ws = st?.workshop_name || "";
+    const wf = st?.waiting_for || "—";
+    setWorkshopIsOther(!!ws && !WORKSHOPS.slice(0, -1).includes(ws));
+    setWaitingIsOther(!!wf && wf !== "—" && !WAITING_FOR_OPTIONS.slice(0, -1).includes(wf));
     setForm({
       status: v.currentStatus,
-      workshop_name: st?.workshop_name || "",
+      workshop_name: ws,
       workshop_contact: st?.workshop_contact || "",
       date_sent_for_repair: st?.date_sent_for_repair || new Date().toISOString().split("T")[0],
       repair_description: st?.repair_description || "",
@@ -131,7 +137,7 @@ export default function FleetAvailability() {
       actual_return_date: st?.actual_return_date || "",
       repair_cost: st?.repair_cost?.toString() || "",
       comments: st?.comments || "",
-      waiting_for: st?.waiting_for || "—",
+      waiting_for: wf,
       current_site: st?.current_site || "",
     });
     setModalVehicle(v);
@@ -521,24 +527,25 @@ export default function FleetAvailability() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Current Site (where deployed now)</label>
+                  <label className={labelCls}>Current Site</label>
                   <input value={form.current_site} onChange={e => setForm({ ...form, current_site: e.target.value })} placeholder="e.g. Midrand, Cape Town" className={inputCls} />
-                  <p className="text-xs text-muted-foreground mt-1">Where is this vehicle working right now?</p>
+                  <p className="text-xs text-muted-foreground mt-1">Where is this vehicle now?</p>
                 </div>
                 <div>
                   <label className={labelCls}>Workshop</label>
-                  <select value={WORKSHOPS.includes(form.workshop_name) ? form.workshop_name : (form.workshop_name ? "Other" : "")}
-                    onChange={e => setForm({ ...form, workshop_name: e.target.value === "Other" ? "" : e.target.value })} className={inputCls}>
+                  <select
+                    value={workshopIsOther ? "Other" : (form.workshop_name || "")}
+                    onChange={e => {
+                      if (e.target.value === "Other") { setWorkshopIsOther(true); setForm({ ...form, workshop_name: "" }); }
+                      else { setWorkshopIsOther(false); setForm({ ...form, workshop_name: e.target.value }); }
+                    }}
+                    className={inputCls}>
                     <option value="">Select workshop</option>
                     {WORKSHOPS.map(w => <option key={w} value={w}>{w}</option>)}
                   </select>
-                  {(!WORKSHOPS.slice(0, -1).includes(form.workshop_name) && form.workshop_name !== "" || form.workshop_name === "") && (
-                    <input value={WORKSHOPS.slice(0, -1).includes(form.workshop_name) ? "" : form.workshop_name}
-                      onChange={e => setForm({ ...form, workshop_name: e.target.value })}
-                      placeholder="Enter workshop name"
-                      className={`${inputCls} mt-2`}
-                      style={{ display: WORKSHOPS.slice(0, -1).includes(form.workshop_name) && form.workshop_name !== "" ? "none" : "block" }}
-                    />
+                  {workshopIsOther && (
+                    <input value={form.workshop_name} onChange={e => setForm({ ...form, workshop_name: e.target.value })}
+                      placeholder="Enter workshop name" className={`${inputCls} mt-2`} autoFocus />
                   )}
                 </div>
               </div>
@@ -557,16 +564,18 @@ export default function FleetAvailability() {
                   </div>
                   <div>
                     <label className={labelCls}>Waiting For</label>
-                    <select value={WAITING_FOR_OPTIONS.includes(form.waiting_for) ? form.waiting_for : "Other"}
-                      onChange={e => setForm({ ...form, waiting_for: e.target.value === "Other" ? "" : e.target.value })} className={inputCls}>
+                    <select
+                      value={waitingIsOther ? "Other" : (form.waiting_for || "—")}
+                      onChange={e => {
+                        if (e.target.value === "Other") { setWaitingIsOther(true); setForm({ ...form, waiting_for: "" }); }
+                        else { setWaitingIsOther(false); setForm({ ...form, waiting_for: e.target.value }); }
+                      }}
+                      className={inputCls}>
                       {WAITING_FOR_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
-                    {!WAITING_FOR_OPTIONS.slice(0, -1).includes(form.waiting_for) && (
-                      <input value={form.waiting_for === "—" ? "" : form.waiting_for}
-                        onChange={e => setForm({ ...form, waiting_for: e.target.value })}
-                        placeholder="Describe what you're waiting for"
-                        className={`${inputCls} mt-2`}
-                      />
+                    {waitingIsOther && (
+                      <input value={form.waiting_for} onChange={e => setForm({ ...form, waiting_for: e.target.value })}
+                        placeholder="Describe what you're waiting for" className={`${inputCls} mt-2`} autoFocus />
                     )}
                   </div>
                   <div>
