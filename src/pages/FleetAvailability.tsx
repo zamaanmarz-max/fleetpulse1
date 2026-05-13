@@ -50,6 +50,9 @@ export default function FleetAvailability() {
   const [saving, setSaving] = useState(false);
   const [showWorkshopAnalysis, setShowWorkshopAnalysis] = useState(false);
   const [activeTab, setActiveTab] = useState<"fleet" | "analysis">("fleet");
+  const [showTempVehicle, setShowTempVehicle] = useState(false);
+  const [tempForm, setTempForm] = useState({ registration_number: "", make: "", model: "", from_branch: "", reason: "Replacement", current_site: "", comments: "" });
+  const [savingTemp, setSavingTemp] = useState(false);
 
   const { data: statuses } = useQuery({
     queryKey: ["vehicle_statuses", profile?.organisation_id],
@@ -143,6 +146,29 @@ export default function FleetAvailability() {
     setModalVehicle(v);
   };
 
+  const handleSaveTemp = async () => {
+    if (!tempForm.registration_number) { toast.error("Registration number required"); return; }
+    setSavingTemp(true);
+    const { error } = await supabase.from("temp_vehicles" as any).insert({
+      organisation_id: profile?.organisation_id,
+      registration_number: tempForm.registration_number.toUpperCase(),
+      make: tempForm.make || null,
+      model: tempForm.model || null,
+      from_branch: tempForm.from_branch || null,
+      reason: tempForm.reason,
+      current_site: tempForm.current_site || null,
+      comments: tempForm.comments || null,
+      status: "available",
+      active: true,
+    });
+    setSavingTemp(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${tempForm.registration_number.toUpperCase()} added as temporary vehicle`);
+    setShowTempVehicle(false);
+    setTempForm({ registration_number: "", make: "", model: "", from_branch: "", reason: "Replacement", current_site: "", comments: "" });
+    qc.invalidateQueries({ queryKey: ["vehicle_statuses"] });
+  };
+
   const handleSave = async () => {
     if (!profile?.organisation_id || !modalVehicle) return;
     setSaving(true);
@@ -181,10 +207,11 @@ export default function FleetAvailability() {
     qc.invalidateQueries({ queryKey: ["vehicles"] });
   };
 
-  const exportPDF = (branchName?: string) => {
+  const exportPDF = (reportType: "manager" | "customer" = "manager") => {
     const doc = new jsPDF({ orientation: "landscape" });
-    const scope = branchName || branchFilter !== "all" ? (branchFilter !== "all" ? branchFilter : "All Branches") : "All Branches";
+    const scope = branchFilter !== "all" ? branchFilter : "All Sites";
     const data = filtered;
+    const isCustomer = reportType === "customer";
 
     // Header
     doc.setFillColor(15, 23, 42);
@@ -192,84 +219,126 @@ export default function FleetAvailability() {
     doc.setTextColor(255);
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text("MARZ FleetPulse — Fleet Availability Report", 14, 10);
+    doc.text(`MARZ Fleet — ${isCustomer ? "Fleet Status Report" : "Fleet Availability Report"}`, 14, 10);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`Branch: ${scope} | Generated: ${new Date().toLocaleString("en-ZA")} | Vector Logistics`, 14, 17);
+    doc.text(`Site: ${scope} | Generated: ${new Date().toLocaleDateString("en-ZA")} | Vector Logistics`, 14, 17);
 
-    // Summary stats
-    const branchData = branchFilter !== "all" ? enriched.filter(v => v.branch === branchFilter) : enriched;
-    const total = branchData.length;
-    const avail = branchData.filter(v => v.currentStatus === "available").length;
-    const repair = branchData.filter(v => v.currentStatus === "out_for_repair").length;
+    // Summary stats — use filtered data for correct counts
+    const total = data.length;
+    const avail = data.filter(v => v.currentStatus === "available").length;
+    const repair = data.filter(v => v.currentStatus === "out_for_repair").length;
+    const onRoute = data.filter(v => v.currentStatus === "on_route").length;
+    const offRoad = data.filter(v => v.currentStatus === "off_road").length;
+    const standby = data.filter(v => v.currentStatus === "standby").length;
 
     doc.setTextColor(0);
     doc.setFontSize(10);
-    doc.text(`Total: ${total}  |  Available: ${avail} (${total > 0 ? Math.round((avail/total)*100) : 0}%)  |  Out for Repair: ${repair}  |  Other: ${total - avail - repair}`, 14, 30);
+    doc.setFont("helvetica", "bold");
+    doc.text(
+      `Total: ${total}  |  Available: ${avail} (${total > 0 ? Math.round((avail/total)*100) : 0}%)  |  Out for Repair: ${repair}  |  On Route: ${onRoute}  |  Off Road: ${offRoad}  |  Standby: ${standby}`,
+      14, 30
+    );
+    doc.setFont("helvetica", "normal");
 
-    // Vehicles table
+    // Build rows — customer report hides days out
     const rows = data.map(v => {
       const st = v.statusRecord;
       const daysOut = st?.date_sent_for_repair
         ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000)
-        : "-";
+        : null;
+
+      if (isCustomer) {
+        return [
+          (v as any).fleet_number || "-",
+          v.registration_number,
+          `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
+          v.currentSite || "-",
+          STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
+          st?.workshop_name || "-",
+          st?.estimated_return_date || "TBC",
+        ];
+      }
       return [
         (v as any).fleet_number || "-",
         v.registration_number,
         `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
-        v.branch || "-",
+        v.owningBranch || "-",
+        v.currentSite || "-",
         STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
         st?.workshop_name || "-",
         st?.date_sent_for_repair || "-",
         st?.estimated_return_date || "No ETA",
-        String(daysOut),
+        daysOut !== null ? `${daysOut}d` : "-",
         st?.waiting_for || "-",
         st?.comments || "-",
-        st?.repair_cost ? `R ${Number(st.repair_cost).toLocaleString()}` : "-",
       ];
     });
 
+    const customerHeaders = [["Fleet #", "Reg", "Make/Model", "Current Site", "Status", "Workshop", "ETA Return"]];
+    const managerHeaders = [["Fleet #", "Reg", "Make/Model", "Owning Branch", "Current Site", "Status", "Workshop", "Date Out", "ETA", "Days Out", "Waiting For", "Comments"]];
+
     autoTable(doc, {
       startY: 36,
-      head: [["Fleet #", "Reg", "Make/Model", "Branch", "Status", "Workshop", "Date Out", "ETA", "Days", "Waiting For", "Comments", "Cost"]],
+      head: isCustomer ? customerHeaders : managerHeaders,
       body: rows,
       styles: { fontSize: 7, cellPadding: 2 },
       headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: "bold", fontSize: 7 },
-      columnStyles: {
-        4: { fontStyle: "bold" },
-        10: { cellWidth: 40 },
-      },
+      columnStyles: isCustomer
+        ? { 4: { fontStyle: "bold" } }
+        : { 5: { fontStyle: "bold" }, 11: { cellWidth: 35 } },
       didParseCell: (data) => {
-        if (data.section === "body" && data.column.index === 4) {
+        const statusIdx = isCustomer ? 4 : 5;
+        if (data.section === "body" && data.column.index === statusIdx) {
           const val = data.cell.text[0];
           if (val === "Available") data.cell.styles.textColor = [21, 128, 61];
           else if (val === "Out for Repair") data.cell.styles.textColor = [153, 27, 27];
           else if (val === "On Route") data.cell.styles.textColor = [29, 78, 216];
+          else if (val === "Off Road") data.cell.styles.textColor = [100, 100, 100];
         }
       },
     });
 
-    // Workshop analysis
-    if (workshopAnalysis.length > 0) {
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.text("Workshop Downtime Analysis", 14, finalY);
-      autoTable(doc, {
-        startY: finalY + 4,
-        head: [["Workshop", "Vehicles Currently In", "Total Days Out", "Avg Days Per Vehicle"]],
-        body: workshopAnalysis.map(w => [w.workshop, String(w.count), String(w.totalDays), String(w.avgDays)]),
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: "bold" },
+    // Workshop analysis — manager report only
+    if (!isCustomer) {
+      const wsMap: Record<string, { count: number; totalDays: number }> = {};
+      data.filter(v => v.currentStatus === "out_for_repair").forEach(v => {
+        const ws = v.statusRecord?.workshop_name || "Unknown";
+        const days = v.statusRecord?.date_sent_for_repair
+          ? Math.ceil((Date.now() - new Date(v.statusRecord.date_sent_for_repair).getTime()) / 86400000)
+          : 0;
+        if (!wsMap[ws]) wsMap[ws] = { count: 0, totalDays: 0 };
+        wsMap[ws].count++;
+        wsMap[ws].totalDays += days;
       });
+
+      const wsRows = Object.entries(wsMap)
+        .sort((a, b) => b[1].count - a[1].count)
+        .map(([ws, d]) => [ws, String(d.count), `${d.totalDays}d`, `${d.count > 0 ? Math.round(d.totalDays / d.count) : 0}d`]);
+
+      if (wsRows.length > 0) {
+        const finalY = (doc as any).lastAutoTable.finalY + 10;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0);
+        doc.text("Workshop Downtime Analysis", 14, finalY);
+        autoTable(doc, {
+          startY: finalY + 4,
+          head: [["Workshop", "Vehicles In", "Total Days Out", "Avg Days Per Vehicle"]],
+          body: wsRows,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: "bold" },
+        });
+      }
     }
 
     doc.setFontSize(7);
     doc.setTextColor(120);
     doc.text("MARZ Technologies (Pty) Ltd | fleet.marzai.co.za", 14, doc.internal.pageSize.height - 6);
 
-    doc.save(`Fleet_Availability_${scope.replace(/ /g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`);
-    toast.success("PDF exported");
+    const filename = `Fleet_${isCustomer ? "Status_Customer" : "Availability_Manager"}_${scope.replace(/ /g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`;
+    doc.save(filename);
+    toast.success(`${isCustomer ? "Customer" : "Manager"} report downloaded`);
   };
 
   const inputCls = "w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary";
@@ -285,9 +354,17 @@ export default function FleetAvailability() {
           <h1 className="text-2xl font-bold text-foreground">Fleet Availability</h1>
           <p className="text-muted-foreground text-sm">Vehicle status, workshop tracking and downtime analysis</p>
         </div>
-        <button onClick={() => exportPDF()} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90">
-          <Download className="w-4 h-4" /> Export PDF
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowTempVehicle(true)} className="flex items-center gap-2 bg-secondary text-foreground border border-border px-3 py-2 rounded-lg text-sm hover:opacity-90">
+            <Plus className="w-4 h-4" /> Temp Vehicle
+          </button>
+          <button onClick={() => exportPDF("customer")} className="flex items-center gap-2 bg-secondary text-foreground border border-border px-3 py-2 rounded-lg text-sm hover:opacity-90">
+            <Download className="w-4 h-4" /> Customer Report
+          </button>
+          <button onClick={() => exportPDF("manager")} className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm hover:opacity-90">
+            <Download className="w-4 h-4" /> Manager Report
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -594,6 +671,48 @@ export default function FleetAvailability() {
             <div className="px-5 py-4 border-t border-border flex-shrink-0">
               <button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />} Save Status
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Temp Vehicle Modal */}
+      {showTempVehicle && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-background/60 backdrop-blur-sm" onClick={() => setShowTempVehicle(false)} />
+          <div className="w-full max-w-md bg-card border-l border-border flex flex-col max-h-screen">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Add Temporary Vehicle</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Replacement or visiting vehicle not in permanent fleet</p>
+              </div>
+              <button onClick={() => setShowTempVehicle(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 text-xs text-warning">
+                This vehicle is temporary and will be flagged as such in reports. It won't affect your permanent fleet records.
+              </div>
+              <div><label className={labelCls}>Registration Number *</label><input value={tempForm.registration_number} onChange={e => setTempForm({ ...tempForm, registration_number: e.target.value.toUpperCase() })} placeholder="e.g. KR53YMGP" className={inputCls} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Make</label><input value={tempForm.make} onChange={e => setTempForm({ ...tempForm, make: e.target.value })} placeholder="e.g. Hino" className={inputCls} /></div>
+                <div><label className={labelCls}>Model</label><input value={tempForm.model} onChange={e => setTempForm({ ...tempForm, model: e.target.value })} placeholder="e.g. 500" className={inputCls} /></div>
+              </div>
+              <div><label className={labelCls}>From Branch</label><input value={tempForm.from_branch} onChange={e => setTempForm({ ...tempForm, from_branch: e.target.value })} placeholder="e.g. Cape Town, East London" className={inputCls} /></div>
+              <div>
+                <label className={labelCls}>Reason</label>
+                <select value={tempForm.reason} onChange={e => setTempForm({ ...tempForm, reason: e.target.value })} className={inputCls}>
+                  <option value="Replacement">Replacement vehicle</option>
+                  <option value="Loan">Loan vehicle</option>
+                  <option value="Transfer">Temporary transfer</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div><label className={labelCls}>Current Site</label><input value={tempForm.current_site} onChange={e => setTempForm({ ...tempForm, current_site: e.target.value })} placeholder="e.g. Midrand" className={inputCls} /></div>
+              <div><label className={labelCls}>Comments</label><textarea value={tempForm.comments} onChange={e => setTempForm({ ...tempForm, comments: e.target.value })} rows={2} placeholder="Any notes about this vehicle" className={inputCls} /></div>
+            </div>
+            <div className="px-5 py-4 border-t border-border flex-shrink-0">
+              <button onClick={handleSaveTemp} disabled={savingTemp} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                {savingTemp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add Temporary Vehicle
               </button>
             </div>
           </div>
