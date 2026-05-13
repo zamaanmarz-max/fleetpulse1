@@ -568,13 +568,32 @@ export default function VehicleDetail() {
                   { label: "Year", key: "year", type: "number" },
                   { label: "VIN Number", key: "vin_number" },
                   { label: "Colour", key: "colour" },
-                  { label: "Vehicle Type", key: "vehicle_type" },
                   { label: "Current KM", key: "current_odometer_km", type: "number" },
                   { label: "Last Service KM", key: "last_service_km", type: "number" },
                   { label: "Next Service KM", key: "next_service_due_km", type: "number" },
                 ].map(f => (
                   <EditField key={f.key} label={f.label} value={editForm[f.key]} onChange={v => setEditForm({ ...editForm, [f.key]: v })} type={f.type} />
                 ))}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Vehicle Type *</label>
+                  <select
+                    value={editForm.vehicle_type || ""}
+                    onChange={e => setEditForm({ ...editForm, vehicle_type: e.target.value })}
+                    className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">— Select type —</option>
+                    <option value="horse">🚛 Horse — Prime mover (pulls a trailer)</option>
+                    <option value="trailer">🔗 Trailer — Pulled by a horse (Serco, Afrit, CTS)</option>
+                    <option value="rigid">🚚 Rigid Truck — Fixed body (Hino 500, Isuzu)</option>
+                    <option value="reefer">❄️ Reefer — Refrigerated unit</option>
+                    <option value="tipper">🪣 Tipper</option>
+                    <option value="tanker">🛢️ Tanker</option>
+                    <option value="crane">🏗️ Crane</option>
+                    <option value="bakkie">🚐 Bakkie / Light vehicle</option>
+                    <option value="bus">🚌 Bus</option>
+                    <option value="other">⚙️ Other</option>
+                  </select>
+                </div>
                 <EquipmentChecklist selected={editEquipment} onChange={setEditEquipment} />
               </div>
             ) : (
@@ -586,7 +605,15 @@ export default function VehicleDetail() {
                 <InfoRow label="Year" value={vehicle.year?.toString() || "-"} />
                 <InfoRow label="VIN" value={vehicle.vin_number || "-"} warn={missingVin} />
                 <InfoRow label="Colour" value={vehicle.colour || "-"} />
-                <InfoRow label="Type" value={vehicle.vehicle_type || "-"} />
+                <InfoRow label="Type" value={
+                  (vehicle as any).vehicle_type === "horse" ? "🚛 Horse" :
+                  (vehicle as any).vehicle_type === "trailer" ? "🔗 Trailer" :
+                  (vehicle as any).vehicle_type === "rigid" ? "🚚 Rigid Truck" :
+                  (vehicle as any).vehicle_type === "reefer" ? "❄️ Reefer" :
+                  (vehicle as any).vehicle_type === "tipper" ? "🪣 Tipper" :
+                  (vehicle as any).vehicle_type === "tanker" ? "🛢️ Tanker" :
+                  (vehicle as any).vehicle_type || "Not set"
+                } />
                 <InfoRow label="Branch" value={(vehicle as any).branches?.name || "-"} />
               </>
             )}
