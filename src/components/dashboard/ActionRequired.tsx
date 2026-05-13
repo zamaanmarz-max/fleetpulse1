@@ -50,6 +50,7 @@ export function ActionRequired() {
         supabase.from("job_cards").select("id, vehicle_id, status, work_date, job_card_number, vehicles(registration_number)").in("status", ["open", "in_progress"]),
         supabase.from("vehicle_service_trackers" as any).select("vehicle_id, tracker_name, next_due_date, vehicles:vehicle_id(registration_number)"),
         supabase.from("toolbox_talks").select("driver_id, date_conducted").order("date_conducted", { ascending: false }),
+        supabase.from("hs_documents" as any).select("requirement_id, expiry_date, site_id, hs_document_requirements!inner(document_name, section_name), hs_sites!inner(name)").lte("expiry_date", now30).not("expiry_date", "is", null),
       ]);
       return {
         vehicles: vehicles.data || [],
@@ -60,6 +61,7 @@ export function ActionRequired() {
         jobs: openJobs.data || [],
         trackers: (trackers.data || []) as any[],
         talks: talks.data || [],
+        hsExpiring: (hsExpiring.data || []) as any[],
       };
     },
   });
@@ -153,7 +155,22 @@ export function ActionRequired() {
       items.push({ type: "tracker", label: "Service Overdue", detail: `${v.registration_number} — ${Math.abs(km).toLocaleString()} km overdue`, link: `/vehicles/${v.id}`, severity: 400 });
   }
 
-  // Toolbox talks not done this month
+  // H&S document expiry alerts
+  for (const doc of data?.hsExpiring || []) {
+    if (!doc.expiry_date) continue;
+    const days = Math.ceil((new Date(doc.expiry_date).getTime() - now) / 86400000);
+    const docName = (doc as any).hs_document_requirements?.document_name || "H&S Document";
+    const siteName = (doc as any).hs_sites?.name || "Site";
+    items.push({
+      type: "cert",
+      label: days <= 0 ? "H&S Doc Expired" : "H&S Doc Expiring",
+      detail: `${docName} — ${siteName} — ${days <= 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}`,
+      link: `/hs-file`,
+      severity: days <= 0 ? 8500 + Math.abs(days) : 180 + (30 - days),
+    });
+  }
+
+  // Toolbox talks not done this week
   const driverLast = new Map<string, string>();
   for (const t of data?.talks || []) {
     if (!driverLast.has(t.driver_id) && t.date_conducted) driverLast.set(t.driver_id, t.date_conducted);

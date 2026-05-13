@@ -54,16 +54,19 @@ export default function FleetAvailability() {
       ...v,
       currentStatus: st?.status || "available",
       statusRecord: st || null,
-      branch: (v as any).branch || st?.branch || "Midrand",
+      branch: (v as any).branch || st?.branch || null,
     };
   });
 
-  // Branches
-  const branches = ["all", ...Array.from(new Set(enriched.map(v => v.branch).filter(Boolean)))];
+  // Branches — only show branches that have vehicles assigned
+  const assignedBranches = Array.from(new Set(enriched.map(v => v.branch).filter(Boolean)));
+  const unassignedCount = enriched.filter(v => !v.branch).length;
+  const branches = ["all", ...assignedBranches, ...(unassignedCount > 0 ? ["unassigned"] : [])];
 
   const filtered = enriched.filter(v => {
     if (filter !== "all" && v.currentStatus !== filter) return false;
-    if (branchFilter !== "all" && v.branch !== branchFilter) return false;
+    if (branchFilter === "unassigned" && v.branch) return false;
+    if (branchFilter !== "all" && branchFilter !== "unassigned" && v.branch !== branchFilter) return false;
     if (search) {
       const s = search.toLowerCase();
       return v.registration_number.toLowerCase().includes(s) ||
@@ -274,6 +277,19 @@ export default function FleetAvailability() {
           </button>
         ))}
       </div>
+
+      {/* Branch setup prompt */}
+      {unassignedCount > 0 && (
+        <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-warning">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span><strong>{unassignedCount} vehicles</strong> have no branch assigned. Click Update on each vehicle to set their branch.</span>
+          </div>
+          <button onClick={() => setBranchFilter("unassigned")} className="text-xs bg-warning/20 text-warning px-3 py-1.5 rounded-lg hover:opacity-80 flex-shrink-0">
+            Show unassigned
+          </button>
+        </div>
+      )}
 
       {/* Branch filter */}
       <div className="flex items-center gap-2 flex-wrap">
