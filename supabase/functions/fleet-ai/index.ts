@@ -381,6 +381,67 @@ serve(async (req) => {
     const conversationHistory: Array<{ role: string; content: string }> = body.conversationHistory || [];
     const mode: string = body.mode || "chat";
 
+    // ── Document verification mode ────────────────────────────
+    if (mode === "verify_document") {
+      const { imageBase64, mediaType, documentName, description, isPdf } = body;
+      const content: any[] = [];
+      if (!isPdf && imageBase64) {
+        content.push({ type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: imageBase64 } });
+      }
+      content.push({
+        type: "text",
+        text: `You are verifying a South African workplace compliance document for the MARZ H&S system.
+Required document: "${documentName}" — ${description || ""}
+
+${isPdf ? "A PDF was uploaded (cannot be read visually — respond with cannot_verify)." : "Analyze this document image carefully."}
+
+Respond ONLY in valid JSON with no markdown or extra text:
+{
+  "document_type": "what type of document this appears to be",
+  "company_name": "company name if visible or null",
+  "issue_date": "YYYY-MM-DD or null",
+  "expiry_date": "YYYY-MM-DD or null",
+  "matches_requirement": true or false,
+  "status": "valid" or "expired" or "cannot_verify",
+  "confidence": "high" or "medium" or "low",
+  "notes": "brief assessment in one sentence"
+}`,
+      });
+
+      const verifyResp = await fetch(ANTHROPIC_URL, {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 400,
+          messages: [{ role: "user", content }],
+        }),
+      });
+
+      if (!verifyResp.ok) {
+        return new Response(JSON.stringify({ error: "AI verification failed" }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const verifyData = await verifyResp.json();
+      const text = verifyData.content?.[0]?.text || "{}";
+      try {
+        const cleaned = text.replace(/```json|```/g, "").trim();
+        const result = JSON.parse(cleaned);
+        return new Response(JSON.stringify(result), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch {
+        return new Response(JSON.stringify({ status: "cannot_verify", notes: "Could not parse AI response" }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     if (!organisationId) {
       return new Response(JSON.stringify({ error: "organisationId is required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },

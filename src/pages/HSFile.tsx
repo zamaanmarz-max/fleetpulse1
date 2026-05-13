@@ -154,56 +154,27 @@ export default function HSFile() {
       });
 
       const isPdf = file.type === "application/pdf";
-      const apiKey = (import.meta.env.VITE_ANTHROPIC_API_KEY || "");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch(`${supabaseUrl}/functions/v1/fleet-ai`, {
         method: "POST",
         headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 600,
-          messages: [{
-            role: "user",
-            content: [
-              ...(!isPdf ? [{
-                type: "image",
-                source: { type: "base64", media_type: file.type, data: base64 },
-              }] : []),
-              {
-                type: "text",
-                text: `You are verifying a South African workplace compliance document for the MARZ H&S system.
-Required document: "${requirement.document_name}" — ${requirement.description || ""}
-
-${isPdf ? "A PDF was uploaded (cannot be read visually)." : "Analyze this document image."}
-
-Respond ONLY in JSON (no markdown):
-{
-  "document_type": "what type of document this appears to be",
-  "company_name": "company name if visible",
-  "issue_date": "YYYY-MM-DD or null",
-  "expiry_date": "YYYY-MM-DD or null",
-  "matches_requirement": true/false,
-  "status": "valid" or "expired" or "cannot_verify",
-  "confidence": "high" or "medium" or "low",
-  "notes": "brief assessment — is this the right document? Any issues?"
-}`,
-              },
-            ],
-          }],
+          mode: "verify_document",
+          imageBase64: base64,
+          mediaType: file.type,
+          documentName: requirement.document_name,
+          description: requirement.description,
+          isPdf,
         }),
       });
 
       if (!response.ok) throw new Error("AI verification failed");
-      const data = await response.json();
-      const text = data.content?.[0]?.text || "{}";
-      const cleaned = text.replace(/```json|```/g, "").trim();
-      const result = JSON.parse(cleaned);
+      const result = await response.json();
       setAiResult(result);
-
       if (result.expiry_date) setUploadForm(f => ({ ...f, expiry_date: result.expiry_date }));
       if (result.issue_date) setUploadForm(f => ({ ...f, issue_date: result.issue_date }));
       toast.success("AI verification complete");
