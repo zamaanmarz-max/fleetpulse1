@@ -19,7 +19,22 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   standby:        { label: "Standby",        color: "text-warning",          bg: "bg-warning/20" },
 };
 
-const WAITING_FOR_OPTIONS = ["—", "Purchase Order (PO)", "Parts", "Workshop Slot", "Insurance Assessment", "Driver", "Fuel", "Other"];
+const WORKSHOPS = [
+  "JJ", "AC&R", "ICE COLD BODIES", "DH LIFTS", "SPARTAN WORKSHOP", "SERCO", "Other",
+];
+
+const WAITING_FOR_OPTIONS = [
+  "—",
+  "In Progress at Workshop",
+  "Waiting for ETA from Workshop",
+  "Waiting for Purchase Order (PO)",
+  "Waiting for Parts",
+  "Waiting for Workshop Slot",
+  "Waiting for Insurance Assessment",
+  "Waiting for Driver",
+  "Waiting for Fuel",
+  "Other",
+];
 
 export default function FleetAvailability() {
   const { profile } = useAuth();
@@ -512,7 +527,19 @@ export default function FleetAvailability() {
                 </div>
                 <div>
                   <label className={labelCls}>Workshop</label>
-                  <input value={form.workshop_name} onChange={e => setForm({ ...form, workshop_name: e.target.value })} placeholder="e.g. AC&R" className={inputCls} />
+                  <select value={WORKSHOPS.includes(form.workshop_name) ? form.workshop_name : (form.workshop_name ? "Other" : "")}
+                    onChange={e => setForm({ ...form, workshop_name: e.target.value === "Other" ? "" : e.target.value })} className={inputCls}>
+                    <option value="">Select workshop</option>
+                    {WORKSHOPS.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                  {(!WORKSHOPS.slice(0, -1).includes(form.workshop_name) && form.workshop_name !== "" || form.workshop_name === "") && (
+                    <input value={WORKSHOPS.slice(0, -1).includes(form.workshop_name) ? "" : form.workshop_name}
+                      onChange={e => setForm({ ...form, workshop_name: e.target.value })}
+                      placeholder="Enter workshop name"
+                      className={`${inputCls} mt-2`}
+                      style={{ display: WORKSHOPS.slice(0, -1).includes(form.workshop_name) && form.workshop_name !== "" ? "none" : "block" }}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -530,9 +557,17 @@ export default function FleetAvailability() {
                   </div>
                   <div>
                     <label className={labelCls}>Waiting For</label>
-                    <select value={form.waiting_for} onChange={e => setForm({ ...form, waiting_for: e.target.value })} className={inputCls}>
+                    <select value={WAITING_FOR_OPTIONS.includes(form.waiting_for) ? form.waiting_for : "Other"}
+                      onChange={e => setForm({ ...form, waiting_for: e.target.value === "Other" ? "" : e.target.value })} className={inputCls}>
                       {WAITING_FOR_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
+                    {!WAITING_FOR_OPTIONS.slice(0, -1).includes(form.waiting_for) && (
+                      <input value={form.waiting_for === "—" ? "" : form.waiting_for}
+                        onChange={e => setForm({ ...form, waiting_for: e.target.value })}
+                        placeholder="Describe what you're waiting for"
+                        className={`${inputCls} mt-2`}
+                      />
+                    )}
                   </div>
                   <div>
                     <label className={labelCls}>Repair Description</label>
