@@ -54,32 +54,34 @@ export default function FleetAvailability() {
       ...v,
       currentStatus: st?.status || "available",
       statusRecord: st || null,
-      branch: (v as any).branch || st?.branch || null,
+      owningBranch: (v as any).owning_branch || null,
+      currentSite: st?.current_site || null,
     };
   });
 
-  // Branches — only show branches that have vehicles assigned
-  const assignedBranches = Array.from(new Set(enriched.map(v => v.branch).filter(Boolean)));
-  const unassignedCount = enriched.filter(v => !v.branch).length;
-  const branches = ["all", ...assignedBranches, ...(unassignedCount > 0 ? ["unassigned"] : [])];
+  // Sites — from current deployment site on vehicle_status
+  const assignedSites = Array.from(new Set(enriched.map(v => v.currentSite).filter(Boolean)));
+  const unassignedCount = enriched.filter(v => !v.currentSite).length;
+  const branches = ["all", ...assignedSites, ...(unassignedCount > 0 ? ["unassigned"] : [])];
 
   const filtered = enriched.filter(v => {
     if (filter !== "all" && v.currentStatus !== filter) return false;
-    if (branchFilter === "unassigned" && v.branch) return false;
-    if (branchFilter !== "all" && branchFilter !== "unassigned" && v.branch !== branchFilter) return false;
+    if (branchFilter === "unassigned" && v.currentSite) return false;
+    if (branchFilter !== "all" && branchFilter !== "unassigned" && v.currentSite !== branchFilter) return false;
     if (search) {
       const s = search.toLowerCase();
       return v.registration_number.toLowerCase().includes(s) ||
         ((v as any).fleet_number || "").toLowerCase().includes(s) ||
         ((v as any).make || "").toLowerCase().includes(s) ||
-        (v.branch || "").toLowerCase().includes(s);
+        (v.currentSite || "").toLowerCase().includes(s) ||
+        (v.owningBranch || "").toLowerCase().includes(s);
     }
     return true;
   });
 
   const counts = useMemo(() => {
     const c = { available: 0, out_for_repair: 0, on_route: 0, off_road: 0, standby: 0 };
-    enriched.filter(v => branchFilter === "all" || v.branch === branchFilter)
+    enriched.filter(v => branchFilter === "all" || branchFilter === "unassigned" || v.currentSite === branchFilter)
       .forEach(v => { if (c[v.currentStatus as keyof typeof c] !== undefined) c[v.currentStatus as keyof typeof c]++; });
     return c;
   }, [enriched, branchFilter]);
@@ -115,7 +117,7 @@ export default function FleetAvailability() {
       repair_cost: st?.repair_cost?.toString() || "",
       comments: st?.comments || "",
       waiting_for: st?.waiting_for || "—",
-      branch: v.branch || "",
+      current_site: st?.current_site || "",
     });
     setModalVehicle(v);
   };
@@ -136,7 +138,7 @@ export default function FleetAvailability() {
       repair_cost: form.repair_cost ? parseFloat(form.repair_cost) : 0,
       comments: form.comments || null,
       waiting_for: form.waiting_for !== "—" ? form.waiting_for : null,
-      branch: form.branch || null,
+      current_site: form.current_site || null,
       updated_by: profile.id,
       updated_at: new Date().toISOString(),
     };
@@ -145,9 +147,9 @@ export default function FleetAvailability() {
       ? await supabase.from("vehicle_status").update(payload).eq("id", existing.id)
       : await supabase.from("vehicle_status").insert(payload);
 
-    // Also update branch on vehicles table if set
-    if (form.branch && form.branch !== modalVehicle.branch) {
-      await supabase.from("vehicles").update({ branch: form.branch } as any).eq("id", modalVehicle.id);
+    // Update owning branch on vehicles table if changed
+    if (form.owning_branch !== undefined && form.owning_branch !== modalVehicle.owningBranch) {
+      await supabase.from("vehicles").update({ owning_branch: form.owning_branch } as any).eq("id", modalVehicle.id);
     }
 
     setSaving(false);
@@ -294,6 +296,7 @@ export default function FleetAvailability() {
       {/* Branch filter */}
       <div className="flex items-center gap-2 flex-wrap">
         <Building2 className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Filter by site:</span>
         {branches.map(b => (
           <button key={b} onClick={() => setBranchFilter(b)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize ${branchFilter === b ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/80"}`}>
@@ -330,7 +333,7 @@ export default function FleetAvailability() {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-border">
-                  {["Fleet #", "Registration", "Branch", "Status", "Workshop", "Date Out", "ETA", "Days Out", "Waiting For", "Comments"].map(h => (
+                  {["Fleet #", "Registration", "Owning Branch", "Current Site", "Status", "Workshop", "Date Out", "ETA", "Days Out", "Waiting For", "Comments"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                   ))}
                   <th className="px-4 py-3" />
@@ -338,7 +341,7 @@ export default function FleetAvailability() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-muted-foreground">No vehicles found</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-sm text-muted-foreground">No vehicles found</td></tr>
                 ) : filtered.map(v => {
                   const st = v.statusRecord;
                   const daysOut = st?.date_sent_for_repair
@@ -350,7 +353,8 @@ export default function FleetAvailability() {
                     <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${isLongOut ? "bg-destructive/5" : ""}`}>
                       <td className="px-4 py-3 text-sm font-mono text-foreground">{(v as any).fleet_number || "—"}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{v.branch || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{v.owningBranch || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-foreground font-medium">{v.currentSite || <span className="text-warning text-xs">Not set</span>}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                       </td>
@@ -502,8 +506,9 @@ export default function FleetAvailability() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Branch</label>
-                  <input value={form.branch} onChange={e => setForm({ ...form, branch: e.target.value })} placeholder="e.g. Midrand" className={inputCls} />
+                  <label className={labelCls}>Current Site (where deployed now)</label>
+                  <input value={form.current_site} onChange={e => setForm({ ...form, current_site: e.target.value })} placeholder="e.g. Midrand, Cape Town" className={inputCls} />
+                  <p className="text-xs text-muted-foreground mt-1">Where is this vehicle working right now?</p>
                 </div>
                 <div>
                   <label className={labelCls}>Workshop</label>
