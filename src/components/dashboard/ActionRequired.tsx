@@ -41,7 +41,7 @@ export function ActionRequired() {
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const now30 = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
-      const [vehicles, certs, driverDocs, openDamages, activeBreakdowns, openJobs, trackers, talks] = await Promise.all([
+      const [vehicles, certs, driverDocs, openDamages, activeBreakdowns, openJobs, trackers, talks, hsExpiring] = await Promise.all([
         supabase.from("vehicles").select("id, registration_number, current_odometer_km, next_service_due_km").eq("is_active", true),
         supabase.from("certificates").select("id, certificate_type, expiry_date, vehicles(registration_number, id)").lte("expiry_date", now30),
         supabase.from("driver_documents").select("driver_id, document_type, expiry_date").lte("expiry_date", now30),
