@@ -65,7 +65,7 @@ export default function Vehicles() {
 
   const [form, setForm] = useState({
     registration_number: "", fleet_number: "", make: "", model: "",
-    year: "", vehicle_type: "truck", vin_number: "", colour: "",
+    year: "", vehicle_type: "horse", vin_number: "", colour: "",
     current_odometer_km: "", next_service_due_km: "",
   });
   const [equipment, setEquipment] = useState<string[]>([]);
@@ -104,7 +104,7 @@ export default function Vehicles() {
     } else {
       toast.success("Vehicle added successfully");
       setShowForm(false);
-      setForm({ registration_number: "", fleet_number: "", make: "", model: "", year: "", vehicle_type: "truck", vin_number: "", colour: "", current_odometer_km: "", next_service_due_km: "" });
+      setForm({ registration_number: "", fleet_number: "", make: "", model: "", year: "", vehicle_type: "horse", vin_number: "", colour: "", current_odometer_km: "", next_service_due_km: "" });
       setEquipment([]);
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
     }
@@ -187,6 +187,18 @@ export default function Vehicles() {
                     <div className="min-w-0">
                       <p className="text-base font-bold text-foreground">{v.registration_number}</p>
                       <p className="text-xs text-muted-foreground font-mono">{v.fleet_number || "-"} · {v.make} {v.model}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold mt-1 inline-block ${
+                        (v as any).vehicle_type === "horse" ? "bg-primary/20 text-primary" :
+                        (v as any).vehicle_type === "trailer" ? "bg-warning/20 text-warning" :
+                        (v as any).vehicle_type === "reefer" ? "bg-success/20 text-success" :
+                        "bg-secondary text-muted-foreground"
+                      }`}>
+                        {(v as any).vehicle_type === "horse" ? "🚛 Horse" :
+                         (v as any).vehicle_type === "trailer" ? "🔗 Trailer" :
+                         (v as any).vehicle_type === "rigid" ? "🚚 Rigid" :
+                         (v as any).vehicle_type === "reefer" ? "❄️ Reefer" :
+                         (v as any).vehicle_type || "Vehicle"}
+                      </span>
                     </div>
                     <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase whitespace-nowrap ${statusStyles[compliance.status]}`}>
                       {compliance.status}
@@ -347,12 +359,25 @@ export default function Vehicles() {
               </div>
             ))}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Vehicle Type</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Vehicle Type *</label>
               <select value={form.vehicle_type} onChange={(e) => setForm({ ...form, vehicle_type: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                {["truck", "trailer", "bakkie", "bus", "tanker", "crane", "other"].map((t) => (
-                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                ))}
+                <option value="horse">🚛 Horse — Prime mover that pulls a trailer</option>
+                <option value="trailer">🔗 Trailer — Pulled by a horse (Serco, Afrit, CTS etc)</option>
+                <option value="rigid">🚚 Rigid Truck — Fixed body, no separate trailer (Hino 500, Isuzu)</option>
+                <option value="reefer">❄️ Reefer — Refrigerated trailer or rigid</option>
+                <option value="tipper">🪣 Tipper — Tipper truck or trailer</option>
+                <option value="tanker">🛢️ Tanker</option>
+                <option value="crane">🏗️ Crane / Crane truck</option>
+                <option value="bakkie">🚐 Bakkie / Light vehicle</option>
+                <option value="bus">🚌 Bus / Minibus</option>
+                <option value="other">⚙️ Other</option>
               </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {form.vehicle_type === "horse" && "This vehicle can be paired with a trailer in Fleet Availability"}
+                {form.vehicle_type === "trailer" && "This vehicle will appear in the trailer pairing dropdown for horses"}
+                {form.vehicle_type === "rigid" && "Fixed body truck — no trailer pairing needed"}
+                {form.vehicle_type === "reefer" && "Refrigerated unit — tracked separately for fridge service intervals"}
+              </p>
             </div>
 
             <EquipmentChecklist selected={equipment} onChange={setEquipment} />
