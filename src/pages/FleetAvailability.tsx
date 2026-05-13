@@ -12,11 +12,10 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  available:      { label: "Available",     color: "text-success",          bg: "bg-success/20" },
-  out_for_repair: { label: "Out for Repair", color: "text-destructive",      bg: "bg-destructive/20" },
-  on_route:       { label: "On Route",       color: "text-primary",          bg: "bg-primary/20" },
-  off_road:       { label: "Off Road",       color: "text-muted-foreground", bg: "bg-muted" },
-  standby:        { label: "Standby",        color: "text-warning",          bg: "bg-warning/20" },
+  available:      { label: "Available",     color: "text-success",     bg: "bg-success/20" },
+  out_for_repair: { label: "Out for Repair", color: "text-destructive", bg: "bg-destructive/20" },
+  off_road:       { label: "Off Road",       color: "text-warning",     bg: "bg-warning/20" },
+  standby:        { label: "Standby",        color: "text-muted-foreground", bg: "bg-muted" },
 };
 
 const WORKSHOPS = [
@@ -126,9 +125,15 @@ export default function FleetAvailability() {
   });
 
   const counts = useMemo(() => {
-    const c = { available: 0, out_for_repair: 0, on_route: 0, off_road: 0, standby: 0 };
-    unpaired.filter(v => branchFilter === "all" || branchFilter === "unassigned" || v.currentSite === branchFilter)
-      .forEach(v => { if (c[v.currentStatus as keyof typeof c] !== undefined) c[v.currentStatus as keyof typeof c]++; });
+    const c = { available: 0, out_for_repair: 0, off_road: 0, standby: 0, total: 0 };
+    // Only count non-paired-trailer vehicles for totals
+    unpaired
+      .filter(v => branchFilter === "all" || branchFilter === "unassigned" || v.currentSite === branchFilter)
+      .forEach(v => {
+        c.total++;
+        const status = v.currentStatus === "on_route" ? "available" : v.currentStatus;
+        if (c[status as keyof typeof c] !== undefined) (c[status as keyof typeof c] as number)++;
+      });
     return c;
   }, [unpaired, branchFilter]);
 
@@ -271,9 +276,8 @@ export default function FleetAvailability() {
 
     // Stats boxes
     const total = data.length;
-    const avail = data.filter(v => v.currentStatus === "available").length;
+    const avail = data.filter(v => v.currentStatus === "available" || v.currentStatus === "on_route").length;
     const repair = data.filter(v => v.currentStatus === "out_for_repair").length;
-    const onRoute = data.filter(v => v.currentStatus === "on_route").length;
     const offRoad = data.filter(v => v.currentStatus === "off_road").length;
     const standby = data.filter(v => v.currentStatus === "standby").length;
     const availPct = total > 0 ? Math.round((avail / total) * 100) : 0;
@@ -281,9 +285,8 @@ export default function FleetAvailability() {
       { label: "Total Fleet", value: String(total), color: [30, 58, 138] as [number,number,number] },
       { label: "Available", value: `${avail} (${availPct}%)`, color: [21, 128, 61] as [number,number,number] },
       { label: "Out for Repair", value: String(repair), color: [153, 27, 27] as [number,number,number] },
-      { label: "On Route", value: String(onRoute), color: [29, 78, 216] as [number,number,number] },
-      { label: "Off Road", value: String(offRoad), color: [100, 100, 100] as [number,number,number] },
-      { label: "Standby", value: String(standby), color: [161, 98, 7] as [number,number,number] },
+      { label: "Off Road", value: String(offRoad), color: [161, 98, 7] as [number,number,number] },
+      { label: "Standby", value: String(standby), color: [100, 100, 100] as [number,number,number] },
     ];
     stats.forEach((s, i) => {
       const x = 14 + i * 48;
@@ -314,7 +317,8 @@ export default function FleetAvailability() {
         (v as any).fleet_number || "-", v.registration_number, trailerReg,
         `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
         v.currentSite || "-", STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
-        st?.workshop_name || "-", st?.estimated_return_date || "TBC",
+        st?.workshop_name || "-",
+        v.currentStatus === "available" ? "" : (st?.estimated_return_date || ""),
       ];
       return [
         (v as any).fleet_number || "-", v.registration_number, trailerReg,
@@ -424,11 +428,15 @@ export default function FleetAvailability() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+        <div className="stat-card text-left p-3">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Fleet</p>
+          <p className="text-2xl font-bold mt-1 text-foreground">{counts.total}</p>
+        </div>
+        {(["available", "out_for_repair", "off_road", "standby"] as const).map(key => (
           <button key={key} onClick={() => setFilter(prev => prev === key ? "all" : key)}
             className={`stat-card text-left p-3 transition-all ${filter === key ? "ring-2 ring-primary" : ""}`}>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">{cfg.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${cfg.color}`}>{counts[key as keyof typeof counts] || 0}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">{STATUS_CONFIG[key].label}</p>
+            <p className={`text-2xl font-bold mt-1 ${STATUS_CONFIG[key].color}`}>{counts[key] || 0}</p>
           </button>
         ))}
       </div>
@@ -520,10 +528,11 @@ export default function FleetAvailability() {
                       <td className="px-4 py-3 text-sm text-foreground">{st?.workshop_name || "—"}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{st?.date_sent_for_repair || "—"}</td>
                       <td className="px-4 py-3">
-                        {st?.estimated_return_date
-                          ? <span className={`text-sm ${new Date(st.estimated_return_date) < new Date() ? "text-destructive font-semibold" : "text-foreground"}`}>{st.estimated_return_date}</span>
-                          : <span className="text-xs text-warning">No ETA</span>
-                        }
+                        {v.currentStatus !== "available" && v.currentStatus !== "standby" && (
+                          st?.estimated_return_date
+                            ? <span className={`text-sm ${new Date(st.estimated_return_date) < new Date() ? "text-destructive font-semibold" : "text-foreground"}`}>{st.estimated_return_date}</span>
+                            : <span className="text-xs text-warning">No ETA</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {daysOut !== null && (
