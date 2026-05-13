@@ -238,133 +238,158 @@ export default function FleetAvailability() {
     const scope = branchFilter !== "all" ? branchFilter : "All Sites";
     const data = filtered;
     const isCustomer = reportType === "customer";
+    const today = new Date();
+    const dateStr = today.toLocaleDateString("en-ZA", { day: "2-digit", month: "long", year: "numeric" });
+    const timeStr = today.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" });
 
-    // Header
-    doc.setFillColor(15, 23, 42);
-    doc.rect(0, 0, 297, 22, "F");
-    doc.setTextColor(255);
-    doc.setFontSize(13);
+    // Professional header
+    doc.setFillColor(10, 15, 30);
+    doc.rect(0, 0, 297, 35, "F");
+    doc.setFillColor(0, 200, 150);
+    doc.rect(0, 33, 297, 2, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`MARZ Fleet — ${isCustomer ? "Fleet Status Report" : "Fleet Availability Report"}`, 14, 10);
+    doc.text("POWER TRUCK HIRE", 14, 14);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`Site: ${scope} | Generated: ${new Date().toLocaleDateString("en-ZA")} | Vector Logistics`, 14, 17);
+    doc.setTextColor(160, 200, 180);
+    doc.text("Operated by MARZ Fleet Compliance Platform", 14, 21);
+    doc.setFillColor(0, 200, 150);
+    doc.roundedRect(14, 24, isCustomer ? 38 : 36, 7, 2, 2, "F");
+    doc.setTextColor(10, 15, 30);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text(isCustomer ? "CLIENT REPORT" : "MANAGER REPORT", 16, 29);
+    doc.setTextColor(200, 220, 210);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Date: ${dateStr}  |  Time: ${timeStr}`, 283, 12, { align: "right" });
+    doc.text(`Site: ${scope}  |  Contract: Vector Logistics`, 283, 20, { align: "right" });
+    doc.text(`Report: ${isCustomer ? "Fleet Status" : "Fleet Availability"}`, 283, 28, { align: "right" });
+    doc.setTextColor(0, 0, 0);
 
-    // Summary stats — use filtered data for correct counts
+    // Stats boxes
     const total = data.length;
     const avail = data.filter(v => v.currentStatus === "available").length;
     const repair = data.filter(v => v.currentStatus === "out_for_repair").length;
     const onRoute = data.filter(v => v.currentStatus === "on_route").length;
     const offRoad = data.filter(v => v.currentStatus === "off_road").length;
     const standby = data.filter(v => v.currentStatus === "standby").length;
+    const availPct = total > 0 ? Math.round((avail / total) * 100) : 0;
+    const stats = [
+      { label: "Total Fleet", value: String(total), color: [30, 58, 138] as [number,number,number] },
+      { label: "Available", value: `${avail} (${availPct}%)`, color: [21, 128, 61] as [number,number,number] },
+      { label: "Out for Repair", value: String(repair), color: [153, 27, 27] as [number,number,number] },
+      { label: "On Route", value: String(onRoute), color: [29, 78, 216] as [number,number,number] },
+      { label: "Off Road", value: String(offRoad), color: [100, 100, 100] as [number,number,number] },
+      { label: "Standby", value: String(standby), color: [161, 98, 7] as [number,number,number] },
+    ];
+    stats.forEach((s, i) => {
+      const x = 14 + i * 48;
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x, 39, 45, 16, 2, 2, "F");
+      doc.setDrawColor(220, 220, 230);
+      doc.roundedRect(x, 39, 45, 16, 2, 2, "S");
+      doc.setFillColor(...s.color);
+      doc.rect(x, 39, 3, 16, "F");
+      doc.setTextColor(...s.color);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text(s.value, x + 7, 49);
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(s.label, x + 7, 53.5);
+    });
 
-    doc.setTextColor(0);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text(
-      `Total: ${total}  |  Available: ${avail} (${total > 0 ? Math.round((avail/total)*100) : 0}%)  |  Out for Repair: ${repair}  |  On Route: ${onRoute}  |  Off Road: ${offRoad}  |  Standby: ${standby}`,
-      14, 30
-    );
-    doc.setFont("helvetica", "normal");
-
-    // Build rows — customer report hides days out
+    // Table rows
     const rows = data.map(v => {
       const st = v.statusRecord;
       const daysOut = st?.date_sent_for_repair
         ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000)
         : null;
-
-      if (isCustomer) {
-        return [
-          (v as any).fleet_number || "-",
-          v.registration_number,
-          `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
-          v.currentSite || "-",
-          STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
-          st?.workshop_name || "-",
-          st?.estimated_return_date || "TBC",
-        ];
-      }
-      return [
-        (v as any).fleet_number || "-",
-        v.registration_number,
+      const trailerReg = v.pairedTrailer?.registration_number || "-";
+      if (isCustomer) return [
+        (v as any).fleet_number || "-", v.registration_number, trailerReg,
         `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
-        v.owningBranch || "-",
-        v.currentSite || "-",
+        v.currentSite || "-", STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
+        st?.workshop_name || "-", st?.estimated_return_date || "TBC",
+      ];
+      return [
+        (v as any).fleet_number || "-", v.registration_number, trailerReg,
+        `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
+        v.owningBranch || "-", v.currentSite || "-",
         STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
-        st?.workshop_name || "-",
-        st?.date_sent_for_repair || "-",
+        st?.workshop_name || "-", st?.date_sent_for_repair || "-",
         st?.estimated_return_date || "No ETA",
         daysOut !== null ? `${daysOut}d` : "-",
-        st?.waiting_for || "-",
-        st?.comments || "-",
+        st?.waiting_for || "-", st?.comments || "-",
       ];
     });
 
-    const customerHeaders = [["Fleet #", "Reg", "Make/Model", "Current Site", "Status", "Workshop", "ETA Return"]];
-    const managerHeaders = [["Fleet #", "Reg", "Make/Model", "Owning Branch", "Current Site", "Status", "Workshop", "Date Out", "ETA", "Days Out", "Waiting For", "Comments"]];
-
     autoTable(doc, {
-      startY: 36,
-      head: isCustomer ? customerHeaders : managerHeaders,
+      startY: 59,
+      head: isCustomer
+        ? [["Fleet #", "Horse Reg", "Trailer Reg", "Make/Model", "Current Site", "Status", "Workshop", "ETA"]]
+        : [["Fleet #", "Horse Reg", "Trailer Reg", "Make/Model", "Branch", "Site", "Status", "Workshop", "Date Out", "ETA", "Days", "Waiting For", "Comments"]],
       body: rows,
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: "bold", fontSize: 7 },
-      columnStyles: isCustomer
-        ? { 4: { fontStyle: "bold" } }
-        : { 5: { fontStyle: "bold" }, 11: { cellWidth: 35 } },
-      didParseCell: (data) => {
-        const statusIdx = isCustomer ? 4 : 5;
-        if (data.section === "body" && data.column.index === statusIdx) {
-          const val = data.cell.text[0];
-          if (val === "Available") data.cell.styles.textColor = [21, 128, 61];
-          else if (val === "Out for Repair") data.cell.styles.textColor = [153, 27, 27];
-          else if (val === "On Route") data.cell.styles.textColor = [29, 78, 216];
-          else if (val === "Off Road") data.cell.styles.textColor = [100, 100, 100];
+      styles: { fontSize: 7, cellPadding: 2.5 },
+      headStyles: { fillColor: [10, 15, 30], textColor: [0, 200, 150], fontStyle: "bold", fontSize: 7 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      didParseCell: (cellData) => {
+        const statusIdx = isCustomer ? 5 : 6;
+        if (cellData.section === "body" && cellData.column.index === statusIdx) {
+          const val = cellData.cell.text[0];
+          if (val === "Available") { cellData.cell.styles.textColor = [21, 128, 61]; cellData.cell.styles.fontStyle = "bold"; }
+          else if (val === "Out for Repair") { cellData.cell.styles.textColor = [153, 27, 27]; cellData.cell.styles.fontStyle = "bold"; }
+          else if (val === "On Route") { cellData.cell.styles.textColor = [29, 78, 216]; cellData.cell.styles.fontStyle = "bold"; }
+        }
+        if (!isCustomer && cellData.section === "body" && cellData.column.index === 10) {
+          const days = parseInt(cellData.cell.text[0]);
+          if (days > 14) { cellData.cell.styles.textColor = [153, 27, 27]; cellData.cell.styles.fontStyle = "bold"; }
         }
       },
     });
 
-    // Workshop analysis — manager report only
-    if (!isCustomer) {
-      const wsMap: Record<string, { count: number; totalDays: number }> = {};
-      data.filter(v => v.currentStatus === "out_for_repair").forEach(v => {
-        const ws = v.statusRecord?.workshop_name || "Unknown";
-        const days = v.statusRecord?.date_sent_for_repair
-          ? Math.ceil((Date.now() - new Date(v.statusRecord.date_sent_for_repair).getTime()) / 86400000)
-          : 0;
-        if (!wsMap[ws]) wsMap[ws] = { count: 0, totalDays: 0 };
-        wsMap[ws].count++;
-        wsMap[ws].totalDays += days;
+    // Workshop analysis (manager only)
+    if (!isCustomer && workshopAnalysis.length > 0) {
+      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      const needsNewPage = finalY > doc.internal.pageSize.height - 60;
+      if (needsNewPage) doc.addPage();
+      const wsY = needsNewPage ? 20 : finalY;
+      doc.setFillColor(10, 15, 30);
+      doc.rect(14, wsY, 269, 8, "F");
+      doc.setTextColor(0, 200, 150);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("WORKSHOP DOWNTIME ANALYSIS", 16, wsY + 5.5);
+      autoTable(doc, {
+        startY: wsY + 10,
+        head: [["Workshop", "Vehicles In", "Total Days", "Avg Days", "Vehicles"]],
+        body: workshopAnalysis.map(w => [w.workshop, String(w.count), `${w.totalDays}d`, `${w.avgDays}d${w.avgDays > 14 ? " ⚠" : ""}`, w.vehicles.join(", ")]),
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [153, 27, 27], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [255, 248, 248] },
       });
-
-      const wsRows = Object.entries(wsMap)
-        .sort((a, b) => b[1].count - a[1].count)
-        .map(([ws, d]) => [ws, String(d.count), `${d.totalDays}d`, `${d.count > 0 ? Math.round(d.totalDays / d.count) : 0}d`]);
-
-      if (wsRows.length > 0) {
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(0);
-        doc.text("Workshop Downtime Analysis", 14, finalY);
-        autoTable(doc, {
-          startY: finalY + 4,
-          head: [["Workshop", "Vehicles In", "Total Days Out", "Avg Days Per Vehicle"]],
-          body: wsRows,
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: "bold" },
-        });
-      }
     }
 
-    doc.setFontSize(7);
-    doc.setTextColor(120);
-    doc.text("MARZ Technologies (Pty) Ltd | fleet.marzai.co.za", 14, doc.internal.pageSize.height - 6);
+    // Footer on every page
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      const pH = doc.internal.pageSize.height;
+      doc.setFillColor(10, 15, 30);
+      doc.rect(0, pH - 12, 297, 12, "F");
+      doc.setTextColor(160, 200, 180);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text("Power Truck Hire (Pty) Ltd  |  Powered by MARZ Technologies  |  fleet.marzai.co.za", 14, pH - 5);
+      doc.text(`Page ${i} of ${pageCount}  |  ${isCustomer ? "CONFIDENTIAL — CLIENT COPY" : "CONFIDENTIAL — INTERNAL USE ONLY"}`, 283, pH - 5, { align: "right" });
+    }
 
-    const filename = `Fleet_${isCustomer ? "Status_Customer" : "Availability_Manager"}_${scope.replace(/ /g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`;
-    doc.save(filename);
-    toast.success(`${isCustomer ? "Customer" : "Manager"} report downloaded`);
+    doc.save(`PTH_Fleet_${isCustomer ? "Client" : "Manager"}_${scope.replace(/ /g, "_")}_${today.toISOString().split("T")[0]}.pdf`);
+    toast.success(`${isCustomer ? "Client" : "Manager"} report downloaded`);
   };
 
   const inputCls = "w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary";
@@ -699,10 +724,14 @@ export default function FleetAvailability() {
                 <input type="number" value={form.repair_cost} onChange={e => setForm({ ...form, repair_cost: e.target.value })} placeholder="0" className={inputCls} />
               </div>
 
-              {/* Trailer pairing */}
-              <div className="border border-border rounded-xl p-3 space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trailer Pairing</p>
-                {modalVehicle?.pairedTrailer ? (
+                <div className="border border-border rounded-xl p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                  Trailer Pairing
+                  <span className="text-xs font-normal text-muted-foreground">— {(modalVehicle as any)?.vehicle_type === "trailer" ? "This is a trailer" : "This is a horse"}</span>
+                </p>
+                {(modalVehicle as any)?.vehicle_type === "trailer" ? (
+                  <p className="text-xs text-muted-foreground">Trailers are paired from the horse vehicle. Find the horse this trailer is attached to and pair from there.</p>
+                ) : modalVehicle?.pairedTrailer ? (
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-foreground">Paired with: {modalVehicle.pairedTrailer.registration_number}</p>
@@ -714,6 +743,7 @@ export default function FleetAvailability() {
                         await supabase.from("vehicle_pairings" as any).update({ is_active: false, unpaired_at: new Date().toISOString() }).eq("id", pairing.id);
                         toast.success("Trailer unpaired");
                         refetchPairings();
+                        qc.invalidateQueries({ queryKey: ["vehicles"] });
                       }
                     }} className="text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg hover:opacity-80">
                       Unpair
@@ -731,16 +761,25 @@ export default function FleetAvailability() {
                         paired_by: profile?.id,
                         is_active: true,
                       });
-                      toast.success("Trailer paired");
+                      toast.success("Trailer paired successfully");
                       refetchPairings();
+                      qc.invalidateQueries({ queryKey: ["vehicles"] });
                       e.target.value = "";
                     }} className={inputCls} defaultValue="">
                       <option value="">Select trailer to pair...</option>
-                      {enriched.filter(v => !v.isPairedTrailer && v.id !== modalVehicle?.id && ((v as any).vehicle_type === "trailer" || (v as any).make?.toLowerCase().includes("serco") || (v as any).make?.toLowerCase().includes("afrit") || (v as any).make?.toLowerCase().includes("cts") || (v as any).make?.toLowerCase().includes("henred"))).map(t => (
-                        <option key={t.id} value={t.id}>{t.registration_number} — {(t as any).make} {(t as any).model}</option>
+                      {enriched.filter(v =>
+                        !v.isPairedTrailer &&
+                        v.id !== modalVehicle?.id &&
+                        (v as any).vehicle_type === "trailer"
+                      ).map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.registration_number} — {(t as any).make} {(t as any).model}
+                        </option>
                       ))}
                     </select>
-                    <p className="text-xs text-muted-foreground mt-1">Shows trailers (Serco, Afrit, CTS etc) not currently paired</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {enriched.filter(v => !v.isPairedTrailer && v.id !== modalVehicle?.id && (v as any).vehicle_type === "trailer").length} trailers available
+                    </p>
                   </div>
                 )}
               </div>
