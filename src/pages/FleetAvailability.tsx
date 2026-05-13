@@ -331,8 +331,8 @@ export default function FleetAvailability() {
     autoTable(doc, {
       startY: 59,
       head: isCustomer
-        ? [["Fleet #", "Horse Reg", "Trailer Reg", "Make/Model", "Current Site", "Status", "Workshop", "ETA"]]
-        : [["Fleet #", "Horse Reg", "Trailer Reg", "Make/Model", "Branch", "Site", "Status", "Workshop", "Date Out", "ETA", "Days", "Waiting For", "Comments"]],
+        ? [["Fleet #", "Registration", "Trailer", "Make/Model", "Current Site", "Status", "Workshop", "ETA"]]
+        : [["Fleet #", "Registration", "Trailer", "Make/Model", "Branch", "Site", "Status", "Workshop", "Date Out", "ETA", "Days", "Waiting For", "Comments"]],
       body: rows,
       styles: { fontSize: 7, cellPadding: 2.5 },
       headStyles: { fillColor: [10, 15, 30], textColor: [0, 200, 150], fontStyle: "bold", fontSize: 7 },
