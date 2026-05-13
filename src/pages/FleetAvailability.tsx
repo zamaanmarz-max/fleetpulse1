@@ -54,7 +54,7 @@ export default function FleetAvailability() {
   const [tempForm, setTempForm] = useState({ registration_number: "", make: "", model: "", from_branch: "", reason: "Replacement", current_site: "", comments: "" });
   const [savingTemp, setSavingTemp] = useState(false);
 
-  const { data: statuses } = useQuery({
+  const { data: statuses, refetch: refetchStatuses } = useQuery({
     queryKey: ["vehicle_statuses", profile?.organisation_id],
     queryFn: async () => {
       const { data, error } = await supabase.from("vehicle_status").select("*").order("updated_at", { ascending: false });
@@ -65,26 +65,52 @@ export default function FleetAvailability() {
     staleTime: 0, refetchOnMount: "always",
   });
 
+  const { data: pairings, refetch: refetchPairings } = useQuery({
+    queryKey: ["vehicle_pairings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_pairings" as any)
+        .select("*, horse:horse_id(id, registration_number, make, model, fleet_number), trailer:trailer_id(id, registration_number, make, model, fleet_number)")
+        .eq("is_active", true);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    staleTime: 0, refetchOnMount: "always",
+  });
+
+  // Build maps
   const statusMap = new Map<string, any>();
   (statuses || []).forEach(s => { if (!statusMap.has(s.vehicle_id)) statusMap.set(s.vehicle_id, s); });
 
+  // Map of trailer_id → pairing (to know which trailers are currently paired)
+  const pairedTrailerIds = new Set((pairings || []).map((p: any) => p.trailer_id));
+  // Map of horse_id → trailer info
+  const horseTrailerMap = new Map<string, any>();
+  (pairings || []).forEach((p: any) => horseTrailerMap.set(p.horse_id, p.trailer));
+
   const enriched = (vehicles || []).map(v => {
     const st = statusMap.get(v.id);
+    const pairedTrailer = horseTrailerMap.get(v.id) || null;
     return {
       ...v,
       currentStatus: st?.status || "available",
       statusRecord: st || null,
       owningBranch: (v as any).owning_branch || null,
       currentSite: st?.current_site || null,
+      pairedTrailer,
+      isPairedTrailer: pairedTrailerIds.has(v.id),
     };
   });
 
+  // Filter out trailers that are currently paired — they show under their horse
+  const unpaired = enriched.filter(v => !v.isPairedTrailer);
+
   // Sites — from current deployment site on vehicle_status
-  const assignedSites = Array.from(new Set(enriched.map(v => v.currentSite).filter(Boolean)));
-  const unassignedCount = enriched.filter(v => !v.currentSite).length;
+  const assignedSites = Array.from(new Set(unpaired.map(v => v.currentSite).filter(Boolean)));
+  const unassignedCount = unpaired.filter(v => !v.currentSite).length;
   const branches = ["all", ...assignedSites, ...(unassignedCount > 0 ? ["unassigned"] : [])];
 
-  const filtered = enriched.filter(v => {
+  const filtered = unpaired.filter(v => {
     if (filter !== "all" && v.currentStatus !== filter) return false;
     if (branchFilter === "unassigned" && v.currentSite) return false;
     if (branchFilter !== "all" && branchFilter !== "unassigned" && v.currentSite !== branchFilter) return false;
@@ -101,15 +127,15 @@ export default function FleetAvailability() {
 
   const counts = useMemo(() => {
     const c = { available: 0, out_for_repair: 0, on_route: 0, off_road: 0, standby: 0 };
-    enriched.filter(v => branchFilter === "all" || branchFilter === "unassigned" || v.currentSite === branchFilter)
+    unpaired.filter(v => branchFilter === "all" || branchFilter === "unassigned" || v.currentSite === branchFilter)
       .forEach(v => { if (c[v.currentStatus as keyof typeof c] !== undefined) c[v.currentStatus as keyof typeof c]++; });
     return c;
-  }, [enriched, branchFilter]);
+  }, [unpaired, branchFilter]);
 
   // Workshop analysis
   const workshopAnalysis = useMemo(() => {
     const map: Record<string, { count: number; totalDays: number; vehicles: string[] }> = {};
-    enriched.filter(v => v.currentStatus === "out_for_repair").forEach(v => {
+    unpaired.filter(v => v.currentStatus === "out_for_repair").forEach(v => {
       const ws = v.statusRecord?.workshop_name || "Unknown";
       const daysOut = v.statusRecord?.date_sent_for_repair
         ? Math.ceil((Date.now() - new Date(v.statusRecord.date_sent_for_repair).getTime()) / 86400000)
@@ -435,7 +461,7 @@ export default function FleetAvailability() {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-border">
-                  {["Fleet #", "Registration", "Owning Branch", "Current Site", "Status", "Workshop", "Date Out", "ETA", "Days Out", "Waiting For", "Comments"].map(h => (
+                  {["Fleet #", "Registration", "Trailer", "Owning Branch", "Current Site", "Status", "Workshop", "Date Out", "ETA", "Days Out", "Waiting For", "Comments"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                   ))}
                   <th className="px-4 py-3" />
@@ -443,7 +469,7 @@ export default function FleetAvailability() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={12} className="px-4 py-8 text-center text-sm text-muted-foreground">No vehicles found</td></tr>
+                  <tr><td colSpan={13} className="px-4 py-8 text-center text-sm text-muted-foreground">No vehicles found</td></tr>
                 ) : filtered.map(v => {
                   const st = v.statusRecord;
                   const daysOut = st?.date_sent_for_repair
@@ -455,6 +481,12 @@ export default function FleetAvailability() {
                     <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${isLongOut ? "bg-destructive/5" : ""}`}>
                       <td className="px-4 py-3 text-sm font-mono text-foreground">{(v as any).fleet_number || "—"}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
+                      <td className="px-4 py-3">
+                        {v.pairedTrailer
+                          ? <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full">{v.pairedTrailer.registration_number}</span>
+                          : <span className="text-xs text-muted-foreground">—</span>
+                        }
+                      </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{v.owningBranch || "—"}</td>
                       <td className="px-4 py-3 text-sm text-foreground font-medium">{v.currentSite || <span className="text-warning text-xs">Not set</span>}</td>
                       <td className="px-4 py-3">
@@ -665,6 +697,52 @@ export default function FleetAvailability() {
               <div>
                 <label className={labelCls}>Estimated Cost (R)</label>
                 <input type="number" value={form.repair_cost} onChange={e => setForm({ ...form, repair_cost: e.target.value })} placeholder="0" className={inputCls} />
+              </div>
+
+              {/* Trailer pairing */}
+              <div className="border border-border rounded-xl p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trailer Pairing</p>
+                {modalVehicle?.pairedTrailer ? (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Paired with: {modalVehicle.pairedTrailer.registration_number}</p>
+                      <p className="text-xs text-muted-foreground">{modalVehicle.pairedTrailer.make} {modalVehicle.pairedTrailer.model}</p>
+                    </div>
+                    <button onClick={async () => {
+                      const pairing = (pairings || []).find((p: any) => p.horse_id === modalVehicle.id);
+                      if (pairing) {
+                        await supabase.from("vehicle_pairings" as any).update({ is_active: false, unpaired_at: new Date().toISOString() }).eq("id", pairing.id);
+                        toast.success("Trailer unpaired");
+                        refetchPairings();
+                      }
+                    }} className="text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg hover:opacity-80">
+                      Unpair
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label className={labelCls}>Pair with trailer</label>
+                    <select onChange={async (e) => {
+                      if (!e.target.value) return;
+                      await supabase.from("vehicle_pairings" as any).insert({
+                        organisation_id: profile?.organisation_id,
+                        horse_id: modalVehicle.id,
+                        trailer_id: e.target.value,
+                        paired_by: profile?.id,
+                        is_active: true,
+                      });
+                      toast.success("Trailer paired");
+                      refetchPairings();
+                      e.target.value = "";
+                    }} className={inputCls} defaultValue="">
+                      <option value="">Select trailer to pair...</option>
+                      {enriched.filter(v => !v.isPairedTrailer && v.id !== modalVehicle?.id && ((v as any).vehicle_type === "trailer" || (v as any).make?.toLowerCase().includes("serco") || (v as any).make?.toLowerCase().includes("afrit") || (v as any).make?.toLowerCase().includes("cts") || (v as any).make?.toLowerCase().includes("henred"))).map(t => (
+                        <option key={t.id} value={t.id}>{t.registration_number} — {(t as any).make} {(t as any).model}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">Shows trailers (Serco, Afrit, CTS etc) not currently paired</p>
+                  </div>
+                )}
               </div>
 
               <div>
