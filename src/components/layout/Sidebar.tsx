@@ -4,13 +4,14 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, FileCheck, Shield,
   BarChart3, Settings, ChevronLeft, ChevronRight,
-  Receipt, Bell, UserCog, LogOut, Upload, Warehouse, Wrench, HeartPulse
+  Receipt, Bell, UserCog, LogOut, Upload, Warehouse, Wrench, HeartPulse, Radio
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { to: "/dashboard",         icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/control-tower",     icon: Radio,           label: "Control Tower" },
   { to: "/vehicles",          icon: Truck,           label: "Vehicles" },
   { to: "/drivers",           icon: Users,           label: "Drivers" },
   { to: "/maintenance",       icon: Wrench,          label: "Maintenance" },

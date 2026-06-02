@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, Bell, Menu,
   FileCheck, Receipt, BarChart3, Settings, Shield,
-  Sparkles, Warehouse, Upload, UserCog, LogOut, X, Wrench, HeartPulse,
+  Sparkles, Warehouse, Upload, UserCog, LogOut, X, Wrench, HeartPulse, Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -27,6 +27,7 @@ export function MobileNav({ onOpenAI }: { onOpenAI?: () => void }) {
   const isAdmin = profile?.role === "superadmin";
 
   const moreItems: MoreItem[] = [
+    { to: "/control-tower", icon: Radio,      label: "Control Tower" },
     { to: "/maintenance",   icon: Wrench,      label: "Maintenance" },
     { to: "/hs-file",       icon: HeartPulse,  label: "H&S File" },
     { to: "/compliance",    icon: Shield,      label: "Compliance" },
