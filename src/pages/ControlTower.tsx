@@ -28,7 +28,7 @@ export default function ControlTower() {
   const [showNewBooking, setShowNewBooking] = useState(false);
   const [showCheckin, setShowCheckin] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"bookings" | "checkins" | "alerts">("bookings");
+  const [activeTab, setActiveTab] = useState<"bookings" | "checkins" | "messages" | "alerts">("bookings");
 
   const [form, setForm] = useState({
     driver_id: "", vehicle_id: "", shift_time: "05:00",
@@ -96,6 +96,21 @@ export default function ControlTower() {
       declined: b.filter(x => x.status === "declined").length,
     };
   }, [bookings]);
+
+  const { data: messages } = useQuery({
+    queryKey: ["whatsapp_messages", selectedDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_messages" as any)
+        .select("*, drivers(first_name, last_name)")
+        .gte("created_at", `${selectedDate}T00:00:00`)
+        .lte("created_at", `${selectedDate}T23:59:59`)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    staleTime: 0,
+  });
 
   const breakdowns = (checkins || []).filter(c => c.checkin_type === "breakdown_report");
 
@@ -231,7 +246,8 @@ export default function ControlTower() {
       <div className="flex gap-1 border-b border-border">
         {[
           { key: "bookings", icon: Users, label: "Driver Bookings", badge: stats.pending > 0 ? stats.pending : 0 },
-          { key: "checkins", icon: MessageSquare, label: "Check-ins & Updates", badge: 0 },
+          { key: "checkins", icon: MessageSquare, label: "Check-ins", badge: 0 },
+          { key: "messages", icon: Radio, label: "Message History", badge: 0 },
           { key: "alerts", icon: Bell, label: "Alerts", badge: breakdowns.length + stats.declined },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key as any)}
@@ -393,6 +409,36 @@ export default function ControlTower() {
                 ))}
               </div>
             )
+          }
+        </div>
+      )}
+
+      {/* Message History Tab */}
+      {activeTab === "messages" && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">{(messages || []).length} messages on {selectedDate} — every WhatsApp message saved permanently</p>
+          {(messages || []).length === 0
+            ? <div className="glass-card p-8 text-center"><Radio className="w-10 h-10 text-muted-foreground mx-auto mb-3" /><p className="text-sm text-muted-foreground">No messages on this date</p></div>
+            : (messages || []).map((m: any) => (
+              <div key={m.id} className={`flex gap-3 ${m.direction === "outbound" ? "flex-row-reverse" : ""}`}>
+                <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                  m.direction === "outbound"
+                    ? "bg-primary text-primary-foreground rounded-tr-none"
+                    : "bg-secondary text-foreground rounded-tl-none"
+                }`}>
+                  {m.direction === "inbound" && (
+                    <p className="text-xs font-semibold mb-1 opacity-70">
+                      {m.drivers ? `${m.drivers.first_name} ${m.drivers.last_name}` : m.phone_number}
+                    </p>
+                  )}
+                  <p>{m.message_text}</p>
+                  <p className={`text-xs mt-1 opacity-60 ${m.direction === "outbound" ? "text-right" : ""}`}>
+                    {new Date(m.created_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                    {m.direction === "outbound" ? " · MARZ AI" : ""}
+                  </p>
+                </div>
+              </div>
+            ))
           }
         </div>
       )}

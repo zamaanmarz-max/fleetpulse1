@@ -159,6 +159,45 @@ const TOOLS = [
       required: ["report_type"],
     },
   },
+
+  // 11. LOG DRIVER CHECK-IN
+  {
+    name: "log_driver_checkin",
+    description: "Log a driver check-in, delivery update, arrival confirmation or breakdown report from WhatsApp. Use when a driver sends any status update — arrived on site, delivered, issue, end of day.",
+    input_schema: {
+      type: "object",
+      properties: {
+        driver_id: { type: "string", description: "Driver ID if known" },
+        registration_number: { type: "string", description: "Vehicle registration if mentioned" },
+        checkin_type: { type: "string", enum: ["morning_checkin", "delivery_update", "breakdown_report", "end_of_day", "other"] },
+        message: { type: "string", description: "Full message or summary of what the driver reported" },
+        location: { type: "string", description: "Location if mentioned" },
+      },
+      required: ["message", "checkin_type"],
+    },
+  },
+
+  // 12. GET TODAY'S BOOKINGS
+  {
+    name: "get_todays_bookings",
+    description: "Get today's driver bookings — who is booked, confirmed, pending, declined. Use when controller asks about today's roster.",
+    input_schema: { type: "object", properties: {} },
+  },
+
+  // 13. REGISTER DRIVER VIA WHATSAPP
+  {
+    name: "register_driver_whatsapp",
+    description: "Register a driver's WhatsApp number. Use when a driver messages to register or onboard themselves onto the MARZ system.",
+    input_schema: {
+      type: "object",
+      properties: {
+        first_name: { type: "string" },
+        last_name: { type: "string" },
+        phone_number: { type: "string", description: "Their WhatsApp number" },
+      },
+      required: ["first_name", "last_name", "phone_number"],
+    },
+  },
 ];
 
 // ── Tool executors ────────────────────────────────────────
@@ -551,8 +590,103 @@ async function executeTool(supabase: any, toolName: string, args: any, orgId: st
 
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
+
+    // ── 11. DRIVER CHECK-IN ───────────────────────────────
+    case "log_driver_checkin": {
+      const { data: vehicle } = args.registration_number
+        ? await supabase.from("vehicles").select("id").ilike("registration_number", args.registration_number).maybeSingle()
+        : { data: null };
+
+      const { error } = await supabase.from("driver_checkins").insert({
+        organisation_id: orgId,
+        driver_id: args.driver_id || null,
+        vehicle_id: vehicle?.id || null,
+        checkin_type: args.checkin_type || "delivery_update",
+        message: args.message,
+        location: args.location || null,
+        source: "whatsapp",
+      });
+
+      if (error) return JSON.stringify({ error: error.message });
+
+      // Update driver last checkin
+      if (args.driver_id) {
+        await supabase.from("drivers").update({
+          last_checkin_at: new Date().toISOString(),
+          last_checkin_message: args.message,
+        }).eq("id", args.driver_id);
+      }
+
+      const typeEmoji = {
+        morning_checkin: "🌅",
+        delivery_update: "📦",
+        breakdown_report: "🚨",
+        end_of_day: "🏁",
+        other: "💬",
+      }[args.checkin_type as string] || "💬";
+
+      return JSON.stringify({
+        success: true,
+        message: `${typeEmoji} Check-in logged: ${args.message}`,
+      });
+    }
+
+    // ── 12. GET TODAY'S BOOKINGS ──────────────────────────
+    case "get_todays_bookings": {
+      const today = new Date().toISOString().split("T")[0];
+      const { data: bookings } = await supabase
+        .from("driver_bookings")
+        .select("*, drivers(first_name, last_name, phone_number), vehicles(registration_number)")
+        .eq("booking_date", today)
+        .order("shift_time");
+
+      const confirmed = (bookings || []).filter((b: any) => b.status === "confirmed").length;
+      const pending = (bookings || []).filter((b: any) => b.status === "pending").length;
+      const declined = (bookings || []).filter((b: any) => b.status === "declined").length;
+
+      return JSON.stringify({
+        date: today,
+        total_booked: bookings?.length || 0,
+        confirmed, pending, declined,
+        bookings: (bookings || []).map((b: any) => ({
+          driver: `${b.drivers?.first_name} ${b.drivers?.last_name}`,
+          vehicle: b.vehicles?.registration_number || "TBA",
+          shift: b.shift_time,
+          status: b.status,
+          route: b.route || "Not specified",
+        })),
+      });
+    }
+
+    // ── 13. REGISTER DRIVER ───────────────────────────────
+    case "register_driver_whatsapp": {
+      // Find driver by name or employee number
+      const { data: driver } = await supabase.from("drivers")
+        .select("id, first_name, last_name")
+        .or(`first_name.ilike.%${args.first_name}%,last_name.ilike.%${args.last_name}%`)
+        .maybeSingle();
+
+      if (!driver) return JSON.stringify({ error: `Driver ${args.first_name} ${args.last_name} not found. Check your name spelling or contact your manager.` });
+
+      await supabase.from("drivers").update({
+        whatsapp_number: args.phone_number,
+        is_registered_whatsapp: true,
+      }).eq("id", driver.id);
+
+      await supabase.from("driver_whatsapp_registration").upsert({
+        driver_id: driver.id,
+        phone_number: args.phone_number,
+        welcome_sent: true,
+        is_active: true,
+      }, { onConflict: "phone_number" });
+
+      return JSON.stringify({
+        success: true,
+        driver_id: driver.id,
+        message: `✅ Registered! Welcome to MARZ Fleet, ${driver.first_name}. You will now receive bookings, route instructions, and updates here on WhatsApp.`,
+      });
+    }
   }
-}
 
 // ── Build fleet snapshot for system prompt ────────────────
 async function buildSnapshot(supabase: any): Promise<string> {
@@ -642,9 +776,47 @@ serve(async (req) => {
       fromNumber = body.fromNumber || "";
     }
 
-    if (!userMessage && !mediaUrl) {
-      return new Response(JSON.stringify({ message: "No message received" }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // ── Look up driver by phone number ───────────────────
+    let driverProfile: any = null;
+    if (fromNumber && isWhatsApp) {
+      const cleanPhone = fromNumber.replace("whatsapp:", "").replace("+", "");
+      const { data: regDriver } = await supabase.from("driver_whatsapp_registration")
+        .select("*, drivers(id, first_name, last_name)")
+        .eq("phone_number", fromNumber)
+        .maybeSingle();
+      driverProfile = regDriver?.drivers || null;
+
+      // Check if this is a booking YES/NO response
+      const cleanMsg = userMessage.trim().toUpperCase();
+      if (cleanMsg === "YES" || cleanMsg === "NO" || cleanMsg === "YEP" || cleanMsg === "NAH" || cleanMsg === "JA" || cleanMsg === "NEE") {
+        const today = new Date().toISOString().split("T")[0];
+        const isYes = ["YES", "YEP", "JA"].includes(cleanMsg);
+        const { data: booking } = await supabase.from("driver_bookings")
+          .select("id, vehicles(registration_number), shift_time")
+          .eq("booking_date", today)
+          .eq("driver_id", driverProfile?.id || "")
+          .eq("status", "pending")
+          .maybeSingle();
+
+        if (booking) {
+          await supabase.from("driver_bookings").update({
+            status: isYes ? "confirmed" : "declined",
+            driver_response: userMessage,
+            responded_at: new Date().toISOString(),
+          }).eq("id", booking.id);
+        }
+      }
+
+      // Save incoming message to history
+      await supabase.from("whatsapp_messages").insert({
+        organisation_id: orgId || null,
+        phone_number: fromNumber,
+        driver_id: driverProfile?.id || null,
+        direction: "inbound",
+        message_text: userMessage,
+        media_url: mediaUrl || null,
+        message_type: mediaUrl ? "media" : "text",
+        created_at: new Date().toISOString(),
       });
     }
 
@@ -661,23 +833,39 @@ serve(async (req) => {
       ? `${userMessage}\n[Photo attached: ${mediaUrl}]`
       : userMessage;
 
-    // ── Build system prompt ───────────────────────────────
-    const snapshot = await buildSnapshot(supabase);
+    const driverContext = driverProfile
+      ? `\nTHIS MESSAGE IS FROM DRIVER: ${driverProfile.first_name} ${driverProfile.last_name} (ID: ${driverProfile.id})\nWhen they send updates, arrivals, or reports — use log_driver_checkin with their driver_id.`
+      : "\nThis message is from an unregistered number. If they want to register, ask for their first name, last name, and use register_driver_whatsapp.";
 
-    const systemPrompt = `You are MARZ Fleet AI — a sharp, direct South African fleet compliance assistant for the Vector Logistics fleet.
+    const systemPrompt = `You are MARZ Control Tower AI — a South African fleet operations assistant managing drivers, vehicles, compliance and daily operations.
 
 FLEET SNAPSHOT:
 ${snapshot}
+${driverContext}
 
-CRITICAL RULES:
-1. When logging a damage: ALWAYS confirm registration, reporter name, role, description, AND odometer before calling log_damage. If any field is missing, ask for it. Do NOT accept vague descriptions.
-2. When logging a breakdown: confirm registration, location, and breakdown type before calling log_breakdown.
-3. When approving a job card: confirm the JC number, workshop, and approver name.
-4. If the user sends a photo (MediaUrl): ask them what vehicle it's for and what type (before/after damage, compliance doc) before doing anything.
-5. When generating reports: tell the user what you're compiling, then generate it.
-6. Be concise on WhatsApp — no markdown, no bullet points, just clear sentences.
-7. Always use ZAR (R) for currency. Dates in DD/MM/YYYY format.
-8. If you are unsure of a registration number, ask. Never guess.`;
+YOUR CAPABILITIES:
+1. Fleet Management: log damages, breakdowns, vehicle status, job cards, compliance
+2. Control Tower: log driver check-ins, get today's bookings, register drivers
+3. Driver Support: guide drivers through issues, confirm arrivals, log deliveries
+
+DRIVER INTERACTION RULES:
+- When a driver says they arrived somewhere, use log_driver_checkin with type "delivery_update"
+- When a driver says they're done for the day, use log_driver_checkin with type "end_of_day"
+- When a driver reports a breakdown, use BOTH log_breakdown AND log_driver_checkin with type "breakdown_report"
+- When a driver says anything about their route or deliveries, log it
+- Be friendly and supportive with drivers — they're on the road
+- If a driver sends "Register" or wants to sign up, ask for their first and last name then register them
+
+CONTROLLER RULES:
+- When asked about today's roster, use get_todays_bookings
+- Be concise and direct — controllers are busy
+- Always confirm actions before executing
+
+GENERAL RULES:
+- No markdown, no bullet points on WhatsApp — plain sentences only
+- Use ZAR (R) for currency, DD/MM/YYYY for dates
+- If unsure of a registration number, ask
+- Every driver update must be logged — nothing gets lost`;
 
     // ── Agentic loop ──────────────────────────────────────
     const messages: any[] = [
@@ -748,6 +936,18 @@ CRITICAL RULES:
       await supabase.from("whatsapp_conversations")
         .upsert({ phone_number: fromNumber, messages: updatedHistory, organisation_id: orgId, updated_at: new Date().toISOString() },
           { onConflict: "phone_number" });
+    }
+
+    // ── Save outbound message ─────────────────────────────
+    if (fromNumber && isWhatsApp && finalReply) {
+      await supabase.from("whatsapp_messages").insert({
+        organisation_id: orgId || null,
+        phone_number: fromNumber,
+        driver_id: driverProfile?.id || null,
+        direction: "outbound",
+        message_text: finalReply,
+        created_at: new Date().toISOString(),
+      });
     }
 
     // ── Send WhatsApp reply ───────────────────────────────
