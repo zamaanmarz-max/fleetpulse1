@@ -524,7 +524,6 @@ async function executeTool(supabase: any, toolName: string, args: any, orgId: st
 
     // ── 10. GENERATE FLEET REPORT ─────────────────────────
     case "generate_fleet_report": {
-      // Build a text report and store it in Supabase storage as a .txt file
       let reportLines: string[] = [];
       const header = `MARZ FleetPulse — ${args.report_type.replace(/_/g, " ").toUpperCase()} REPORT\nGenerated: ${new Date().toLocaleString("en-ZA")}\n${"─".repeat(50)}\n`;
 
@@ -540,63 +539,36 @@ async function executeTool(supabase: any, toolName: string, args: any, orgId: st
           offroad.forEach((v: any) => reportLines.push(`  - ${v.registration_number} | ${v.make} ${v.model} | Status: ${v.operational_status}`));
         }
       }
-
       if (args.report_type === "damages" || args.report_type === "full_fleet") {
-        const { data: damages } = await supabase.from("damages")
-          .select("description, status, reported_by, created_at, vehicles(registration_number)")
-          .neq("status", "Resolved").order("created_at", { ascending: false }).limit(30);
+        const { data: damages } = await supabase.from("damages").select("description, status, reported_by, created_at, vehicles(registration_number)").neq("status", "Resolved").order("created_at", { ascending: false }).limit(30);
         reportLines.push(`\nOPEN DAMAGES (${damages?.length || 0}):`);
         (damages || []).forEach((d: any) => reportLines.push(`  - ${(d as any).vehicles?.registration_number} | ${d.description} | By: ${d.reported_by} | ${d.created_at?.split("T")[0]}`));
       }
-
       if (args.report_type === "compliance" || args.report_type === "full_fleet") {
         const in30 = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
-        const { data: certs } = await supabase.from("certificates")
-          .select("certificate_type, expiry_date, vehicles(registration_number)")
-          .lte("expiry_date", in30).order("expiry_date", { ascending: true }).limit(20);
+        const { data: certs } = await supabase.from("certificates").select("certificate_type, expiry_date, vehicles(registration_number)").lte("expiry_date", in30).order("expiry_date", { ascending: true }).limit(20);
         reportLines.push(`\nCERTIFICATES EXPIRING IN 30 DAYS (${certs?.length || 0}):`);
         (certs || []).forEach((c: any) => reportLines.push(`  - ${(c as any).vehicles?.registration_number} | ${c.certificate_type} | Expires: ${c.expiry_date}`));
       }
-
       if (args.report_type === "costs" || args.report_type === "full_fleet") {
         const since = new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0];
-        const { data: jcs } = await supabase.from("job_cards")
-          .select("total_cost, job_type, vehicles(registration_number)").gte("work_date", since).not("total_cost", "is", null);
+        const { data: jcs } = await supabase.from("job_cards").select("total_cost, job_type, vehicles(registration_number)").gte("work_date", since).not("total_cost", "is", null);
         const total = (jcs || []).reduce((s: number, j: any) => s + (Number(j.total_cost) || 0), 0);
         reportLines.push(`\nCOST ANALYSIS (Last 90 Days):\nTotal Spend: R ${total.toLocaleString()}\nJob Cards: ${jcs?.length || 0}`);
       }
-
       const reportContent = header + reportLines.join("\n");
       const filename = `reports/fleet-report-${args.report_type}-${Date.now()}.txt`;
-
-      const { error: upErr } = await supabase.storage.from("certificates")
-        .upload(filename, new Blob([reportContent], { type: "text/plain" }), { contentType: "text/plain" });
-
-      if (upErr) {
-        // Return inline if upload fails
-        return JSON.stringify({ success: true, report: reportContent.substring(0, 2000) + "\n...(full report available in app)" });
-      }
-
+      const { error: upErr } = await supabase.storage.from("certificates").upload(filename, new Blob([reportContent], { type: "text/plain" }), { contentType: "text/plain" });
+      if (upErr) return JSON.stringify({ success: true, report: reportContent.substring(0, 2000) + "\n...(truncated)" });
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const publicUrl = `${supabaseUrl}/storage/v1/object/public/certificates/${filename}`;
-
-      return JSON.stringify({
-        success: true,
-        message: `✅ ${args.report_type.replace(/_/g, " ")} report generated.`,
-        download_url: publicUrl,
-        report_preview: reportContent.substring(0, 500) + "...",
-      });
+      return JSON.stringify({ success: true, message: `✅ Report generated.`, download_url: `${supabaseUrl}/storage/v1/object/public/certificates/${filename}`, report_preview: reportContent.substring(0, 500) + "..." });
     }
-
-    default:
-      return JSON.stringify({ error: `Unknown tool: ${toolName}` });
 
     // ── 11. DRIVER CHECK-IN ───────────────────────────────
     case "log_driver_checkin": {
       const { data: vehicle } = args.registration_number
         ? await supabase.from("vehicles").select("id").ilike("registration_number", args.registration_number).maybeSingle()
         : { data: null };
-
       const { error } = await supabase.from("driver_checkins").insert({
         organisation_id: orgId,
         driver_id: args.driver_id || null,
@@ -606,88 +578,49 @@ async function executeTool(supabase: any, toolName: string, args: any, orgId: st
         location: args.location || null,
         source: "whatsapp",
       });
-
       if (error) return JSON.stringify({ error: error.message });
-
-      // Update driver last checkin
       if (args.driver_id) {
-        await supabase.from("drivers").update({
-          last_checkin_at: new Date().toISOString(),
-          last_checkin_message: args.message,
-        }).eq("id", args.driver_id);
+        await supabase.from("drivers").update({ last_checkin_at: new Date().toISOString(), last_checkin_message: args.message }).eq("id", args.driver_id);
       }
-
-      const typeEmoji = {
-        morning_checkin: "🌅",
-        delivery_update: "📦",
-        breakdown_report: "🚨",
-        end_of_day: "🏁",
-        other: "💬",
-      }[args.checkin_type as string] || "💬";
-
-      return JSON.stringify({
-        success: true,
-        message: `${typeEmoji} Check-in logged: ${args.message}`,
-      });
+      const typeEmoji: Record<string, string> = { morning_checkin: "🌅", delivery_update: "📦", breakdown_report: "🚨", end_of_day: "🏁", other: "💬" };
+      return JSON.stringify({ success: true, message: `${typeEmoji[args.checkin_type] || "💬"} Logged: ${args.message}` });
     }
 
     // ── 12. GET TODAY'S BOOKINGS ──────────────────────────
     case "get_todays_bookings": {
-      const today = new Date().toISOString().split("T")[0];
-      const { data: bookings } = await supabase
-        .from("driver_bookings")
+      const todayDate = new Date().toISOString().split("T")[0];
+      const { data: bookings } = await supabase.from("driver_bookings")
         .select("*, drivers(first_name, last_name, phone_number), vehicles(registration_number)")
-        .eq("booking_date", today)
-        .order("shift_time");
-
+        .eq("booking_date", todayDate).order("shift_time");
       const confirmed = (bookings || []).filter((b: any) => b.status === "confirmed").length;
       const pending = (bookings || []).filter((b: any) => b.status === "pending").length;
       const declined = (bookings || []).filter((b: any) => b.status === "declined").length;
-
       return JSON.stringify({
-        date: today,
-        total_booked: bookings?.length || 0,
-        confirmed, pending, declined,
+        date: todayDate, total_booked: bookings?.length || 0, confirmed, pending, declined,
         bookings: (bookings || []).map((b: any) => ({
           driver: `${b.drivers?.first_name} ${b.drivers?.last_name}`,
           vehicle: b.vehicles?.registration_number || "TBA",
-          shift: b.shift_time,
-          status: b.status,
-          route: b.route || "Not specified",
+          shift: b.shift_time, status: b.status, route: b.route || "Not specified",
         })),
       });
     }
 
     // ── 13. REGISTER DRIVER ───────────────────────────────
     case "register_driver_whatsapp": {
-      // Find driver by name or employee number
       const { data: driver } = await supabase.from("drivers")
         .select("id, first_name, last_name")
         .or(`first_name.ilike.%${args.first_name}%,last_name.ilike.%${args.last_name}%`)
         .maybeSingle();
-
-      if (!driver) return JSON.stringify({ error: `Driver ${args.first_name} ${args.last_name} not found. Check your name spelling or contact your manager.` });
-
-      await supabase.from("drivers").update({
-        whatsapp_number: args.phone_number,
-        is_registered_whatsapp: true,
-      }).eq("id", driver.id);
-
-      await supabase.from("driver_whatsapp_registration").upsert({
-        driver_id: driver.id,
-        phone_number: args.phone_number,
-        welcome_sent: true,
-        is_active: true,
-      }, { onConflict: "phone_number" });
-
-      return JSON.stringify({
-        success: true,
-        driver_id: driver.id,
-        message: `✅ Registered! Welcome to MARZ Fleet, ${driver.first_name}. You will now receive bookings, route instructions, and updates here on WhatsApp.`,
-      });
+      if (!driver) return JSON.stringify({ error: `Driver ${args.first_name} ${args.last_name} not found. Check spelling or contact your manager.` });
+      await supabase.from("drivers").update({ whatsapp_number: args.phone_number, is_registered_whatsapp: true }).eq("id", driver.id);
+      await supabase.from("driver_whatsapp_registration").upsert({ driver_id: driver.id, phone_number: args.phone_number, welcome_sent: true, is_active: true }, { onConflict: "phone_number" });
+      return JSON.stringify({ success: true, driver_id: driver.id, message: `✅ Welcome to MARZ Fleet, ${driver.first_name}! You will receive bookings and updates here on WhatsApp.` });
     }
-  }
 
+    default:
+      return JSON.stringify({ error: `Unknown tool: ${toolName}` });
+  }
+}
 // ── Build fleet snapshot for system prompt ────────────────
 async function buildSnapshot(supabase: any): Promise<string> {
   const today = new Date().toISOString().split("T")[0];
@@ -832,6 +765,9 @@ serve(async (req) => {
     const fullUserMessage = mediaUrl
       ? `${userMessage}\n[Photo attached: ${mediaUrl}]`
       : userMessage;
+
+    // ── Build fleet snapshot ──────────────────────────────
+    const snapshot = await buildSnapshot(supabase);
 
     const driverContext = driverProfile
       ? `\nTHIS MESSAGE IS FROM DRIVER: ${driverProfile.first_name} ${driverProfile.last_name} (ID: ${driverProfile.id})\nWhen they send updates, arrivals, or reports — use log_driver_checkin with their driver_id.`

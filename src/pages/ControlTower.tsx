@@ -361,7 +361,7 @@ export default function ControlTower() {
         </div>
       )}
 
-      {/* Check-ins Tab */}
+      {/* Check-ins Tab - WhatsApp style live feed */}
       {activeTab === "checkins" && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -373,37 +373,64 @@ export default function ControlTower() {
           </div>
 
           {(checkins || []).length === 0
-            ? <div className="glass-card p-8 text-center"><MessageSquare className="w-10 h-10 text-muted-foreground mx-auto mb-3" /><p className="text-sm text-muted-foreground">No updates logged yet</p></div>
-            : (
-              <div className="space-y-2">
+            ? (
+              <div className="glass-card p-8 text-center">
+                <MessageSquare className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-semibold text-foreground">No updates yet today</p>
+                <p className="text-xs text-muted-foreground mt-1">Driver updates will appear here in real time</p>
+              </div>
+            ) : (
+              <div className="glass-card p-4 space-y-3 max-h-[600px] overflow-y-auto">
                 {(checkins || []).map((c: any) => (
-                  <div key={c.id} className={`glass-card p-4 border ${c.checkin_type === "breakdown_report" ? "border-destructive/30 bg-destructive/5" : "border-border"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
+                  <div key={c.id} className="flex gap-3">
+                    {/* Avatar */}
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                      c.checkin_type === "breakdown_report" ? "bg-destructive text-white" :
+                      c.checkin_type === "morning_checkin" ? "bg-primary text-white" :
+                      c.checkin_type === "end_of_day" ? "bg-success text-white" :
+                      "bg-secondary text-foreground"
+                    }`}>
+                      {c.drivers ? `${c.drivers.first_name?.[0]}${c.drivers.last_name?.[0]}` : "?"}
+                    </div>
+                    {/* Message bubble */}
+                    <div className="flex-1">
+                      <div className={`rounded-2xl rounded-tl-none px-4 py-3 inline-block max-w-[85%] ${
+                        c.checkin_type === "breakdown_report" ? "bg-destructive/10 border border-destructive/30" :
+                        "bg-secondary"
+                      }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            c.checkin_type === "breakdown_report" ? "bg-destructive/20 text-destructive" :
-                            c.checkin_type === "morning_checkin" ? "bg-primary/20 text-primary" :
-                            c.checkin_type === "delivery_update" ? "bg-success/20 text-success" :
-                            "bg-secondary text-muted-foreground"
+                          <span className="text-sm font-semibold text-foreground">
+                            {c.drivers ? `${c.drivers.first_name} ${c.drivers.last_name}` : "Unknown Driver"}
+                          </span>
+                          {c.vehicles?.registration_number && (
+                            <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">
+                              {c.vehicles.registration_number}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-foreground">{c.message}</p>
+                        {c.location && (
+                          <p className="text-xs text-warning mt-1">📍 {c.location}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className={`text-xs font-semibold ${
+                            c.checkin_type === "breakdown_report" ? "text-destructive" :
+                            c.checkin_type === "morning_checkin" ? "text-primary" :
+                            c.checkin_type === "delivery_update" ? "text-success" :
+                            c.checkin_type === "end_of_day" ? "text-success" :
+                            "text-muted-foreground"
                           }`}>
                             {c.checkin_type === "breakdown_report" ? "🚨 BREAKDOWN" :
                              c.checkin_type === "morning_checkin" ? "🌅 Morning Check-in" :
                              c.checkin_type === "delivery_update" ? "📦 Delivery Update" :
                              c.checkin_type === "end_of_day" ? "🏁 End of Day" : "💬 Update"}
                           </span>
-                          <span className="text-xs text-muted-foreground">{c.source === "whatsapp" ? "📱 WhatsApp" : "Manual"}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(c.created_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          {c.source === "whatsapp" && <span className="text-xs text-muted-foreground">· WhatsApp</span>}
                         </div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {c.drivers?.first_name} {c.drivers?.last_name}
-                          {c.vehicles?.registration_number && <span className="text-muted-foreground font-normal"> — {c.vehicles.registration_number}</span>}
-                        </p>
-                        <p className="text-sm text-foreground mt-1">{c.message}</p>
-                        {c.location && <p className="text-xs text-warning mt-1">📍 {c.location}</p>}
                       </div>
-                      <p className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(c.created_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
                     </div>
                   </div>
                 ))}
@@ -509,11 +536,12 @@ export default function ControlTower() {
               </div>
               <div>
                 <label className={labelCls}>Route / Area</label>
-                <input value={form.route} onChange={e => setForm({ ...form, route: e.target.value })} placeholder="e.g. Midrand to Cape Town" className={inputCls} />
+                <input value={form.route} onChange={e => setForm({ ...form, route: e.target.value })} placeholder="e.g. Midrand to Cape Town, 3 stops" className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>Instructions</label>
-                <textarea value={form.instructions} onChange={e => setForm({ ...form, instructions: e.target.value })} rows={3} placeholder="Any special instructions" className={inputCls} />
+                <label className={labelCls}>Trip Instructions</label>
+                <textarea value={form.instructions} onChange={e => setForm({ ...form, instructions: e.target.value })} rows={4}
+                  placeholder={`Add anything the driver needs to know:\n• Collection address\n• Delivery contacts\n• Special requirements\n• Any hazards or notes`} className={inputCls} />
               </div>
               <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-xs text-primary space-y-1">
                 <p className="font-semibold">After saving:</p>
