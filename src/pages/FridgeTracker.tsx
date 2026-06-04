@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download } from "lucide-react";
+import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -122,10 +122,27 @@ export default function FridgeTracker() {
     setShowEditModal(true);
   };
 
+  const [certFile, setCertFile] = useState<File | null>(null);
+
   const handleLogService = async () => {
     if (!serviceForm.work_done) { toast.error("Describe the work done"); return; }
     setSaving(true);
     const hrs = parseFloat(serviceForm.hours_at_service) || null;
+    const isScheduled = serviceForm.service_type === "scheduled" || serviceForm.service_type === "certificate";
+    const interval = selectedVehicle.fridge_service_interval_hrs || 1000;
+
+    // Upload certificate file if provided
+    let certUrl: string | null = null;
+    if (certFile) {
+      const ext = certFile.name.split(".").pop();
+      const path = `${selectedVehicle.registration_number}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("fridge-certs").upload(path, certFile, { upsert: true });
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from("fridge-certs").getPublicUrl(path);
+        certUrl = urlData.publicUrl;
+      }
+    }
+
     const { error } = await supabase.from("fridge_service_log" as any).insert({
       organisation_id: profile?.organisation_id,
       vehicle_id: selectedVehicle.id,
@@ -142,25 +159,33 @@ export default function FridgeTracker() {
       tech_name: serviceForm.tech_name || null,
       certificate_number: serviceForm.certificate_number || null,
       cert_expiry_date: serviceForm.cert_expiry_date || null,
+      certificate_url: certUrl,
       notes: serviceForm.notes || null,
       logged_via: "app",
+      updates_service_clock: isScheduled,
     });
     if (error) { setSaving(false); toast.error(error.message); return; }
-    // Update vehicle fridge hours and last service
-    if (hrs) {
-      const interval = selectedVehicle.fridge_service_interval_hrs || 1000;
-      await supabase.from("vehicles").update({
-        fridge_current_hrs: hrs,
-        fridge_last_service_hrs: hrs,
-        fridge_last_service_date: new Date().toISOString().split("T")[0],
-        fridge_next_service_hrs: hrs + interval,
-        ...(serviceForm.cert_expiry_date ? { fridge_cert_expiry: serviceForm.cert_expiry_date } : {}),
-        ...(serviceForm.certificate_number ? { fridge_cert_number: serviceForm.certificate_number } : {}),
-      }).eq("id", selectedVehicle.id);
+
+    // Only update current hours always (so tracker stays accurate)
+    // Only reset service clock for SCHEDULED services - NOT for repairs
+    const vehicleUpdate: any = {};
+    if (hrs) vehicleUpdate.fridge_current_hrs = hrs;
+    if (isScheduled && hrs) {
+      vehicleUpdate.fridge_last_service_hrs = hrs;
+      vehicleUpdate.fridge_last_service_date = new Date().toISOString().split("T")[0];
+      vehicleUpdate.fridge_next_service_hrs = hrs + interval;
     }
+    if (serviceForm.cert_expiry_date) vehicleUpdate.fridge_cert_expiry = serviceForm.cert_expiry_date;
+    if (serviceForm.certificate_number) vehicleUpdate.fridge_cert_number = serviceForm.certificate_number;
+    if (Object.keys(vehicleUpdate).length > 0) {
+      await supabase.from("vehicles").update(vehicleUpdate).eq("id", selectedVehicle.id);
+    }
+
     setSaving(false);
-    toast.success("Service logged — hours updated");
+    toast.success(isScheduled ? "Service logged — service clock reset ✓" : "Repair logged — service clock unchanged ✓");
     setShowServiceModal(false);
+    setCertFile(null);
+    setServiceForm({ service_type: "scheduled", fault_description: "", work_done: "", parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "", tech_name: "", certificate_number: "", cert_expiry_date: "", hours_at_service: "", notes: "" });
     qc.invalidateQueries({ queryKey: ["fridge_vehicles"] });
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
   };
@@ -349,7 +374,7 @@ export default function FridgeTracker() {
                 <table className="w-full min-w-[800px]">
                   <thead>
                     <tr className="border-b border-border">
-                      {["Date", "Reg", "Brand/Model", "Type", "Work Done", "Parts", "Cost", "Tech", "Logged Via"].map(h => (
+                      {["Date", "Reg", "Brand/Model", "Type", "Work Done", "Parts", "Cost", "Tech", "Cert", "Via"].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -361,16 +386,29 @@ export default function FridgeTracker() {
                         <td className="px-4 py-3 text-sm font-semibold text-foreground">{s.vehicles?.registration_number || "—"}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{s.vehicles?.fridge_brand} {s.vehicles?.fridge_model}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.service_type === "breakdown" ? "bg-destructive/20 text-destructive" : s.service_type === "scheduled" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
-                            {s.service_type}
-                          </span>
+                          <div>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.service_type === "breakdown" ? "bg-destructive/20 text-destructive" : s.service_type === "scheduled" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                              {s.service_type}
+                            </span>
+                            {s.updates_service_clock === false && s.service_type !== "scheduled" && (
+                              <p className="text-xs text-muted-foreground mt-0.5">clock unchanged</p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-foreground max-w-[200px] truncate">{s.work_done}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{s.parts_used || "—"}</td>
                         <td className="px-4 py-3 text-sm text-foreground">{s.total_cost ? `R ${Number(s.total_cost).toLocaleString()}` : "—"}</td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{s.tech_name || "—"}</td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-muted-foreground">{s.logged_via === "whatsapp" ? "📱 WhatsApp" : s.logged_via === "app" ? "💻 App" : "Manual"}</span>
+                          {s.certificate_url
+                            ? <a href={s.certificate_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">View</a>
+                            : s.certificate_number
+                              ? <span className="text-xs text-muted-foreground">{s.certificate_number}</span>
+                              : <span className="text-xs text-muted-foreground">—</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-muted-foreground">{s.logged_via === "whatsapp" ? "📱" : "💻"}</span>
                         </td>
                       </tr>
                     ))}
@@ -395,41 +433,65 @@ export default function FridgeTracker() {
               <button onClick={() => setShowServiceModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {/* Service type - clear distinction */}
               <div>
-                <label className={labelCls}>Service Type</label>
-                <select value={serviceForm.service_type} onChange={e => setServiceForm({ ...serviceForm, service_type: e.target.value })} className={inputCls}>
-                  <option value="scheduled">Scheduled Service</option>
-                  <option value="breakdown">Breakdown Repair</option>
-                  <option value="inspection">Inspection</option>
-                  <option value="certificate">Certificate Renewal</option>
-                  <option value="other">Other</option>
-                </select>
+                <label className={labelCls}>Job Type *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: "scheduled", label: "🔧 Scheduled Service", desc: "Resets service clock" },
+                    { value: "breakdown", label: "🚨 Breakdown Repair", desc: "Does NOT reset clock" },
+                    { value: "inspection", label: "🔍 Inspection", desc: "Does NOT reset clock" },
+                    { value: "certificate", label: "📋 Certificate Renewal", desc: "Resets service clock" },
+                  ].map(t => (
+                    <button key={t.value} type="button"
+                      onClick={() => setServiceForm({ ...serviceForm, service_type: t.value })}
+                      className={`text-left p-3 rounded-xl border-2 transition-all ${serviceForm.service_type === t.value ? "border-primary bg-primary/10" : "border-border bg-secondary/30"}`}>
+                      <p className="text-sm font-semibold text-foreground">{t.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{t.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                {(serviceForm.service_type === "scheduled" || serviceForm.service_type === "certificate") && (
+                  <div className="bg-success/10 border border-success/20 rounded-xl p-2 mt-2">
+                    <p className="text-xs text-success font-semibold">✓ This will reset the service clock — next service recalculates from current hours</p>
+                  </div>
+                )}
+                {(serviceForm.service_type === "breakdown" || serviceForm.service_type === "inspection") && (
+                  <div className="bg-warning/10 border border-warning/20 rounded-xl p-2 mt-2">
+                    <p className="text-xs text-warning font-semibold">↻ Service clock stays unchanged — only current hours will update</p>
+                  </div>
+                )}
               </div>
+
               <div>
-                <label className={labelCls}>Hours at Service</label>
+                <label className={labelCls}>Hours at Time of Job</label>
                 <input type="number" value={serviceForm.hours_at_service} onChange={e => setServiceForm({ ...serviceForm, hours_at_service: e.target.value })} placeholder="Current fridge hours" className={inputCls} />
-                <p className="text-xs text-muted-foreground mt-1">Last recorded: {selectedVehicle.fridge_current_hrs || "Not set"} hrs</p>
+                <p className="text-xs text-muted-foreground mt-1">Last recorded: {selectedVehicle?.fridge_current_hrs ? `${Number(selectedVehicle.fridge_current_hrs).toLocaleString()} hrs` : "Not set"}</p>
               </div>
+
               {serviceForm.service_type === "breakdown" && (
                 <div>
-                  <label className={labelCls}>Fault Description</label>
+                  <label className={labelCls}>Fault / Problem Description</label>
                   <textarea value={serviceForm.fault_description} onChange={e => setServiceForm({ ...serviceForm, fault_description: e.target.value })} rows={2} placeholder="What was the fault?" className={inputCls} />
                 </div>
               )}
+
               <div>
                 <label className={labelCls}>Work Done *</label>
-                <textarea value={serviceForm.work_done} onChange={e => setServiceForm({ ...serviceForm, work_done: e.target.value })} rows={3} placeholder="Describe work performed, parts replaced..." className={inputCls} />
+                <textarea value={serviceForm.work_done} onChange={e => setServiceForm({ ...serviceForm, work_done: e.target.value })} rows={3} placeholder="Describe exactly what was done, parts replaced..." className={inputCls} />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Parts Used</label>
-                  <input value={serviceForm.parts_used} onChange={e => setServiceForm({ ...serviceForm, parts_used: e.target.value })} placeholder="e.g. Door seals, filter" className={inputCls} />
+                  <input value={serviceForm.parts_used} onChange={e => setServiceForm({ ...serviceForm, parts_used: e.target.value })} placeholder="e.g. Filter, seals, belt" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Parts Cost (R)</label>
                   <input type="number" value={serviceForm.parts_cost} onChange={e => setServiceForm({ ...serviceForm, parts_cost: e.target.value })} placeholder="0" className={inputCls} />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Labour Hours</label>
@@ -440,20 +502,39 @@ export default function FridgeTracker() {
                   <input type="number" value={serviceForm.labour_cost} onChange={e => setServiceForm({ ...serviceForm, labour_cost: e.target.value })} placeholder="0" className={inputCls} />
                 </div>
               </div>
+
               <div>
                 <label className={labelCls}>Technician Name</label>
                 <input value={serviceForm.tech_name} onChange={e => setServiceForm({ ...serviceForm, tech_name: e.target.value })} placeholder="Who did the work?" className={inputCls} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Certificate Number</label>
-                  <input value={serviceForm.certificate_number} onChange={e => setServiceForm({ ...serviceForm, certificate_number: e.target.value })} placeholder="Cert ref" className={inputCls} />
+
+              {/* Certificate section */}
+              <div className="border border-border rounded-xl p-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Certificate (Optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Certificate Number</label>
+                    <input value={serviceForm.certificate_number} onChange={e => setServiceForm({ ...serviceForm, certificate_number: e.target.value })} placeholder="Cert ref number" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Expiry Date</label>
+                    <input type="date" value={serviceForm.cert_expiry_date} onChange={e => setServiceForm({ ...serviceForm, cert_expiry_date: e.target.value })} className={inputCls} />
+                  </div>
                 </div>
                 <div>
-                  <label className={labelCls}>Cert Expiry Date</label>
-                  <input type="date" value={serviceForm.cert_expiry_date} onChange={e => setServiceForm({ ...serviceForm, cert_expiry_date: e.target.value })} className={inputCls} />
+                  <label className={labelCls}>Upload Certificate (PDF or Photo)</label>
+                  <div className={`${inputCls} flex items-center gap-2 cursor-pointer`} onClick={() => document.getElementById("cert-upload")?.click()}>
+                    <Upload className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm text-muted-foreground truncate">
+                      {certFile ? certFile.name : "Click to upload PDF or photo..."}
+                    </span>
+                  </div>
+                  <input id="cert-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                    onChange={e => setCertFile(e.target.files?.[0] || null)} />
+                  {certFile && <p className="text-xs text-success mt-1">✓ {certFile.name} ready to upload</p>}
                 </div>
               </div>
+
               <div>
                 <label className={labelCls}>Notes</label>
                 <textarea value={serviceForm.notes} onChange={e => setServiceForm({ ...serviceForm, notes: e.target.value })} rows={2} placeholder="Any additional notes" className={inputCls} />
@@ -481,12 +562,28 @@ export default function FridgeTracker() {
               <button onClick={() => setShowEditModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <div>
+                <label className={labelCls}>Vehicle Type</label>
+                <select value={editForm.fridge_brand ? (selectedVehicle as any)?.vehicle_type || "" : ""} 
+                  onChange={async e => { await supabase.from("vehicles").update({ vehicle_type: e.target.value }).eq("id", selectedVehicle.id); qc.invalidateQueries({ queryKey: ["fridge_vehicles"] }); }}
+                  className={inputCls}>
+                  <option value="">Select type...</option>
+                  <option value="trailer">Trailer (Serco, Afrit, CTS)</option>
+                  <option value="rigid">Rigid Truck (Hino, Isuzu, MAN)</option>
+                  <option value="horse">Horse / Prime Mover</option>
+                  <option value="bakkie">Bakkie / Light Vehicle</option>
+                  <option value="van">Van / Panel Van</option>
+                  <option value="bus">Bus / Minibus</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className={labelCls}>Brand</label><input value={editForm.fridge_brand} onChange={e => setEditForm({ ...editForm, fridge_brand: e.target.value })} placeholder="e.g. CARRIER" className={inputCls} /></div>
-                <div><label className={labelCls}>Model</label><input value={editForm.fridge_model} onChange={e => setEditForm({ ...editForm, fridge_model: e.target.value })} placeholder="e.g. SUPRA1150" className={inputCls} /></div>
+                <div><label className={labelCls}>Fridge Brand</label><input value={editForm.fridge_brand} onChange={e => setEditForm({ ...editForm, fridge_brand: e.target.value })} placeholder="e.g. CARRIER" className={inputCls} /></div>
+                <div><label className={labelCls}>Fridge Model</label><input value={editForm.fridge_model} onChange={e => setEditForm({ ...editForm, fridge_model: e.target.value })} placeholder="e.g. SUPRA1150" className={inputCls} /></div>
               </div>
               <div><label className={labelCls}>Serial Number</label><input value={editForm.fridge_serial_number} onChange={e => setEditForm({ ...editForm, fridge_serial_number: e.target.value })} placeholder="Unit serial number" className={inputCls} /></div>
-              <div><label className={labelCls}>Service Interval (hrs)</label>
+              <div>
+                <label className={labelCls}>Service Interval (hrs)</label>
                 <select value={editForm.fridge_service_interval_hrs} onChange={e => setEditForm({ ...editForm, fridge_service_interval_hrs: e.target.value })} className={inputCls}>
                   <option value="500">500 hrs</option>
                   <option value="1000">1000 hrs</option>
