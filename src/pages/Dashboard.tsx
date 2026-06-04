@@ -1,7 +1,7 @@
 import {
   Truck, ShieldCheck, FileWarning, AlertTriangle,
   Sparkles, RefreshCw, Loader2, Users, X, ChevronRight,
-  Wrench, CheckCircle, Upload, Gauge, ArrowRightLeft, Warehouse,
+  Wrench, CheckCircle, Upload, Gauge, ArrowRightLeft, Warehouse, Thermometer,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,105 @@ import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import { ActionRequired } from "@/components/dashboard/ActionRequired";
 import { HSScoreCard } from "@/components/dashboard/HSScoreCard";
+
+// ── Fridge-only dashboard for AC&R-type clients ────────
+function FridgeDashboard({ vehicles, navigate }: { vehicles: any[]; navigate: (path: string) => void }) {
+  const overdue = vehicles.filter(v => v.fridge_current_hrs >= v.fridge_next_service_hrs);
+  const dueSoon = vehicles.filter(v => {
+    const left = v.fridge_next_service_hrs - v.fridge_current_hrs;
+    return left > 0 && left <= 200;
+  });
+  const ok = vehicles.filter(v => {
+    const left = v.fridge_next_service_hrs - v.fridge_current_hrs;
+    return left > 200;
+  });
+  const certExpired = vehicles.filter(v => v.fridge_cert_expiry && new Date(v.fridge_cert_expiry) < new Date());
+
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      <div>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
+          <Thermometer className="w-6 h-6 text-primary" /> Fridge Service Dashboard
+        </h1>
+        <p className="text-muted-foreground text-sm">Live service status for all fridge units</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="stat-card p-4 cursor-pointer hover:ring-2 hover:ring-primary" onClick={() => navigate("/fridge-tracker")}>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Units</p>
+          <p className="text-3xl font-bold text-foreground mt-1">{vehicles.length}</p>
+        </div>
+        <div className="stat-card p-4 cursor-pointer" onClick={() => navigate("/fridge-tracker")}>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Overdue</p>
+          <p className={`text-3xl font-bold mt-1 ${overdue.length > 0 ? "text-destructive" : "text-success"}`}>{overdue.length}</p>
+          {overdue.length > 0 && <p className="text-xs text-destructive mt-1">Needs service now</p>}
+        </div>
+        <div className="stat-card p-4 cursor-pointer" onClick={() => navigate("/fridge-tracker")}>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Due Soon</p>
+          <p className={`text-3xl font-bold mt-1 ${dueSoon.length > 0 ? "text-warning" : "text-success"}`}>{dueSoon.length}</p>
+          {dueSoon.length > 0 && <p className="text-xs text-warning mt-1">Within 200 hrs</p>}
+        </div>
+        <div className="stat-card p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Cert Expired</p>
+          <p className={`text-3xl font-bold mt-1 ${certExpired.length > 0 ? "text-destructive" : "text-success"}`}>{certExpired.length}</p>
+        </div>
+      </div>
+
+      {/* Alerts */}
+      {overdue.length > 0 && (
+        <div className="glass-card p-4 border border-destructive/30 bg-destructive/5 space-y-2">
+          <p className="text-sm font-bold text-destructive">🔴 {overdue.length} Unit{overdue.length > 1 ? "s" : ""} Overdue for Service</p>
+          {overdue.map((v: any) => (
+            <div key={v.id} className="flex items-center justify-between bg-destructive/10 rounded-lg px-3 py-2">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{v.registration_number} — {v.fridge_brand} {v.fridge_model}</p>
+                <p className="text-xs text-destructive">{Math.abs(Math.round(v.fridge_next_service_hrs - v.fridge_current_hrs))} hrs overdue</p>
+              </div>
+              <button onClick={() => navigate("/fridge-tracker")} className="text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg">Log Service</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {dueSoon.length > 0 && (
+        <div className="glass-card p-4 border border-warning/30 bg-warning/5 space-y-2">
+          <p className="text-sm font-bold text-warning">🟡 {dueSoon.length} Unit{dueSoon.length > 1 ? "s" : ""} Due Soon</p>
+          {dueSoon.map((v: any) => (
+            <div key={v.id} className="flex items-center justify-between bg-warning/10 rounded-lg px-3 py-2">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{v.registration_number} — {v.fridge_brand} {v.fridge_model}</p>
+                <p className="text-xs text-warning">{Math.round(v.fridge_next_service_hrs - v.fridge_current_hrs)} hrs remaining</p>
+              </div>
+              <button onClick={() => navigate("/fridge-tracker")} className="text-xs bg-warning/20 text-warning px-3 py-1.5 rounded-lg">View</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {overdue.length === 0 && dueSoon.length === 0 && (
+        <div className="glass-card p-6 text-center">
+          <CheckCircle className="w-10 h-10 text-success mx-auto mb-2" />
+          <p className="text-sm font-semibold text-success">All units up to date</p>
+          <p className="text-xs text-muted-foreground mt-1">No services overdue or due soon</p>
+        </div>
+      )}
+
+      {/* Quick action */}
+      <div className="glass-card p-4">
+        <p className="text-sm font-semibold text-foreground mb-3">Quick Actions</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => navigate("/fridge-tracker")} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 rounded-xl px-4 py-3 text-sm font-semibold hover:opacity-80">
+            <Thermometer className="w-4 h-4" /> Open Fridge Tracker
+          </button>
+          <button onClick={() => navigate("/vehicles")} className="flex items-center gap-2 bg-secondary text-foreground border border-border rounded-xl px-4 py-3 text-sm font-semibold hover:opacity-80">
+            <Truck className="w-4 h-4" /> View All Trailers
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function RecentDamages() {
   const navigate = useNavigate();
@@ -269,6 +368,11 @@ export default function Dashboard() {
   });
 
   const handleCardClick = (panel: PanelType) => setActivePanel(prev => prev === panel ? null : panel);
+
+  const moduleType = (profile as any)?.organisations?.module_type || "fleet_hs";
+  if (moduleType === "fridge_only") {
+    return <FridgeDashboard vehicles={vehicles || []} navigate={navigate} />;
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">

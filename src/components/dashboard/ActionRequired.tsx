@@ -41,9 +41,17 @@ export function ActionRequired() {
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const now30 = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+      const orgId = profile!.organisation_id;
+      const moduleType = (profile as any)?.organisations?.module_type || "fleet_hs";
+
+      // For fridge-only orgs, return minimal data
+      if (moduleType === "fridge_only") {
+        return { vehicles: [], certs: [], driverDocs: [], damages: [], breakdowns: [], jobs: [], trackers: [], talks: [], hsExpiring: [] };
+      }
+
       const [vehicles, certs, driverDocs, openDamages, activeBreakdowns, openJobs, trackers, talks, hsExpiring] = await Promise.all([
-        supabase.from("vehicles").select("id, registration_number, current_odometer_km, next_service_due_km").eq("is_active", true),
-        supabase.from("certificates").select("id, certificate_type, expiry_date, vehicles(registration_number, id)").lte("expiry_date", now30),
+        supabase.from("vehicles").select("id, registration_number, current_odometer_km, next_service_due_km").eq("is_active", true).eq("organisation_id", orgId),
+        supabase.from("certificates").select("id, certificate_type, expiry_date, vehicles(registration_number, id)").eq("organisation_id", orgId).lte("expiry_date", now30),
         supabase.from("driver_documents").select("driver_id, document_type, expiry_date").lte("expiry_date", now30),
         supabase.from("damages").select("id, vehicle_id, description, severity, urgency, status, created_at, vehicles(registration_number, id)").neq("status", "Resolved"),
         supabase.from("breakdowns").select("id, vehicle_id, breakdown_type, location, vehicles(registration_number, id)").eq("resolved", false),
