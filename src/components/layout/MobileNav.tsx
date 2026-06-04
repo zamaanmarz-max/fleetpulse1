@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Truck, Users, Bell, Menu,
   FileCheck, Receipt, BarChart3, Settings, Shield,
-  Sparkles, Warehouse, Upload, UserCog, LogOut, X, Wrench, HeartPulse, Radio,
+  Sparkles, Warehouse, Upload, UserCog, LogOut, X, Wrench, HeartPulse, Radio, Thermometer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -11,32 +11,39 @@ import {
 } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 
-const primary = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/vehicles", icon: Truck, label: "Vehicles" },
-  { to: "/drivers", icon: Users, label: "Drivers" },
-  { to: "/alerts", icon: Bell, label: "Alerts" },
+type MoreItem = { to?: string; icon: any; label: string; action?: "ai" | "signout"; modules?: string[] };
+
+const ALL_MORE_ITEMS: MoreItem[] = [
+  { to: "/control-tower",      icon: Radio,       label: "Control Tower",  modules: ["fleet_only","fleet_hs"] },
+  { to: "/fridge-tracker",     icon: Thermometer, label: "Fridge Tracker", modules: ["fleet_only","fleet_hs","fridge_only"] },
+  { to: "/maintenance",        icon: Wrench,      label: "Maintenance",    modules: ["fleet_only","fleet_hs"] },
+  { to: "/hs-file",            icon: HeartPulse,  label: "H&S File",       modules: ["hs_only","fleet_hs"] },
+  { to: "/compliance",         icon: Shield,      label: "Compliance",     modules: ["hs_only","fleet_hs"] },
+  { to: "/certificates",       icon: FileCheck,   label: "Certificates",   modules: ["fleet_only","fleet_hs"] },
+  { to: "/fines",              icon: Receipt,     label: "Fines & AARTO",  modules: ["fleet_only","fleet_hs"] },
+  { to: "/reports",            icon: BarChart3,   label: "Reports",        modules: ["fleet_only","fleet_hs","hs_only"] },
+  { to: "/fleet-availability", icon: Warehouse,   label: "Availability",   modules: ["fleet_only","fleet_hs"] },
+  { to: "/import",             icon: Upload,      label: "Import",         modules: ["fleet_only","fleet_hs"] },
+  { to: "/settings",           icon: Settings,    label: "Settings",       modules: ["all"] },
 ];
 
-type MoreItem = { to?: string; icon: any; label: string; action?: "ai" | "signout" };
+const ALL_PRIMARY: MoreItem[] = [
+  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard",  modules: ["all"] },
+  { to: "/vehicles",  icon: Truck,           label: "Vehicles",   modules: ["fleet_only","fleet_hs","fridge_only"] },
+  { to: "/drivers",   icon: Users,           label: "Drivers",    modules: ["fleet_only","fleet_hs"] },
+  { to: "/alerts",    icon: Bell,            label: "Alerts",     modules: ["fleet_only","fleet_hs","hs_only"] },
+];
 
 export function MobileNav({ onOpenAI }: { onOpenAI?: () => void }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const isAdmin = profile?.role === "superadmin";
+  const moduleType = (profile as any)?.organisations?.module_type || "fleet_hs";
 
+  const primary = ALL_PRIMARY.filter(i => i.modules?.includes("all") || i.modules?.includes(moduleType));
   const moreItems: MoreItem[] = [
-    { to: "/control-tower", icon: Radio,      label: "Control Tower" },
-    { to: "/maintenance",   icon: Wrench,      label: "Maintenance" },
-    { to: "/hs-file",       icon: HeartPulse,  label: "H&S File" },
-    { to: "/compliance",    icon: Shield,      label: "Compliance" },
-    { to: "/certificates",  icon: FileCheck,   label: "Certificates" },
-    { to: "/fines",         icon: Receipt,     label: "Fines & AARTO" },
-    { to: "/reports",       icon: BarChart3,   label: "Reports" },
-    { to: "/fleet-availability", icon: Warehouse, label: "Availability" },
-    { to: "/import",        icon: Upload,      label: "Import" },
-    { to: "/settings",      icon: Settings,    label: "Settings" },
+    ...ALL_MORE_ITEMS.filter(i => i.modules?.includes("all") || i.modules?.includes(moduleType)),
     ...(isAdmin ? [{ to: "/admin", icon: UserCog, label: "Admin Panel" }] : []),
     { icon: Sparkles, label: "AI Chat", action: "ai" as const },
     { icon: LogOut, label: "Sign Out", action: "signout" as const },

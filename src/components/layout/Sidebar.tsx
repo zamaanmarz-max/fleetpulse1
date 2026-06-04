@@ -9,22 +9,22 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
-const navItems = [
-  { to: "/dashboard",         icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/control-tower",     icon: Radio,           label: "Control Tower" },
-  { to: "/vehicles",          icon: Truck,           label: "Vehicles" },
-  { to: "/drivers",           icon: Users,           label: "Drivers" },
-  { to: "/maintenance",       icon: Wrench,          label: "Maintenance" },
-  { to: "/fridge-tracker",    icon: Thermometer,     label: "Fridge Tracker" },
-  { to: "/hs-file",           icon: HeartPulse,      label: "H&S File" },
-  { to: "/compliance",        icon: Shield,          label: "Compliance" },
-  { to: "/certificates",      icon: FileCheck,       label: "Certificates" },
-  { to: "/fines",             icon: Receipt,         label: "Fines & AARTO" },
-  { to: "/reports",           icon: BarChart3,       label: "Reports" },
-  { to: "/alerts",            icon: Bell,            label: "Alerts" },
-  { to: "/fleet-availability",icon: Warehouse,       label: "Availability" },
-  { to: "/import",            icon: Upload,          label: "Import" },
-  { to: "/settings",          icon: Settings,        label: "Settings" },
+const ALL_NAV_ITEMS = [
+  { to: "/dashboard",          icon: LayoutDashboard, label: "Dashboard",        modules: ["all"] },
+  { to: "/control-tower",      icon: Radio,           label: "Control Tower",    modules: ["fleet_only","fleet_hs"] },
+  { to: "/vehicles",           icon: Truck,           label: "Vehicles",         modules: ["fleet_only","fleet_hs","fridge_only"] },
+  { to: "/drivers",            icon: Users,           label: "Drivers",          modules: ["fleet_only","fleet_hs"] },
+  { to: "/maintenance",        icon: Wrench,          label: "Maintenance",      modules: ["fleet_only","fleet_hs"] },
+  { to: "/fridge-tracker",     icon: Thermometer,     label: "Fridge Tracker",   modules: ["fleet_only","fleet_hs","fridge_only"] },
+  { to: "/hs-file",            icon: HeartPulse,      label: "H&S File",         modules: ["hs_only","fleet_hs"] },
+  { to: "/compliance",         icon: Shield,          label: "Compliance",       modules: ["hs_only","fleet_hs"] },
+  { to: "/certificates",       icon: FileCheck,       label: "Certificates",     modules: ["fleet_only","fleet_hs"] },
+  { to: "/fines",              icon: Receipt,         label: "Fines & AARTO",    modules: ["fleet_only","fleet_hs"] },
+  { to: "/reports",            icon: BarChart3,       label: "Reports",          modules: ["fleet_only","fleet_hs","hs_only"] },
+  { to: "/alerts",             icon: Bell,            label: "Alerts",           modules: ["fleet_only","fleet_hs","hs_only"] },
+  { to: "/fleet-availability", icon: Warehouse,       label: "Availability",     modules: ["fleet_only","fleet_hs"] },
+  { to: "/import",             icon: Upload,          label: "Import",           modules: ["fleet_only","fleet_hs"] },
+  { to: "/settings",           icon: Settings,        label: "Settings",         modules: ["all"] },
 ];
 
 const adminItems = [
@@ -36,6 +36,12 @@ export function Sidebar() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const isAdmin = profile?.role === "superadmin";
+
+  // Filter nav based on org module type
+  const moduleType = (profile as any)?.organisations?.module_type || "fleet_hs";
+  const navItems = ALL_NAV_ITEMS.filter(item =>
+    item.modules.includes("all") || item.modules.includes(moduleType)
+  );
 
   const handleSignOut = async () => {
     await signOut();
