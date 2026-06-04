@@ -36,6 +36,7 @@ export default function FridgeTracker() {
   });
 
   const [editForm, setEditForm] = useState({
+    customer_name: "",
     fridge_brand: "", fridge_model: "", fridge_serial_number: "",
     fridge_service_interval_hrs: "", fridge_current_hrs: "",
     fridge_last_service_hrs: "", fridge_last_service_date: "",
@@ -47,7 +48,7 @@ export default function FridgeTracker() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicles")
-        .select("id, registration_number, fleet_number, make, model, fridge_brand, fridge_model, fridge_serial_number, fridge_service_interval_hrs, fridge_current_hrs, fridge_last_service_hrs, fridge_last_service_date, fridge_next_service_hrs, fridge_cert_expiry, fridge_cert_number")
+        .select("id, registration_number, fleet_number, make, model, vehicle_type, customer_name, fridge_brand, fridge_model, fridge_serial_number, fridge_service_interval_hrs, fridge_current_hrs, fridge_last_service_hrs, fridge_last_service_date, fridge_next_service_hrs, fridge_cert_expiry, fridge_cert_number")
         .eq("is_active", true)
         .not("fridge_brand", "is", null)
         .order("registration_number");
@@ -82,17 +83,26 @@ export default function FridgeTracker() {
     });
   }, [vehicles]);
 
+  const [customerFilter, setCustomerFilter] = useState<string>("all");
+
+  const customers = useMemo(() => {
+    const set = new Set<string>();
+    (vehicles || []).forEach((v: any) => { if (v.customer_name) set.add(v.customer_name); });
+    return Array.from(set).sort();
+  }, [vehicles]);
+
   const filtered = useMemo(() => {
     return enriched.filter(v => {
-      const matchSearch = !search || v.registration_number?.toLowerCase().includes(search.toLowerCase()) || v.fridge_brand?.toLowerCase().includes(search.toLowerCase()) || v.fridge_model?.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !search || v.registration_number?.toLowerCase().includes(search.toLowerCase()) || v.fridge_brand?.toLowerCase().includes(search.toLowerCase()) || v.fridge_model?.toLowerCase().includes(search.toLowerCase()) || v.customer_name?.toLowerCase().includes(search.toLowerCase());
       const matchStatus =
         filterStatus === "all" ||
         (filterStatus === "overdue" && v.hrsToNext <= 0) ||
         (filterStatus === "due_soon" && v.hrsToNext > 0 && v.hrsToNext <= 200) ||
         (filterStatus === "not_due" && v.hrsToNext > 200);
-      return matchSearch && matchStatus;
+      const matchCustomer = customerFilter === "all" || v.customer_name === customerFilter;
+      return matchSearch && matchStatus && matchCustomer;
     });
-  }, [enriched, search, filterStatus]);
+  }, [enriched, search, filterStatus, customerFilter]);
 
   const counts = useMemo(() => ({
     total: enriched.length,
@@ -110,6 +120,7 @@ export default function FridgeTracker() {
   const openEditModal = (vehicle: any) => {
     setSelectedVehicle(vehicle);
     setEditForm({
+      customer_name: vehicle.customer_name || "",
       fridge_brand: vehicle.fridge_brand || "", fridge_model: vehicle.fridge_model || "",
       fridge_serial_number: vehicle.fridge_serial_number || "",
       fridge_service_interval_hrs: String(vehicle.fridge_service_interval_hrs || "1000"),
@@ -195,6 +206,7 @@ export default function FridgeTracker() {
     const interval = parseInt(editForm.fridge_service_interval_hrs) || 1000;
     const lastHrs = parseFloat(editForm.fridge_last_service_hrs) || null;
     const { error } = await supabase.from("vehicles").update({
+      customer_name: editForm.customer_name || null,
       fridge_brand: editForm.fridge_brand || null,
       fridge_model: editForm.fridge_model || null,
       fridge_serial_number: editForm.fridge_serial_number || null,
@@ -302,32 +314,42 @@ export default function FridgeTracker() {
 
       {activeTab === "tracker" && (
         <div className="space-y-3">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search reg, brand, model..." className="w-full bg-secondary border border-border rounded-lg pl-9 pr-4 py-2 text-sm text-foreground focus:outline-none" />
+          {/* Search + Customer Filter */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search reg, brand, model, customer..." className="w-full bg-secondary border border-border rounded-lg pl-9 pr-4 py-2 text-sm text-foreground focus:outline-none" />
+            </div>
+            {customers.length > 0 && (
+              <select value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}
+                className="bg-secondary border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none sm:w-56">
+                <option value="all">All Customers ({enriched.length})</option>
+                {customers.map(c => (
+                  <option key={c} value={c}>{c} ({enriched.filter(v => v.customer_name === c).length})</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Table */}
           <div className="glass-card overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-border">
-                  {["Reg", "Brand", "Model", "Serial", "Last Svc Hrs", "Current Hrs", "Next Svc", "HRS Left", "Status", "Cert Expiry", "Actions"].map(h => (
+                  {["Reg", "Customer", "Brand", "Model", "Current Hrs", "Next Svc", "HRS Left", "Status", "Cert Expiry", "Actions"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0
-                  ? <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-muted-foreground">No fridge units found</td></tr>
+                  ? <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">No fridge units found</td></tr>
                   : filtered.map(v => (
                     <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${v.hrsToNext <= 0 ? "bg-destructive/5" : v.hrsToNext <= 200 ? "bg-warning/5" : ""}`}>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
+                      <td className="px-4 py-3 text-sm text-foreground">{v.customer_name || <span className="text-muted-foreground">—</span>}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_brand || "—"}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_model || "—"}</td>
-                      <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{v.fridge_serial_number || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{v.fridge_last_service_hrs ? `${Number(v.fridge_last_service_hrs).toLocaleString()} hrs` : "—"}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.fridge_current_hrs ? `${Number(v.fridge_current_hrs).toLocaleString()} hrs` : "—"}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_next_service_hrs ? `${Number(v.fridge_next_service_hrs).toLocaleString()} hrs` : "—"}</td>
                       <td className="px-4 py-3">
@@ -575,6 +597,14 @@ export default function FridgeTracker() {
                   <option value="bus">Bus / Minibus</option>
                   <option value="other">Other</option>
                 </select>
+              </div>
+              <div>
+                <label className={labelCls}>Customer / Client</label>
+                <input value={editForm.customer_name} onChange={e => setEditForm({ ...editForm, customer_name: e.target.value })} placeholder="e.g. Vector Logistics" className={inputCls} list="customer-list" />
+                <datalist id="customer-list">
+                  {customers.map(c => <option key={c} value={c} />)}
+                </datalist>
+                <p className="text-xs text-muted-foreground mt-1">Which transport company owns this trailer</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls}>Fridge Brand</label><input value={editForm.fridge_brand} onChange={e => setEditForm({ ...editForm, fridge_brand: e.target.value })} placeholder="e.g. CARRIER" className={inputCls} /></div>
