@@ -28,6 +28,7 @@ export default function Vehicles() {
   const [showForm, setShowForm] = useState(false);
   const [updateKmFor, setUpdateKmFor] = useState<{ id: string; reg: string; km: number } | null>(null);
   const { profile } = useAuth();
+  const isFridgeOnly = (profile as any)?.organisations?.module_type === "fridge_only";
   const { data: vehicles, isLoading } = useVehicles();
   const { data: allCerts } = useCertificates();
   const { data: allTrackers } = useQuery({
@@ -242,11 +243,21 @@ export default function Vehicles() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet No</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reg No</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Make & Model</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Until Service</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Updated</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+                  {isFridgeOnly ? (
+                    <>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fridge Unit</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Type</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Until Service</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">KM Updated</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -279,33 +290,43 @@ export default function Vehicles() {
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {v.registration_number}
-                          {!v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
-                          {kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
-                          {trackerWarning && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Tracker Warning</span>}
+                          {!isFridgeOnly && !v.vin_number && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Incomplete</span>}
+                          {!isFridgeOnly && kmUntil < 0 && <span className="text-xs bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">Service Overdue</span>}
+                          {!isFridgeOnly && trackerWarning && <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">Tracker Warning</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.make} {v.model}</td>
-                      <td className={`px-4 py-3 text-sm text-right font-mono ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
-                        {kmUntil.toLocaleString()} km
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${updateBadge.cls}`}>{updateBadge.text}</span>
-                      </td>
-                      <td className={`px-4 py-3 text-sm text-right font-mono font-bold ${scoreColor}`}>{compliance.score}%</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[compliance.status]}`}>
-                          {compliance.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
-                          className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-2.5 py-1 rounded-md"
-                          title="Update KM"
-                        >
-                          <Gauge className="w-3.5 h-3.5" /> Update KM
-                        </button>
-                      </td>
+                      {isFridgeOnly ? (
+                        <>
+                          <td className="px-4 py-3 text-sm text-foreground">{(v as any).customer_name || <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-4 py-3 text-sm text-foreground">{(v as any).fridge_brand ? `${(v as any).fridge_brand} ${(v as any).fridge_model || ""}` : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-4 py-3 text-center text-sm text-muted-foreground capitalize">{(v as any).vehicle_type || "—"}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className={`px-4 py-3 text-sm text-right font-mono ${kmUntil < 0 ? "text-destructive" : kmUntil < 2000 ? "text-warning" : "text-foreground"}`}>
+                            {kmUntil.toLocaleString()} km
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded ${updateBadge.cls}`}>{updateBadge.text}</span>
+                          </td>
+                          <td className={`px-4 py-3 text-sm text-right font-mono font-bold ${scoreColor}`}>{compliance.score}%</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[compliance.status]}`}>
+                              {compliance.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
+                              className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-2.5 py-1 rounded-md"
+                              title="Update KM"
+                            >
+                              <Gauge className="w-3.5 h-3.5" /> Update KM
+                            </button>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}

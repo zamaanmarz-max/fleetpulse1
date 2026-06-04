@@ -74,10 +74,15 @@ const tabs = [
   { id: "history",       label: "History",      icon: History },
 ];
 
+// For fridge-only orgs (e.g. refrigeration companies), only show relevant tabs
+const fridgeOnlyTabs = ["overview", "jobcards", "photos", "history"];
+
 export default function VehicleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const isFridgeOnly = (profile as any)?.organisations?.module_type === "fridge_only";
+  const visibleTabs = isFridgeOnly ? tabs.filter(t => fridgeOnlyTabs.includes(t.id)) : tabs;
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [showOdometer, setShowOdometer] = useState(false);
@@ -520,9 +525,9 @@ export default function VehicleDetail() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 md:gap-3 flex-wrap">
             <h1 className="text-xl md:text-2xl font-bold text-foreground break-all">{vehicle.registration_number}</h1>
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[vehicle.compliance_status || "compliant"]}`}>{vehicle.compliance_status || "compliant"}</span>
-            {missingVin && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">Missing VIN</span>}
-            {noTemplate && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">No Template</span>}
+            {!isFridgeOnly && <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusStyles[vehicle.compliance_status || "compliant"]}`}>{vehicle.compliance_status || "compliant"}</span>}
+            {!isFridgeOnly && missingVin && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">Missing VIN</span>}
+            {!isFridgeOnly && noTemplate && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/20 text-warning uppercase">No Template</span>}
           </div>
           <p className="text-sm text-muted-foreground break-words">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ""} · {vehicle.fleet_number || "No fleet number"}</p>
         </div>
@@ -537,7 +542,7 @@ export default function VehicleDetail() {
       </div>
 
       <div className="flex gap-1 border-b border-border overflow-x-auto">
-        {tabs.map(tab => (
+        {visibleTabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <tab.icon className="w-4 h-4" />{tab.label}
           </button>
@@ -566,11 +571,13 @@ export default function VehicleDetail() {
                   { label: "Make", key: "make" },
                   { label: "Model", key: "model" },
                   { label: "Year", key: "year", type: "number" },
-                  { label: "VIN Number", key: "vin_number" },
-                  { label: "Colour", key: "colour" },
-                  { label: "Current KM", key: "current_odometer_km", type: "number" },
-                  { label: "Last Service KM", key: "last_service_km", type: "number" },
-                  { label: "Next Service KM", key: "next_service_due_km", type: "number" },
+                  ...(isFridgeOnly ? [] : [
+                    { label: "VIN Number", key: "vin_number" },
+                    { label: "Colour", key: "colour" },
+                    { label: "Current KM", key: "current_odometer_km", type: "number" },
+                    { label: "Last Service KM", key: "last_service_km", type: "number" },
+                    { label: "Next Service KM", key: "next_service_due_km", type: "number" },
+                  ]),
                 ].map(f => (
                   <EditField key={f.key} label={f.label} value={editForm[f.key]} onChange={v => setEditForm({ ...editForm, [f.key]: v })} type={f.type} />
                 ))}
@@ -603,8 +610,8 @@ export default function VehicleDetail() {
                 <InfoRow label="Make" value={vehicle.make || "-"} />
                 <InfoRow label="Model" value={vehicle.model || "-"} />
                 <InfoRow label="Year" value={vehicle.year?.toString() || "-"} />
-                <InfoRow label="VIN" value={vehicle.vin_number || "-"} warn={missingVin} />
-                <InfoRow label="Colour" value={vehicle.colour || "-"} />
+                {!isFridgeOnly && <InfoRow label="VIN" value={vehicle.vin_number || "-"} warn={missingVin} />}
+                {!isFridgeOnly && <InfoRow label="Colour" value={vehicle.colour || "-"} />}
                 <InfoRow label="Type" value={
                   (vehicle as any).vehicle_type === "horse" ? "🚛 Horse" :
                   (vehicle as any).vehicle_type === "trailer" ? "🔗 Trailer" :
@@ -620,29 +627,52 @@ export default function VehicleDetail() {
           </div>
 
           <div className="space-y-4">
-            <div className="stat-card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-foreground">Service Tracker</h3>
-                <button onClick={() => { setShowOdometer(true); setOdometerValue(currentKm.toString()); }} className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90">Update Odometer</button>
+            {isFridgeOnly ? (
+              <div className="stat-card space-y-3">
+                <h3 className="text-sm font-semibold text-foreground mb-2">Fridge Unit</h3>
+                {(vehicle as any).fridge_brand ? (
+                  <>
+                    <InfoRow label="Brand" value={(vehicle as any).fridge_brand} />
+                    <InfoRow label="Model" value={(vehicle as any).fridge_model || "-"} />
+                    <InfoRow label="Serial" value={(vehicle as any).fridge_serial_number || "-"} />
+                    <InfoRow label="Current Hours" value={(vehicle as any).fridge_current_hrs ? `${Number((vehicle as any).fridge_current_hrs).toLocaleString()} hrs` : "-"} />
+                    <InfoRow label="Next Service" value={(vehicle as any).fridge_next_service_hrs ? `${Number((vehicle as any).fridge_next_service_hrs).toLocaleString()} hrs` : "-"} />
+                    <InfoRow label="Service Interval" value={(vehicle as any).fridge_service_interval_hrs ? `${Number((vehicle as any).fridge_service_interval_hrs).toLocaleString()} hrs` : "-"} />
+                    <InfoRow label="Cert Expiry" value={(vehicle as any).fridge_cert_expiry || "Not recorded"} />
+                    <InfoRow label="Customer" value={(vehicle as any).customer_name || "Not set"} />
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No fridge unit details captured yet. Use the Fridge Tracker to add them.</p>
+                )}
+                <button onClick={() => navigate("/fridge-tracker")} className="w-full mt-2 text-sm bg-primary text-primary-foreground py-2 rounded-lg hover:opacity-90">Go to Fridge Tracker</button>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Last: {lastServiceKm.toLocaleString()} km</span><span>Next: {nextServiceKm.toLocaleString()} km</span></div>
-                <div className="relative h-3 bg-secondary rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all ${kmProgressColor(kmRemaining)}`} style={{ width: `${serviceProgress}%` }} /></div>
-                <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Current: {currentKm.toLocaleString()} km</span><span className={`text-lg font-bold ${kmColor(kmRemaining)}`}>{kmRemaining.toLocaleString()} km remaining</span></div>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="stat-card">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Service Tracker</h3>
+                    <button onClick={() => { setShowOdometer(true); setOdometerValue(currentKm.toString()); }} className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:opacity-90">Update Odometer</button>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-xs text-muted-foreground"><span>Last: {lastServiceKm.toLocaleString()} km</span><span>Next: {nextServiceKm.toLocaleString()} km</span></div>
+                    <div className="relative h-3 bg-secondary rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all ${kmProgressColor(kmRemaining)}`} style={{ width: `${serviceProgress}%` }} /></div>
+                    <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Current: {currentKm.toLocaleString()} km</span><span className={`text-lg font-bold ${kmColor(kmRemaining)}`}>{kmRemaining.toLocaleString()} km remaining</span></div>
+                  </div>
+                </div>
 
-            <ComplianceScoreCard score={complianceResult.score} status={complianceResult.status} breakdown={complianceResult.breakdown} onIssueClick={(item) => {
-              const cert = getRequiredCertificates((vehicle.equipment as string[]) || []).find(c => item.label.toLowerCase().includes(c.toLowerCase().split(" ")[0]));
-              const tracker = trackerIssues.find(t => item.label.toLowerCase().includes(t.tracker_name.toLowerCase()));
-              if (tracker) openTrackerResolver(tracker); else if (cert) openCertificateResolver(cert);
-            }} />
+                <ComplianceScoreCard score={complianceResult.score} status={complianceResult.status} breakdown={complianceResult.breakdown} onIssueClick={(item) => {
+                  const cert = getRequiredCertificates((vehicle.equipment as string[]) || []).find(c => item.label.toLowerCase().includes(c.toLowerCase().split(" ")[0]));
+                  const tracker = trackerIssues.find(t => item.label.toLowerCase().includes(t.tracker_name.toLowerCase()));
+                  if (tracker) openTrackerResolver(tracker); else if (cert) openCertificateResolver(cert);
+                }} />
 
-            <ComplianceRequirements
-              equipment={(vehicle.equipment as string[]) || []}
-              certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
-              onRequirementClick={openCertificateResolver}
-            />
+                <ComplianceRequirements
+                  equipment={(vehicle.equipment as string[]) || []}
+                  certificates={(certificates || []).map(c => ({ certificate_type: c.certificate_type, expiry_date: c.expiry_date, status: c.status }))}
+                  onRequirementClick={openCertificateResolver}
+                />
+              </>
+            )}
           </div>
         </div>
       )}
