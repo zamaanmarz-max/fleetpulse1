@@ -433,14 +433,13 @@ export default function FridgeTracker() {
               <button onClick={() => setShowServiceModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              {/* Service type - clear distinction */}
               <div>
                 <label className={labelCls}>Job Type *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: "scheduled", label: "🔧 Scheduled Service", desc: "Resets service clock" },
-                    { value: "breakdown", label: "🚨 Breakdown Repair", desc: "Does NOT reset clock" },
-                    { value: "inspection", label: "🔍 Inspection", desc: "Does NOT reset clock" },
+                    { value: "breakdown", label: "🚨 Breakdown Repair", desc: "Clock unchanged" },
+                    { value: "inspection", label: "🔍 Inspection", desc: "Clock unchanged" },
                     { value: "certificate", label: "📋 Certificate Renewal", desc: "Resets service clock" },
                   ].map(t => (
                     <button key={t.value} type="button"
@@ -451,93 +450,93 @@ export default function FridgeTracker() {
                     </button>
                   ))}
                 </div>
-                {(serviceForm.service_type === "scheduled" || serviceForm.service_type === "certificate") && (
-                  <div className="bg-success/10 border border-success/20 rounded-xl p-2 mt-2">
-                    <p className="text-xs text-success font-semibold">✓ This will reset the service clock — next service recalculates from current hours</p>
-                  </div>
-                )}
-                {(serviceForm.service_type === "breakdown" || serviceForm.service_type === "inspection") && (
-                  <div className="bg-warning/10 border border-warning/20 rounded-xl p-2 mt-2">
-                    <p className="text-xs text-warning font-semibold">↻ Service clock stays unchanged — only current hours will update</p>
-                  </div>
-                )}
               </div>
 
               <div>
-                <label className={labelCls}>Hours at Time of Job</label>
-                <input type="number" value={serviceForm.hours_at_service} onChange={e => setServiceForm({ ...serviceForm, hours_at_service: e.target.value })} placeholder="Current fridge hours" className={inputCls} />
-                <p className="text-xs text-muted-foreground mt-1">Last recorded: {selectedVehicle?.fridge_current_hrs ? `${Number(selectedVehicle.fridge_current_hrs).toLocaleString()} hrs` : "Not set"}</p>
+                <label className={labelCls}>Fridge Hours at Time of Job</label>
+                <input type="number" value={serviceForm.hours_at_service}
+                  onChange={e => setServiceForm({ ...serviceForm, hours_at_service: e.target.value })}
+                  placeholder="e.g. 12580" className={inputCls} />
+                <p className="text-xs text-muted-foreground mt-1">Current on record: {selectedVehicle?.fridge_current_hrs ? `${Number(selectedVehicle.fridge_current_hrs).toLocaleString()} hrs` : "Not set"}</p>
               </div>
 
               {serviceForm.service_type === "breakdown" && (
                 <div>
-                  <label className={labelCls}>Fault / Problem Description</label>
-                  <textarea value={serviceForm.fault_description} onChange={e => setServiceForm({ ...serviceForm, fault_description: e.target.value })} rows={2} placeholder="What was the fault?" className={inputCls} />
+                  <label className={labelCls}>Fault Description</label>
+                  <textarea value={serviceForm.fault_description}
+                    onChange={e => setServiceForm({ ...serviceForm, fault_description: e.target.value })}
+                    rows={2} placeholder="What was the fault?" className={inputCls} />
                 </div>
               )}
 
               <div>
                 <label className={labelCls}>Work Done *</label>
-                <textarea value={serviceForm.work_done} onChange={e => setServiceForm({ ...serviceForm, work_done: e.target.value })} rows={3} placeholder="Describe exactly what was done, parts replaced..." className={inputCls} />
+                <textarea value={serviceForm.work_done}
+                  onChange={e => setServiceForm({ ...serviceForm, work_done: e.target.value })}
+                  rows={3} placeholder="What was done, what was replaced..." className={inputCls} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Parts Used</label>
-                  <input value={serviceForm.parts_used} onChange={e => setServiceForm({ ...serviceForm, parts_used: e.target.value })} placeholder="e.g. Filter, seals, belt" className={inputCls} />
+                  <input value={serviceForm.parts_used}
+                    onChange={e => setServiceForm({ ...serviceForm, parts_used: e.target.value })}
+                    placeholder="e.g. Filter, belt, seals" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Parts Cost (R)</label>
-                  <input type="number" value={serviceForm.parts_cost} onChange={e => setServiceForm({ ...serviceForm, parts_cost: e.target.value })} placeholder="0" className={inputCls} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Labour Hours</label>
-                  <input type="number" value={serviceForm.labour_hours} onChange={e => setServiceForm({ ...serviceForm, labour_hours: e.target.value })} placeholder="e.g. 2" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Labour Cost (R)</label>
-                  <input type="number" value={serviceForm.labour_cost} onChange={e => setServiceForm({ ...serviceForm, labour_cost: e.target.value })} placeholder="0" className={inputCls} />
+                  <label className={labelCls}>Total Cost (R)</label>
+                  <input type="number" value={serviceForm.parts_cost}
+                    onChange={e => setServiceForm({ ...serviceForm, parts_cost: e.target.value })}
+                    placeholder="0" className={inputCls} />
                 </div>
               </div>
 
               <div>
                 <label className={labelCls}>Technician Name</label>
-                <input value={serviceForm.tech_name} onChange={e => setServiceForm({ ...serviceForm, tech_name: e.target.value })} placeholder="Who did the work?" className={inputCls} />
-              </div>
-
-              {/* Certificate section */}
-              <div className="border border-border rounded-xl p-3 space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Certificate (Optional)</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelCls}>Certificate Number</label>
-                    <input value={serviceForm.certificate_number} onChange={e => setServiceForm({ ...serviceForm, certificate_number: e.target.value })} placeholder="Cert ref number" className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Expiry Date</label>
-                    <input type="date" value={serviceForm.cert_expiry_date} onChange={e => setServiceForm({ ...serviceForm, cert_expiry_date: e.target.value })} className={inputCls} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelCls}>Upload Certificate (PDF or Photo)</label>
-                  <div className={`${inputCls} flex items-center gap-2 cursor-pointer`} onClick={() => document.getElementById("cert-upload")?.click()}>
-                    <Upload className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm text-muted-foreground truncate">
-                      {certFile ? certFile.name : "Click to upload PDF or photo..."}
-                    </span>
-                  </div>
-                  <input id="cert-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                    onChange={e => setCertFile(e.target.files?.[0] || null)} />
-                  {certFile && <p className="text-xs text-success mt-1">✓ {certFile.name} ready to upload</p>}
-                </div>
+                <input value={serviceForm.tech_name}
+                  onChange={e => setServiceForm({ ...serviceForm, tech_name: e.target.value })}
+                  placeholder="Who did the work?" className={inputCls} />
               </div>
 
               <div>
+                <label className={labelCls}>Upload Job Card (photo or PDF)</label>
+                <div className={`${inputCls} flex items-center gap-2 cursor-pointer`}
+                  onClick={() => document.getElementById("jobcard-upload")?.click()}>
+                  <Upload className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm text-muted-foreground truncate">
+                    {certFile ? certFile.name : "Take a photo or upload the job card..."}
+                  </span>
+                </div>
+                <input id="jobcard-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                  onChange={e => setCertFile(e.target.files?.[0] || null)} />
+                {certFile && <p className="text-xs text-success mt-1">✓ {certFile.name} ready to upload</p>}
+              </div>
+
+              {serviceForm.service_type === "certificate" && (
+                <div className="border border-primary/30 rounded-xl p-3 space-y-3 bg-primary/5">
+                  <p className="text-xs font-semibold text-primary uppercase tracking-wider">📋 Fridge Calibration Certificate</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Certificate Number</label>
+                      <input value={serviceForm.certificate_number}
+                        onChange={e => setServiceForm({ ...serviceForm, certificate_number: e.target.value })}
+                        placeholder="Cert ref number" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Expiry Date</label>
+                      <input type="date" value={serviceForm.cert_expiry_date}
+                        onChange={e => setServiceForm({ ...serviceForm, cert_expiry_date: e.target.value })}
+                        className={inputCls} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
                 <label className={labelCls}>Notes</label>
-                <textarea value={serviceForm.notes} onChange={e => setServiceForm({ ...serviceForm, notes: e.target.value })} rows={2} placeholder="Any additional notes" className={inputCls} />
+                <textarea value={serviceForm.notes}
+                  onChange={e => setServiceForm({ ...serviceForm, notes: e.target.value })}
+                  rows={2} placeholder="Any additional notes" className={inputCls} />
               </div>
             </div>
             <div className="px-5 py-4 border-t border-border flex-shrink-0">
