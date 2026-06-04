@@ -11,6 +11,7 @@ export function useVehicles() {
         .from("vehicles")
         .select("*")
         .eq("is_active", true)
+        .eq("organisation_id", profile!.organisation_id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -30,6 +31,7 @@ export function useDrivers() {
       const { data, error } = await supabase
         .from("drivers")
         .select("*")
+        .eq("organisation_id", profile!.organisation_id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -46,6 +48,7 @@ export function useCertificates() {
       const { data, error } = await supabase
         .from("certificates")
         .select("*, vehicles(registration_number)")
+        .eq("organisation_id", profile!.organisation_id)
         .order("expiry_date", { ascending: true });
       if (error) throw error;
       return data;
@@ -62,6 +65,7 @@ export function useInspections() {
       const { data, error } = await supabase
         .from("damage_inspections")
         .select("*, vehicles(registration_number), inspector:users!damage_inspections_inspector_id_fkey(full_name)")
+        .eq("organisation_id", profile!.organisation_id)
         .order("inspection_date", { ascending: false });
       if (error) throw error;
       return data;
@@ -78,6 +82,7 @@ export function useFines() {
       const { data, error } = await supabase
         .from("fines")
         .select("*, vehicles(registration_number), drivers(full_name)")
+        .eq("organisation_id", profile!.organisation_id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -94,6 +99,7 @@ export function useAlerts() {
       const { data, error } = await supabase
         .from("alerts_log")
         .select("*")
+        .eq("organisation_id", profile!.organisation_id)
         .order("sent_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -135,10 +141,11 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard_stats", profile?.organisation_id],
     queryFn: async () => {
+      const orgId = profile!.organisation_id;
       const [vehiclesRes, certsRes, alertsRes] = await Promise.all([
-        supabase.from("vehicles").select("id, compliance_status, is_active, current_odometer_km, next_service_due_km, updated_at").eq("is_active", true),
-        supabase.from("certificates").select("id, expiry_date, status"),
-        supabase.from("alerts_log").select("id, resolved").eq("resolved", false),
+        supabase.from("vehicles").select("id, compliance_status, is_active, current_odometer_km, next_service_due_km, updated_at").eq("is_active", true).eq("organisation_id", orgId),
+        supabase.from("certificates").select("id, expiry_date, status").eq("organisation_id", orgId),
+        supabase.from("alerts_log").select("id, resolved").eq("resolved", false).eq("organisation_id", orgId),
       ]);
 
       const vehicles = vehiclesRes.data || [];
@@ -146,8 +153,6 @@ export function useDashboardStats() {
       const alerts = alertsRes.data || [];
 
       const totalVehicles = vehicles.length;
-      // Use stored compliance_status — calculated by recalculateAllVehicleCompliance
-      // This ensures dashboard matches Vehicles page exactly
       const compliant = vehicles.filter((v) => (v.compliance_status || "compliant") === "compliant").length;
       const warning = vehicles.filter((v) => (v.compliance_status || "compliant") === "warning").length;
       const critical = vehicles.filter((v) => (v.compliance_status || "compliant") === "critical").length;
@@ -162,16 +167,7 @@ export function useDashboardStats() {
         return exp > now && exp <= thirtyDays;
       }).length;
 
-      return {
-        totalVehicles,
-        complianceScore,
-        expiringCerts,
-        criticalAlerts: alerts.length,
-        compliant,
-        warning,
-        critical,
-        expired,
-      };
+      return { totalVehicles, complianceScore, expiringCerts, criticalAlerts: alerts.length, compliant, warning, critical, expired };
     },
     enabled: !!profile?.organisation_id,
     staleTime: 0,
@@ -190,6 +186,7 @@ export function useUpcomingExpiries() {
       const { data, error } = await supabase
         .from("certificates")
         .select("id, certificate_type, expiry_date, vehicles(registration_number)")
+        .eq("organisation_id", profile!.organisation_id)
         .gte("expiry_date", now)
         .lte("expiry_date", future)
         .order("expiry_date", { ascending: true })
@@ -209,6 +206,7 @@ export function useRecentInspections() {
       const { data, error } = await supabase
         .from("damage_inspections")
         .select("id, inspection_date, overall_condition, total_damage_items, vehicles(registration_number)")
+        .eq("organisation_id", profile!.organisation_id)
         .order("inspection_date", { ascending: false })
         .limit(5);
       if (error) throw error;
@@ -226,6 +224,7 @@ export function useRecentAlerts() {
       const { data, error } = await supabase
         .from("alerts_log")
         .select("*")
+        .eq("organisation_id", profile!.organisation_id)
         .order("sent_at", { ascending: false })
         .limit(5);
       if (error) throw error;
