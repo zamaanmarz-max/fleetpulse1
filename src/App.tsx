@@ -25,6 +25,7 @@ import VehicleDetail from "./pages/VehicleDetail";
 import InspectionDetail from "./pages/InspectionDetail";
 import DataImport from "./pages/DataImport";
 import DoctorDemo from "./pages/DoctorDemo";
+import FridgeTracker from "./pages/FridgeTracker";
 import ControlTower from "./pages/ControlTower";
 import HSFile from "./pages/HSFile";
 import Maintenance from "./pages/Maintenance";
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="/reports" element={<Reports />} />
               <Route path="/reports/driver-compliance" element={<DriverComplianceReport />} />
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/fridge-tracker" element={<FridgeTracker />} />
               <Route path="/control-tower" element={<ControlTower />} />
               <Route path="/hs-file" element={<HSFile />} />
               <Route path="/maintenance" element={<Maintenance />} />
