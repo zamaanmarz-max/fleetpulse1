@@ -26,7 +26,7 @@ export default function FridgeTracker() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"tracker" | "history">("tracker");
+  const [activeTab, setActiveTab] = useState<"tracker" | "history" | "certificates">("tracker");
 
   const [serviceForm, setServiceForm] = useState({
     service_type: "scheduled", fault_description: "", work_done: "",
@@ -71,6 +71,57 @@ export default function FridgeTracker() {
     },
     staleTime: 0, refetchOnMount: "always",
   });
+
+  const { data: certificates } = useQuery({
+    queryKey: ["fridge_certificates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fridge_certificates" as any)
+        .select("*, vehicles(registration_number, customer_name, fridge_brand, fridge_model)")
+        .order("expiry_date", { ascending: true });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    staleTime: 0, refetchOnMount: "always",
+  });
+
+  const [showCertModal, setShowCertModal] = useState(false);
+  const [certForm, setCertForm] = useState({ vehicle_id: "", certificate_number: "", expiry_date: "", calibrated_by: "", temperature_range: "" });
+  const [certUploadFile, setCertUploadFile] = useState<File | null>(null);
+  const [savingCert, setSavingCert] = useState(false);
+
+  const handleSaveCert = async () => {
+    if (!certForm.vehicle_id || !certForm.expiry_date) { toast.error("Pick a vehicle and expiry date"); return; }
+    setSavingCert(true);
+    const veh = (vehicles || []).find((v: any) => v.id === certForm.vehicle_id);
+    let url: string | null = null;
+    if (certUploadFile) {
+      const ext = certUploadFile.name.split(".").pop();
+      const path = `${veh?.registration_number || "cert"}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("fridge-certs").upload(path, certUploadFile, { upsert: true });
+      if (!upErr) { const { data } = supabase.storage.from("fridge-certs").getPublicUrl(path); url = data.publicUrl; }
+    }
+    const { error } = await supabase.from("fridge_certificates" as any).insert({
+      organisation_id: profile?.organisation_id,
+      vehicle_id: certForm.vehicle_id,
+      certificate_number: certForm.certificate_number || null,
+      issue_date: new Date().toISOString().split("T")[0],
+      expiry_date: certForm.expiry_date,
+      certificate_url: url,
+      calibrated_by: certForm.calibrated_by || null,
+      temperature_range: certForm.temperature_range || null,
+    });
+    if (error) { setSavingCert(false); toast.error(error.message); return; }
+    // Also update the vehicle's cert expiry so the tracker reflects it
+    await supabase.from("vehicles").update({ fridge_cert_expiry: certForm.expiry_date, fridge_cert_number: certForm.certificate_number || null }).eq("id", certForm.vehicle_id);
+    setSavingCert(false);
+    toast.success("Certificate saved ✓");
+    setShowCertModal(false);
+    setCertForm({ vehicle_id: "", certificate_number: "", expiry_date: "", calibrated_by: "", temperature_range: "" });
+    setCertUploadFile(null);
+    qc.invalidateQueries({ queryKey: ["fridge_certificates"] });
+    qc.invalidateQueries({ queryKey: ["fridge_vehicles"] });
+  };
 
   const enriched = useMemo(() => {
     return (vehicles || []).map(v => {
@@ -319,7 +370,7 @@ export default function FridgeTracker() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {[{ key: "tracker", label: "Live Tracker" }, { key: "history", label: "Service History" }].map(t => (
+        {[{ key: "tracker", label: "Live Tracker" }, { key: "history", label: "Service History" }, { key: "certificates", label: "Certificates" }].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key as any)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {t.label}
@@ -464,7 +515,114 @@ export default function FridgeTracker() {
         </div>
       )}
 
-      {/* Log Service Modal */}
+      {activeTab === "certificates" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Calibration Certificates</h3>
+              <p className="text-xs text-muted-foreground">Upload and track fridge calibration certificate expiry</p>
+            </div>
+            <button onClick={() => setShowCertModal(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-2 rounded-lg hover:opacity-90">
+              <Plus className="w-4 h-4" /> Add Certificate
+            </button>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-3">
+            {(() => {
+              const today = new Date();
+              const certs = certificates || [];
+              const expired = certs.filter((c: any) => new Date(c.expiry_date) < today).length;
+              const soon = certs.filter((c: any) => { const d = Math.round((new Date(c.expiry_date).getTime() - today.getTime()) / 86400000); return d >= 0 && d <= 30; }).length;
+              const valid = certs.filter((c: any) => { const d = Math.round((new Date(c.expiry_date).getTime() - today.getTime()) / 86400000); return d > 30; }).length;
+              return (
+                <>
+                  <div className="glass-card p-4 text-center"><p className="text-2xl font-bold text-destructive">{expired}</p><p className="text-xs text-muted-foreground mt-1">Expired</p></div>
+                  <div className="glass-card p-4 text-center"><p className="text-2xl font-bold text-warning">{soon}</p><p className="text-xs text-muted-foreground mt-1">Expiring ≤30 days</p></div>
+                  <div className="glass-card p-4 text-center"><p className="text-2xl font-bold text-success">{valid}</p><p className="text-xs text-muted-foreground mt-1">Valid</p></div>
+                </>
+              );
+            })()}
+          </div>
+
+          {(!certificates || certificates.length === 0) ? (
+            <div className="glass-card p-8 text-center"><p className="text-sm text-muted-foreground">No certificates uploaded yet. Click "Add Certificate" to upload one.</p></div>
+          ) : (
+            <div className="glass-card overflow-x-auto">
+              <table className="w-full min-w-[800px]">
+                <thead>
+                  <tr className="border-b border-border">
+                    {["Reg", "Customer", "Cert No.", "Expiry", "Days Left", "Status", "Document"].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(certificates || []).map((c: any) => {
+                    const days = Math.round((new Date(c.expiry_date).getTime() - new Date().getTime()) / 86400000);
+                    const status = days < 0 ? { label: "EXPIRED", cls: "bg-destructive/20 text-destructive" } : days <= 30 ? { label: "EXPIRING SOON", cls: "bg-warning/20 text-warning" } : { label: "VALID", cls: "bg-success/20 text-success" };
+                    return (
+                      <tr key={c.id} className={`border-b border-border/50 hover:bg-secondary/30 ${days < 0 ? "bg-destructive/5" : days <= 30 ? "bg-warning/5" : ""}`}>
+                        <td className="px-4 py-3 text-sm font-semibold text-foreground">{c.vehicles?.registration_number || "—"}</td>
+                        <td className="px-4 py-3 text-sm text-foreground">{c.vehicles?.customer_name || "—"}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{c.certificate_number || "—"}</td>
+                        <td className="px-4 py-3 text-sm font-mono text-foreground">{c.expiry_date}</td>
+                        <td className={`px-4 py-3 text-sm font-bold ${days < 0 ? "text-destructive" : days <= 30 ? "text-warning" : "text-success"}`}>{days < 0 ? `${Math.abs(days)} overdue` : `${days} days`}</td>
+                        <td className="px-4 py-3"><span className={`text-xs font-bold px-2 py-1 rounded-full ${status.cls}`}>{status.label}</span></td>
+                        <td className="px-4 py-3">{c.certificate_url ? <a href={c.certificate_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">View</a> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Certificate Modal */}
+      {showCertModal && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-background/60 backdrop-blur-sm" onClick={() => setShowCertModal(false)} />
+          <div className="w-full max-w-md bg-card border-l border-border flex flex-col max-h-screen">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+              <h2 className="text-base font-bold text-foreground">Add Calibration Certificate</h2>
+              <button onClick={() => setShowCertModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <div>
+                <label className={labelCls}>Vehicle *</label>
+                <select value={certForm.vehicle_id} onChange={e => setCertForm({ ...certForm, vehicle_id: e.target.value })} className={inputCls}>
+                  <option value="">Select vehicle...</option>
+                  {(vehicles || []).map((v: any) => <option key={v.id} value={v.id}>{v.registration_number} — {v.fridge_brand} {v.fridge_model}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Certificate Number</label><input value={certForm.certificate_number} onChange={e => setCertForm({ ...certForm, certificate_number: e.target.value })} placeholder="e.g. DN94821" className={inputCls} /></div>
+                <div><label className={labelCls}>Expiry Date *</label><input type="date" value={certForm.expiry_date} onChange={e => setCertForm({ ...certForm, expiry_date: e.target.value })} className={inputCls} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Calibrated By</label><input value={certForm.calibrated_by} onChange={e => setCertForm({ ...certForm, calibrated_by: e.target.value })} placeholder="Technician/company" className={inputCls} /></div>
+                <div><label className={labelCls}>Temp Range</label><input value={certForm.temperature_range} onChange={e => setCertForm({ ...certForm, temperature_range: e.target.value })} placeholder="e.g. -28°C to +10°C" className={inputCls} /></div>
+              </div>
+              <div>
+                <label className={labelCls}>Upload Certificate (PDF or Photo)</label>
+                <div className={`${inputCls} flex items-center gap-2 cursor-pointer`} onClick={() => document.getElementById("cert-modal-upload")?.click()}>
+                  <Upload className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm text-muted-foreground truncate">{certUploadFile ? certUploadFile.name : "Click to upload..."}</span>
+                </div>
+                <input id="cert-modal-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setCertUploadFile(e.target.files?.[0] || null)} />
+                {certUploadFile && <p className="text-xs text-success mt-1">✓ {certUploadFile.name} ready</p>}
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-border flex-shrink-0">
+              <button onClick={handleSaveCert} disabled={savingCert} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                {savingCert ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save Certificate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showServiceModal && selectedVehicle && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-background/60 backdrop-blur-sm" onClick={() => setShowServiceModal(false)} />
