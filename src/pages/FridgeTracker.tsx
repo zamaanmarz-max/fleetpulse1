@@ -86,7 +86,7 @@ export default function FridgeTracker() {
   });
 
   const [showCertModal, setShowCertModal] = useState(false);
-  const [certForm, setCertForm] = useState({ vehicle_id: "", certificate_number: "", expiry_date: "", calibrated_by: "", temperature_range: "" });
+  const [certForm, setCertForm] = useState({ vehicle_id: "", certificate_number: "", issue_date: "", expiry_date: "", calibrated_by: "", temperature_range: "" });
   const [certUploadFile, setCertUploadFile] = useState<File | null>(null);
   const [savingCert, setSavingCert] = useState(false);
 
@@ -105,7 +105,7 @@ export default function FridgeTracker() {
       organisation_id: profile?.organisation_id,
       vehicle_id: certForm.vehicle_id,
       certificate_number: certForm.certificate_number || null,
-      issue_date: new Date().toISOString().split("T")[0],
+      issue_date: certForm.issue_date || new Date().toISOString().split("T")[0],
       expiry_date: certForm.expiry_date,
       certificate_url: url,
       calibrated_by: certForm.calibrated_by || null,
@@ -117,7 +117,7 @@ export default function FridgeTracker() {
     setSavingCert(false);
     toast.success("Certificate saved ✓");
     setShowCertModal(false);
-    setCertForm({ vehicle_id: "", certificate_number: "", expiry_date: "", calibrated_by: "", temperature_range: "" });
+    setCertForm({ vehicle_id: "", certificate_number: "", issue_date: "", expiry_date: "", calibrated_by: "", temperature_range: "" });
     setCertUploadFile(null);
     qc.invalidateQueries({ queryKey: ["fridge_certificates"] });
     qc.invalidateQueries({ queryKey: ["fridge_vehicles"] });
@@ -370,7 +370,7 @@ export default function FridgeTracker() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {[{ key: "tracker", label: "Live Tracker" }, { key: "history", label: "Service History" }, { key: "certificates", label: "Certificates" }].map(t => (
+        {[{ key: "tracker", label: "Live Tracker" }, { key: "history", label: "Jobs Done" }, { key: "certificates", label: "Certificates" }].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key as any)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {t.label}
@@ -402,20 +402,21 @@ export default function FridgeTracker() {
             <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-border">
-                  {["Reg", "Customer", "Brand", "Model", "Current Hrs", "Next Svc", "HRS Left", "Status", "Cert Expiry", "Actions"].map(h => (
+                  {["Reg", "Customer", "Brand", "Model", "Last Svc Hrs", "Current Hrs", "Next Svc", "HRS Left", "Status", "Cert Expiry", "Actions"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0
-                  ? <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">No fridge units found</td></tr>
+                  ? <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-muted-foreground">No fridge units found</td></tr>
                   : filtered.map(v => (
                     <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${v.hrsToNext <= 0 ? "bg-destructive/5" : v.hrsToNext <= 200 ? "bg-warning/5" : ""}`}>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.customer_name || <span className="text-muted-foreground">—</span>}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_brand || "—"}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_model || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{v.fridge_last_service_hrs ? `${Number(v.fridge_last_service_hrs).toLocaleString()} hrs` : "—"}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">
                         {v.fridge_current_hrs ? `${Number(v.fridge_current_hrs).toLocaleString()} hrs` : "—"}
                         {v.fridge_hours_updated_at && (
@@ -446,7 +447,7 @@ export default function FridgeTracker() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5">
-                          <button onClick={() => openServiceModal(v)} className="text-xs bg-primary/20 text-primary px-2 py-1.5 rounded-lg hover:opacity-80 font-semibold">Log Service</button>
+                          <button onClick={() => openServiceModal(v)} className="text-xs bg-primary/20 text-primary px-2 py-1.5 rounded-lg hover:opacity-80 font-semibold">Log Job</button>
                           <button onClick={() => openEditModal(v)} className="text-xs bg-secondary text-foreground px-2 py-1.5 rounded-lg hover:opacity-80">Edit</button>
                         </div>
                       </td>
@@ -552,7 +553,7 @@ export default function FridgeTracker() {
               <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-border">
-                    {["Reg", "Customer", "Cert No.", "Expiry", "Days Left", "Status", "Document"].map(h => (
+                    {["Reg", "Customer", "Cert No.", "Date Done", "Expiry", "Days Left", "Status", "Document"].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -566,6 +567,7 @@ export default function FridgeTracker() {
                         <td className="px-4 py-3 text-sm font-semibold text-foreground">{c.vehicles?.registration_number || "—"}</td>
                         <td className="px-4 py-3 text-sm text-foreground">{c.vehicles?.customer_name || "—"}</td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{c.certificate_number || "—"}</td>
+                        <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{c.issue_date || "—"}</td>
                         <td className="px-4 py-3 text-sm font-mono text-foreground">{c.expiry_date}</td>
                         <td className={`px-4 py-3 text-sm font-bold ${days < 0 ? "text-destructive" : days <= 30 ? "text-warning" : "text-success"}`}>{days < 0 ? `${Math.abs(days)} overdue` : `${days} days`}</td>
                         <td className="px-4 py-3"><span className={`text-xs font-bold px-2 py-1 rounded-full ${status.cls}`}>{status.label}</span></td>
@@ -599,7 +601,22 @@ export default function FridgeTracker() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls}>Certificate Number</label><input value={certForm.certificate_number} onChange={e => setCertForm({ ...certForm, certificate_number: e.target.value })} placeholder="e.g. DN94821" className={inputCls} /></div>
-                <div><label className={labelCls}>Expiry Date *</label><input type="date" value={certForm.expiry_date} onChange={e => setCertForm({ ...certForm, expiry_date: e.target.value })} className={inputCls} /></div>
+                <div>
+                  <label className={labelCls}>Date Done *</label>
+                  <input type="date" value={certForm.issue_date} onChange={e => {
+                    const issue = e.target.value;
+                    // Auto-set expiry to 1 year later
+                    let expiry = certForm.expiry_date;
+                    if (issue) { const d = new Date(issue); d.setFullYear(d.getFullYear() + 1); expiry = d.toISOString().split("T")[0]; }
+                    setCertForm({ ...certForm, issue_date: issue, expiry_date: expiry });
+                  }} className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Expiry Date * <span className="text-xs text-muted-foreground">(auto 1 year)</span></label>
+                  <input type="date" value={certForm.expiry_date} onChange={e => setCertForm({ ...certForm, expiry_date: e.target.value })} className={inputCls} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls}>Calibrated By</label><input value={certForm.calibrated_by} onChange={e => setCertForm({ ...certForm, calibrated_by: e.target.value })} placeholder="Technician/company" className={inputCls} /></div>
@@ -629,7 +646,7 @@ export default function FridgeTracker() {
           <div className="w-full max-w-md bg-card border-l border-border flex flex-col max-h-screen">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
               <div>
-                <h2 className="text-base font-bold text-foreground">Log Fridge Service</h2>
+                <h2 className="text-base font-bold text-foreground">Log Job Done</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">{selectedVehicle.registration_number} — {selectedVehicle.fridge_brand} {selectedVehicle.fridge_model}</p>
               </div>
               <button onClick={() => setShowServiceModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -642,7 +659,6 @@ export default function FridgeTracker() {
                     { value: "scheduled", label: "🔧 Scheduled Service", desc: "Resets service clock" },
                     { value: "breakdown", label: "🚨 Breakdown Repair", desc: "Clock unchanged" },
                     { value: "inspection", label: "🔍 Inspection", desc: "Clock unchanged" },
-                    { value: "certificate", label: "📋 Certificate Renewal", desc: "Resets service clock" },
                   ].map(t => (
                     <button key={t.value} type="button"
                       onClick={() => setServiceForm({ ...serviceForm, service_type: t.value })}
@@ -709,7 +725,7 @@ export default function FridgeTracker() {
               </div>
 
               <div>
-                <label className={labelCls}>{serviceForm.service_type === "certificate" ? "Upload Certificate" : "Upload Job Card"} (photo or PDF)</label>
+                <label className={labelCls}>Upload Job Card (photo or PDF)</label>
                 <div className={`${inputCls} flex items-center gap-2 cursor-pointer`}
                   onClick={() => document.getElementById("jobcard-upload")?.click()}>
                   <Upload className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -722,26 +738,6 @@ export default function FridgeTracker() {
                 {certFile && <p className="text-xs text-success mt-1">✓ {certFile.name} ready to upload</p>}
               </div>
 
-              {serviceForm.service_type === "certificate" && (
-                <div className="border border-primary/30 rounded-xl p-3 space-y-3 bg-primary/5">
-                  <p className="text-xs font-semibold text-primary uppercase tracking-wider">📋 Fridge Calibration Certificate</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>Certificate Number</label>
-                      <input value={serviceForm.certificate_number}
-                        onChange={e => setServiceForm({ ...serviceForm, certificate_number: e.target.value })}
-                        placeholder="Cert ref number" className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Expiry Date</label>
-                      <input type="date" value={serviceForm.cert_expiry_date}
-                        onChange={e => setServiceForm({ ...serviceForm, cert_expiry_date: e.target.value })}
-                        className={inputCls} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div>
                 <label className={labelCls}>Notes</label>
                 <textarea value={serviceForm.notes}
@@ -751,7 +747,7 @@ export default function FridgeTracker() {
             </div>
             <div className="px-5 py-4 border-t border-border flex-shrink-0">
               <button onClick={handleLogService} disabled={saving} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Thermometer className="w-4 h-4" />} Log Service & Update Hours
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Thermometer className="w-4 h-4" />} Log Job & Update Hours
               </button>
             </div>
           </div>
