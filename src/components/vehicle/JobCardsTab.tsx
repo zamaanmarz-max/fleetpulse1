@@ -29,6 +29,7 @@ const statusStyles: Record<string, string> = {
 interface Props {
   vehicleId: string;
   organisationId: string | null;
+  isFridgeOnly?: boolean;
 }
 
 const emptyForm = {
@@ -38,7 +39,7 @@ const emptyForm = {
   invoice_number: "", status: "open", completed_date: "", odometer_reading: "",
 };
 
-export function JobCardsTab({ vehicleId, organisationId }: Props) {
+export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,6 +47,21 @@ export function JobCardsTab({ vehicleId, organisationId }: Props) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [file, setFile] = useState<File | null>(null);
+
+  // For fridge-only orgs, job cards come from fridge_service_log
+  const { data: fridgeJobs, isLoading: fridgeLoading } = useQuery({
+    queryKey: ["fridge_job_cards", vehicleId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fridge_service_log" as any)
+        .select("*")
+        .eq("vehicle_id", vehicleId)
+        .order("service_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!isFridgeOnly,
+  });
 
   const { data: jobCards, isLoading } = useQuery({
     queryKey: ["job_cards", vehicleId],
@@ -58,7 +74,61 @@ export function JobCardsTab({ vehicleId, organisationId }: Props) {
       if (error) throw error;
       return data;
     },
+    enabled: !isFridgeOnly,
   });
+
+  // Fridge-only: render service logs as job cards
+  if (isFridgeOnly) {
+    if (fridgeLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+    const jobs = (fridgeJobs as any[]) || [];
+    const typeLabel: Record<string, string> = { scheduled: "Scheduled Service", breakdown: "Breakdown Repair", inspection: "Inspection", certificate: "Certificate Renewal", other: "Other" };
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Job Cards ({jobs.length})</h3>
+          <span className="text-xs text-muted-foreground">Logged via Fridge Tracker</span>
+        </div>
+        {jobs.length === 0 ? (
+          <div className="glass-card p-8 text-center text-sm text-muted-foreground">
+            No job cards yet. Log a service from the Fridge Tracker to create one.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {jobs.map((j) => {
+              const fileUrl = j.job_card_url || j.certificate_url;
+              return (
+                <div key={j.id} className="glass-card p-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-foreground">{j.job_card_number ? `Job Card #${j.job_card_number}` : "Job Card"}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${j.service_type === "breakdown" ? "bg-destructive/20 text-destructive" : j.service_type === "scheduled" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                          {typeLabel[j.service_type] || j.service_type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{j.service_date}{j.tech_name ? ` · ${j.tech_name}` : ""}{j.hours_at_service ? ` · ${Number(j.hours_at_service).toLocaleString()} hrs` : ""}</p>
+                    </div>
+                    {fileUrl && (
+                      <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:opacity-90">
+                        <Eye className="w-3.5 h-3.5" /> View Document
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-sm text-foreground mt-2">{j.work_done}</p>
+                  {j.parts_used && <p className="text-xs text-muted-foreground mt-1">Parts: {j.parts_used}</p>}
+                  {j.total_cost && <p className="text-xs text-muted-foreground mt-1">Cost: R {Number(j.total_cost).toLocaleString()}</p>}
+                  {j.updates_service_clock === false && j.service_type !== "scheduled" && (
+                    <p className="text-xs text-warning mt-1">Service clock unchanged (repair)</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
 
   const totalSpent = (jobCards || []).reduce((sum, jc) => sum + (Number(jc.total_cost) || 0), 0);
 

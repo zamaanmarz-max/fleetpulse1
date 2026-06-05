@@ -682,7 +682,7 @@ export default function VehicleDetail() {
       )}
 
       {activeTab === "jobcards" && (
-        <JobCardsTab vehicleId={id!} organisationId={vehicle.organisation_id} />
+        <JobCardsTab vehicleId={id!} organisationId={vehicle.organisation_id} isFridgeOnly={isFridgeOnly} />
       )}
 
       {activeTab === "certificates" && (

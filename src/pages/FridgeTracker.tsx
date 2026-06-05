@@ -32,7 +32,7 @@ export default function FridgeTracker() {
     service_type: "scheduled", fault_description: "", work_done: "",
     parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "",
     tech_name: "", certificate_number: "", cert_expiry_date: "",
-    hours_at_service: "", notes: "",
+    hours_at_service: "", notes: "", job_card_number: "",
   });
 
   const [editForm, setEditForm] = useState({
@@ -48,7 +48,7 @@ export default function FridgeTracker() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicles")
-        .select("id, registration_number, fleet_number, make, model, vehicle_type, customer_name, fridge_brand, fridge_model, fridge_serial_number, fridge_service_interval_hrs, fridge_current_hrs, fridge_last_service_hrs, fridge_last_service_date, fridge_next_service_hrs, fridge_cert_expiry, fridge_cert_number")
+        .select("id, registration_number, fleet_number, make, model, vehicle_type, customer_name, fridge_brand, fridge_model, fridge_serial_number, fridge_service_interval_hrs, fridge_current_hrs, fridge_last_service_hrs, fridge_last_service_date, fridge_next_service_hrs, fridge_cert_expiry, fridge_cert_number, fridge_hours_updated_at")
         .eq("is_active", true)
         .not("fridge_brand", "is", null)
         .order("registration_number");
@@ -140,17 +140,21 @@ export default function FridgeTracker() {
     setSaving(true);
     const hrs = parseFloat(serviceForm.hours_at_service) || null;
     const isScheduled = serviceForm.service_type === "scheduled" || serviceForm.service_type === "certificate";
+    const isCert = serviceForm.service_type === "certificate";
     const interval = selectedVehicle.fridge_service_interval_hrs || 1000;
 
-    // Upload certificate file if provided
-    let certUrl: string | null = null;
+    // Upload the job card / certificate file if provided
+    let fileUrl: string | null = null;
     if (certFile) {
       const ext = certFile.name.split(".").pop();
+      const bucket = isCert ? "fridge-certs" : "job-cards";
       const path = `${selectedVehicle.registration_number}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("fridge-certs").upload(path, certFile, { upsert: true });
+      const { error: upErr } = await supabase.storage.from(bucket).upload(path, certFile, { upsert: true });
       if (!upErr) {
-        const { data: urlData } = supabase.storage.from("fridge-certs").getPublicUrl(path);
-        certUrl = urlData.publicUrl;
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+        fileUrl = urlData.publicUrl;
+      } else {
+        toast.error("File upload failed: " + upErr.message);
       }
     }
 
@@ -163,31 +167,42 @@ export default function FridgeTracker() {
       fault_description: serviceForm.fault_description || null,
       work_done: serviceForm.work_done,
       parts_used: serviceForm.parts_used || null,
-      parts_cost: parseFloat(serviceForm.parts_cost) || null,
-      labour_hours: parseFloat(serviceForm.labour_hours) || null,
-      labour_cost: parseFloat(serviceForm.labour_cost) || null,
-      total_cost: (parseFloat(serviceForm.parts_cost) || 0) + (parseFloat(serviceForm.labour_cost) || 0) || null,
+      total_cost: parseFloat(serviceForm.parts_cost) || null,
       tech_name: serviceForm.tech_name || null,
-      certificate_number: serviceForm.certificate_number || null,
-      cert_expiry_date: serviceForm.cert_expiry_date || null,
-      certificate_url: certUrl,
+      job_card_number: serviceForm.job_card_number || null,
+      job_card_url: isCert ? null : fileUrl,
+      certificate_number: isCert ? (serviceForm.certificate_number || null) : null,
+      cert_expiry_date: isCert ? (serviceForm.cert_expiry_date || null) : null,
+      certificate_url: isCert ? fileUrl : null,
       notes: serviceForm.notes || null,
       logged_via: "app",
       updates_service_clock: isScheduled,
     });
     if (error) { setSaving(false); toast.error(error.message); return; }
 
-    // Only update current hours always (so tracker stays accurate)
-    // Only reset service clock for SCHEDULED services - NOT for repairs
+    // If it's a certificate renewal, also save to fridge_certificates table
+    if (isCert && serviceForm.cert_expiry_date) {
+      await supabase.from("fridge_certificates" as any).insert({
+        organisation_id: profile?.organisation_id,
+        vehicle_id: selectedVehicle.id,
+        certificate_number: serviceForm.certificate_number || null,
+        issue_date: new Date().toISOString().split("T")[0],
+        expiry_date: serviceForm.cert_expiry_date,
+        certificate_url: fileUrl,
+        calibrated_by: serviceForm.tech_name || null,
+      });
+    }
+
+    // Update current hours always; reset service clock only for scheduled/cert
     const vehicleUpdate: any = {};
-    if (hrs) vehicleUpdate.fridge_current_hrs = hrs;
+    if (hrs) { vehicleUpdate.fridge_current_hrs = hrs; vehicleUpdate.fridge_hours_updated_at = new Date().toISOString(); }
     if (isScheduled && hrs) {
       vehicleUpdate.fridge_last_service_hrs = hrs;
       vehicleUpdate.fridge_last_service_date = new Date().toISOString().split("T")[0];
       vehicleUpdate.fridge_next_service_hrs = hrs + interval;
     }
-    if (serviceForm.cert_expiry_date) vehicleUpdate.fridge_cert_expiry = serviceForm.cert_expiry_date;
-    if (serviceForm.certificate_number) vehicleUpdate.fridge_cert_number = serviceForm.certificate_number;
+    if (isCert && serviceForm.cert_expiry_date) vehicleUpdate.fridge_cert_expiry = serviceForm.cert_expiry_date;
+    if (isCert && serviceForm.certificate_number) vehicleUpdate.fridge_cert_number = serviceForm.certificate_number;
     if (Object.keys(vehicleUpdate).length > 0) {
       await supabase.from("vehicles").update(vehicleUpdate).eq("id", selectedVehicle.id);
     }
@@ -196,7 +211,7 @@ export default function FridgeTracker() {
     toast.success(isScheduled ? "Service logged — service clock reset ✓" : "Repair logged — service clock unchanged ✓");
     setShowServiceModal(false);
     setCertFile(null);
-    setServiceForm({ service_type: "scheduled", fault_description: "", work_done: "", parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "", tech_name: "", certificate_number: "", cert_expiry_date: "", hours_at_service: "", notes: "" });
+    setServiceForm({ service_type: "scheduled", fault_description: "", work_done: "", parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "", tech_name: "", certificate_number: "", cert_expiry_date: "", hours_at_service: "", notes: "", job_card_number: "" });
     qc.invalidateQueries({ queryKey: ["fridge_vehicles"] });
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
   };
@@ -350,7 +365,14 @@ export default function FridgeTracker() {
                       <td className="px-4 py-3 text-sm text-foreground">{v.customer_name || <span className="text-muted-foreground">—</span>}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_brand || "—"}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_model || "—"}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.fridge_current_hrs ? `${Number(v.fridge_current_hrs).toLocaleString()} hrs` : "—"}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                        {v.fridge_current_hrs ? `${Number(v.fridge_current_hrs).toLocaleString()} hrs` : "—"}
+                        {v.fridge_hours_updated_at && (
+                          <span className="block text-xs font-normal text-muted-foreground mt-0.5">
+                            {new Date(v.fridge_hours_updated_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short" })} {new Date(v.fridge_hours_updated_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm text-foreground">{v.fridge_next_service_hrs ? `${Number(v.fridge_next_service_hrs).toLocaleString()} hrs` : "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm font-bold ${v.hrsToNext <= 0 ? "text-destructive" : v.hrsToNext <= 200 ? "text-warning" : "text-success"}`}>
@@ -513,20 +535,28 @@ export default function FridgeTracker() {
                 </div>
               </div>
 
-              <div>
-                <label className={labelCls}>Technician Name</label>
-                <input value={serviceForm.tech_name}
-                  onChange={e => setServiceForm({ ...serviceForm, tech_name: e.target.value })}
-                  placeholder="Who did the work?" className={inputCls} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Job Card Number</label>
+                  <input value={serviceForm.job_card_number}
+                    onChange={e => setServiceForm({ ...serviceForm, job_card_number: e.target.value })}
+                    placeholder="e.g. 96684" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Technician Name</label>
+                  <input value={serviceForm.tech_name}
+                    onChange={e => setServiceForm({ ...serviceForm, tech_name: e.target.value })}
+                    placeholder="Who did the work?" className={inputCls} />
+                </div>
               </div>
 
               <div>
-                <label className={labelCls}>Upload Job Card (photo or PDF)</label>
+                <label className={labelCls}>{serviceForm.service_type === "certificate" ? "Upload Certificate" : "Upload Job Card"} (photo or PDF)</label>
                 <div className={`${inputCls} flex items-center gap-2 cursor-pointer`}
                   onClick={() => document.getElementById("jobcard-upload")?.click()}>
                   <Upload className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-sm text-muted-foreground truncate">
-                    {certFile ? certFile.name : "Take a photo or upload the job card..."}
+                    {certFile ? certFile.name : "Take a photo or upload..."}
                   </span>
                 </div>
                 <input id="jobcard-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
