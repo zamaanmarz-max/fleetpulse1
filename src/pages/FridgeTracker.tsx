@@ -32,7 +32,7 @@ export default function FridgeTracker() {
     service_type: "scheduled", fault_description: "", work_done: "",
     parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "",
     tech_name: "", certificate_number: "", cert_expiry_date: "",
-    hours_at_service: "", notes: "", job_card_number: "",
+    hours_at_service: "", notes: "", job_card_number: "", service_date: "",
   });
 
   const [editForm, setEditForm] = useState({
@@ -164,7 +164,7 @@ export default function FridgeTracker() {
 
   const openServiceModal = (vehicle: any) => {
     setSelectedVehicle(vehicle);
-    setServiceForm({ service_type: "scheduled", fault_description: "", work_done: "", parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "", tech_name: "", certificate_number: "", cert_expiry_date: "", hours_at_service: String(vehicle.fridge_current_hrs || ""), notes: "" });
+    setServiceForm({ service_type: "scheduled", fault_description: "", work_done: "", parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "", tech_name: "", certificate_number: "", cert_expiry_date: "", hours_at_service: String(vehicle.fridge_current_hrs || ""), notes: "", job_card_number: "", service_date: new Date().toISOString().split("T")[0] });
     setShowServiceModal(true);
   };
 
@@ -212,7 +212,7 @@ export default function FridgeTracker() {
     const { error } = await supabase.from("fridge_service_log" as any).insert({
       organisation_id: profile?.organisation_id,
       vehicle_id: selectedVehicle.id,
-      service_date: new Date().toISOString().split("T")[0],
+      service_date: serviceForm.service_date || new Date().toISOString().split("T")[0],
       hours_at_service: hrs,
       service_type: serviceForm.service_type,
       fault_description: serviceForm.fault_description || null,
@@ -249,7 +249,7 @@ export default function FridgeTracker() {
     if (hrs) { vehicleUpdate.fridge_current_hrs = hrs; vehicleUpdate.fridge_hours_updated_at = new Date().toISOString(); }
     if (isScheduled && hrs) {
       vehicleUpdate.fridge_last_service_hrs = hrs;
-      vehicleUpdate.fridge_last_service_date = new Date().toISOString().split("T")[0];
+      vehicleUpdate.fridge_last_service_date = serviceForm.service_date || new Date().toISOString().split("T")[0];
       vehicleUpdate.fridge_next_service_hrs = hrs + interval;
     }
     if (isCert && serviceForm.cert_expiry_date) vehicleUpdate.fridge_cert_expiry = serviceForm.cert_expiry_date;
@@ -262,7 +262,7 @@ export default function FridgeTracker() {
     toast.success(isScheduled ? "Service logged — service clock reset ✓" : "Repair logged — service clock unchanged ✓");
     setShowServiceModal(false);
     setCertFile(null);
-    setServiceForm({ service_type: "scheduled", fault_description: "", work_done: "", parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "", tech_name: "", certificate_number: "", cert_expiry_date: "", hours_at_service: "", notes: "", job_card_number: "" });
+    setServiceForm({ service_type: "scheduled", fault_description: "", work_done: "", parts_used: "", parts_cost: "", labour_hours: "", labour_cost: "", tech_name: "", certificate_number: "", cert_expiry_date: "", hours_at_service: "", notes: "", job_card_number: "", service_date: "" });
     qc.invalidateQueries({ queryKey: ["fridge_vehicles"] });
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
   };
@@ -668,6 +668,14 @@ export default function FridgeTracker() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Date Job Done *</label>
+                <input type="date" value={serviceForm.service_date}
+                  onChange={e => setServiceForm({ ...serviceForm, service_date: e.target.value })}
+                  max={new Date().toISOString().split("T")[0]} className={inputCls} />
+                <p className="text-xs text-muted-foreground mt-1">Defaults to today. Change it to log a past job.</p>
               </div>
 
               <div>
