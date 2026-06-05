@@ -345,7 +345,7 @@ export default function FridgeTracker() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Thermometer className="w-6 h-6 text-primary" /> Fridge Tracker
           </h1>
-          <p className="text-sm text-muted-foreground">Live service status · Hours tracking · Full service history</p>
+          <p className="text-sm text-muted-foreground">Live service status · Hours tracking · Jobs done & certificates</p>
         </div>
         <button onClick={exportPDF} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90">
           <Download className="w-4 h-4" /> Export PDF
