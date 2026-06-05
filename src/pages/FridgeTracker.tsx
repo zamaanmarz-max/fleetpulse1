@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload } from "lucide-react";
+import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -121,6 +121,22 @@ export default function FridgeTracker() {
     setCertUploadFile(null);
     qc.invalidateQueries({ queryKey: ["fridge_certificates"] });
     qc.invalidateQueries({ queryKey: ["fridge_vehicles"] });
+  };
+
+  const handleDeleteJob = async (id: string) => {
+    if (!confirm("Delete this job card? This cannot be undone.")) return;
+    const { error } = await supabase.from("fridge_service_log" as any).delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Job card deleted");
+    qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
+  };
+
+  const handleDeleteCert = async (id: string) => {
+    if (!confirm("Delete this certificate? This cannot be undone.")) return;
+    const { error } = await supabase.from("fridge_certificates" as any).delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Certificate deleted");
+    qc.invalidateQueries({ queryKey: ["fridge_certificates"] });
   };
 
   const enriched = useMemo(() => {
@@ -470,7 +486,7 @@ export default function FridgeTracker() {
                 <table className="w-full min-w-[800px]">
                   <thead>
                     <tr className="border-b border-border">
-                      {["Date", "Reg", "Brand/Model", "Type", "Work Done", "Parts", "Cost", "Tech", "Cert", "Via"].map(h => (
+                      {["Date", "Reg", "Brand/Model", "Type", "Work Done", "Parts", "Cost", "Tech", "Cert", "Via", ""].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
@@ -505,6 +521,11 @@ export default function FridgeTracker() {
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs text-muted-foreground">{s.logged_via === "whatsapp" ? "📱" : "💻"}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => handleDeleteJob(s.id)} className="text-muted-foreground hover:text-destructive" title="Delete job card">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -553,7 +574,7 @@ export default function FridgeTracker() {
               <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-border">
-                    {["Reg", "Customer", "Cert No.", "Date Done", "Expiry", "Days Left", "Status", "Document"].map(h => (
+                    {["Reg", "Customer", "Cert No.", "Date Done", "Expiry", "Days Left", "Status", "Document", ""].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -572,6 +593,11 @@ export default function FridgeTracker() {
                         <td className={`px-4 py-3 text-sm font-bold ${days < 0 ? "text-destructive" : days <= 30 ? "text-warning" : "text-success"}`}>{days < 0 ? `${Math.abs(days)} overdue` : `${days} days`}</td>
                         <td className="px-4 py-3"><span className={`text-xs font-bold px-2 py-1 rounded-full ${status.cls}`}>{status.label}</span></td>
                         <td className="px-4 py-3">{c.certificate_url ? <a href={c.certificate_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">View</a> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => handleDeleteCert(c.id)} className="text-muted-foreground hover:text-destructive" title="Delete certificate">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}

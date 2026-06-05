@@ -11,6 +11,7 @@ import {
 import { ComplianceRequirements } from "@/components/vehicle/ComplianceRequirements";
 import { EquipmentChecklist } from "@/components/vehicle/EquipmentChecklist";
 import { JobCardsTab } from "@/components/vehicle/JobCardsTab";
+import { FridgeCertsTab } from "@/components/vehicle/FridgeCertsTab";
 import { ServiceTrackersTab } from "@/components/vehicle/ServiceTrackersTab";
 import { VehicleMaintenanceTab } from "@/components/vehicle/VehicleMaintenanceTab";
 import { VehiclePhotosTab } from "@/components/vehicle/VehiclePhotosTab";
@@ -66,6 +67,7 @@ function kmProgressColor(km: number) {
 const tabs = [
   { id: "overview",      label: "Overview",     icon: Truck },
   { id: "certificates",  label: "Certificates", icon: FileText },
+  { id: "fridgecerts",   label: "Calibration Certs", icon: FileText },
   { id: "trackers",      label: "Service Trackers", icon: ClipboardList },
   { id: "jobcards",      label: "Job Cards",    icon: Wrench },
   { id: "damages",       label: "Damages",      icon: AlertTriangle },
@@ -75,14 +77,14 @@ const tabs = [
 ];
 
 // For fridge-only orgs (e.g. refrigeration companies), only show relevant tabs
-const fridgeOnlyTabs = ["overview", "jobcards", "photos", "history"];
+const fridgeOnlyTabs = ["overview", "jobcards", "fridgecerts", "photos", "history"];
 
 export default function VehicleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isFridgeOnly = (profile as any)?.organisations?.module_type === "fridge_only";
-  const visibleTabs = isFridgeOnly ? tabs.filter(t => fridgeOnlyTabs.includes(t.id)) : tabs;
+  const visibleTabs = isFridgeOnly ? tabs.filter(t => fridgeOnlyTabs.includes(t.id)) : tabs.filter(t => t.id !== "fridgecerts");
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [showOdometer, setShowOdometer] = useState(false);
@@ -683,6 +685,10 @@ export default function VehicleDetail() {
 
       {activeTab === "jobcards" && (
         <JobCardsTab vehicleId={id!} organisationId={vehicle.organisation_id} isFridgeOnly={isFridgeOnly} />
+      )}
+
+      {activeTab === "fridgecerts" && (
+        <FridgeCertsTab vehicleId={id!} reg={vehicle.registration_number} />
       )}
 
       {activeTab === "certificates" && (

@@ -1,4 +1,4 @@
-import { Search, Plus, Download, Loader2, X, Gauge } from "lucide-react";
+import { Search, Plus, Download, Loader2, X, Gauge, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVehicles, useCertificates } from "@/hooks/useOrgData";
@@ -44,6 +44,15 @@ export default function Vehicles() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlFilter = searchParams.get("filter"); // 'critical', 'warning', 'expired'
+
+  const handleDeleteVehicle = async (e: React.MouseEvent, id: string, reg: string) => {
+    e.stopPropagation();
+    if (!confirm(`Delete vehicle ${reg}? This removes it and all its records permanently.`)) return;
+    const { error } = await supabase.from("vehicles").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${reg} deleted`);
+    queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+  };
 
   useEffect(() => {
     recalculateAllVehicleCompliance().then(() => {
@@ -248,6 +257,7 @@ export default function Vehicles() {
                       <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fridge Unit</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Type</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
                     </>
                   ) : (
                     <>
@@ -301,6 +311,11 @@ export default function Vehicles() {
                           <td className="px-4 py-3 text-sm text-foreground">{(v as any).customer_name || <span className="text-muted-foreground">—</span>}</td>
                           <td className="px-4 py-3 text-sm text-foreground">{(v as any).fridge_brand ? `${(v as any).fridge_brand} ${(v as any).fridge_model || ""}` : <span className="text-muted-foreground">—</span>}</td>
                           <td className="px-4 py-3 text-center text-sm text-muted-foreground capitalize">{(v as any).vehicle_type || "—"}</td>
+                          <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={(e) => handleDeleteVehicle(e, v.id, v.registration_number)} className="text-muted-foreground hover:text-destructive" title="Delete vehicle">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </>
                       ) : (
                         <>
@@ -317,13 +332,18 @@ export default function Vehicles() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
-                              className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-2.5 py-1 rounded-md"
-                              title="Update KM"
-                            >
-                              <Gauge className="w-3.5 h-3.5" /> Update KM
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => setUpdateKmFor({ id: v.id, reg: v.registration_number, km: v.current_odometer_km ?? 0 })}
+                                className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-foreground px-2.5 py-1 rounded-md"
+                                title="Update KM"
+                              >
+                                <Gauge className="w-3.5 h-3.5" /> Update KM
+                              </button>
+                              <button onClick={(e) => handleDeleteVehicle(e, v.id, v.registration_number)} className="text-muted-foreground hover:text-destructive" title="Delete vehicle">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </>
                       )}
