@@ -125,16 +125,18 @@ export default function FridgeTracker() {
 
   const handleDeleteJob = async (id: string) => {
     if (!confirm("Delete this job card? This cannot be undone.")) return;
-    const { error } = await supabase.from("fridge_service_log" as any).delete().eq("id", id);
+    const { data, error } = await supabase.from("fridge_service_log" as any).delete().eq("id", id).select();
     if (error) { toast.error(error.message); return; }
+    if (!data || data.length === 0) { toast.error("Could not delete — permission blocked. Tell Zamaan."); return; }
     toast.success("Job card deleted");
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
   };
 
   const handleDeleteCert = async (id: string) => {
     if (!confirm("Delete this certificate? This cannot be undone.")) return;
-    const { error } = await supabase.from("fridge_certificates" as any).delete().eq("id", id);
+    const { data, error } = await supabase.from("fridge_certificates" as any).delete().eq("id", id).select();
     if (error) { toast.error(error.message); return; }
+    if (!data || data.length === 0) { toast.error("Could not delete — permission blocked. Tell Zamaan."); return; }
     toast.success("Certificate deleted");
     qc.invalidateQueries({ queryKey: ["fridge_certificates"] });
   };
