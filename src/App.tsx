@@ -62,6 +62,7 @@ const App = () => (
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/demo/healthcare" element={<DoctorDemo />} />
             <Route path="/tech" element={<ProtectedRoute><TechnicianHome /></ProtectedRoute>} />
+            <Route path="/job-card/new" element={<ProtectedRoute><JobCardForm /></ProtectedRoute>} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/vehicles" element={<Vehicles />} />
@@ -77,7 +78,6 @@ const App = () => (
               <Route path="/reports/driver-compliance" element={<DriverComplianceReport />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/fridge-tracker" element={<FridgeTracker />} />
-              <Route path="/job-card/new" element={<JobCardForm />} />
               <Route path="/control-tower" element={<ControlTower />} />
               <Route path="/hs-file" element={<HSFile />} />
               <Route path="/maintenance" element={<Maintenance />} />
