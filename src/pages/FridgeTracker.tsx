@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload, Trash2 } from "lucide-react";
+import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload, Trash2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -20,6 +21,7 @@ function getFridgeStatus(current: number, next: number) {
 export default function FridgeTracker() {
   const { profile } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "overdue" | "due_soon" | "not_due">("all");
   const [showServiceModal, setShowServiceModal] = useState(false);
@@ -365,9 +367,14 @@ export default function FridgeTracker() {
           </h1>
           <p className="text-sm text-muted-foreground">Live service status · Hours tracking · Jobs done & certificates</p>
         </div>
-        <button onClick={exportPDF} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90">
-          <Download className="w-4 h-4" /> Export PDF
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => navigate("/job-card/new")} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90">
+            <FileText className="w-4 h-4" /> New Job Card
+          </button>
+          <button onClick={exportPDF} className="flex items-center gap-2 bg-secondary text-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 border border-border">
+            <Download className="w-4 h-4" /> Export
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

@@ -115,8 +115,24 @@ export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) 
                     )}
                   </div>
                   <p className="text-sm text-foreground mt-2">{j.work_done}</p>
+                  {j.client_name && <p className="text-xs text-muted-foreground mt-1">Customer: {j.client_name}</p>}
                   {j.parts_used && <p className="text-xs text-muted-foreground mt-1">Parts: {j.parts_used}</p>}
-                  {j.total_cost && <p className="text-xs text-muted-foreground mt-1">Cost: R {Number(j.total_cost).toLocaleString()}</p>}
+                  {j.total_cost && <p className="text-xs text-muted-foreground mt-1">Invoice: R {Number(j.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>}
+                  {j.logged_via === "tech_app" && <p className="text-xs text-success mt-1">📱 Submitted by technician on site</p>}
+                  {Array.isArray(j.photos) && j.photos.length > 0 && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {j.photos.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                          <img src={url} alt="Job photo" className="w-16 h-16 object-cover rounded-lg border border-border" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {j.pdf_url && (
+                    <a href={j.pdf_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-primary underline mt-2">
+                      <Eye className="w-3.5 h-3.5" /> Download full job card PDF
+                    </a>
+                  )}
                   {j.updates_service_clock === false && j.service_type !== "scheduled" && (
                     <p className="text-xs text-warning mt-1">Service clock unchanged (repair)</p>
                   )}
