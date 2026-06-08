@@ -28,6 +28,7 @@ import DataImport from "./pages/DataImport";
 import DoctorDemo from "./pages/DoctorDemo";
 import FridgeTracker from "./pages/FridgeTracker";
 import JobCardForm from "./pages/JobCardForm";
+import TechnicianHome from "./pages/TechnicianHome";
 import ControlTower from "./pages/ControlTower";
 import HSFile from "./pages/HSFile";
 import Maintenance from "./pages/Maintenance";
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/demo/healthcare" element={<DoctorDemo />} />
+            <Route path="/tech" element={<ProtectedRoute><TechnicianHome /></ProtectedRoute>} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/vehicles" element={<Vehicles />} />

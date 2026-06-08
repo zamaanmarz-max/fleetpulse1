@@ -1,9 +1,17 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, Navigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { AIChatButton } from "../ai/AIChatButton";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function AppLayout() {
+  const { profile } = useAuth();
+
+  // Technicians only get the stripped-down tech screen, never the office app
+  if ((profile as any)?.role === "technician") {
+    return <Navigate to="/tech" replace />;
+  }
+
   const handleOpenAI = () => {
     window.dispatchEvent(new CustomEvent("marz:open-ai-chat"));
   };

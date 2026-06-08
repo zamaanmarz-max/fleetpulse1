@@ -42,7 +42,8 @@ export default function JobCardForm() {
   });
 
   const [form, setForm] = useState({
-    vehicle_id: "", client_name: "", order_no: "", job_card_number: "",
+    vehicle_id: "", client_name: "", client_address: "", client_email: "", client_vat_no: "",
+    contact_person: "", contact_cell: "", order_no: "", job_card_number: "",
     service_type: "scheduled", engine_hours: "", standby_hours: "", kilometres: "",
     client_instructions: "", work_done: "", tech_name: "",
     date_commenced: new Date().toISOString().split("T")[0], time_commenced: "",
@@ -119,6 +120,8 @@ export default function JobCardForm() {
       try {
         const pdfBlob = generateJobCardPDF({
           jobCardNumber: form.job_card_number, clientName: form.client_name, orderNo: form.order_no,
+          clientAddress: form.client_address, clientEmail: form.client_email, clientVatNo: form.client_vat_no,
+          contactPerson: form.contact_person, contactCell: form.contact_cell,
           registration: reg, make: selectedVehicle?.fridge_brand || "", model: selectedVehicle?.fridge_model || "",
           unitSerial: selectedVehicle?.fridge_serial_number || "", jobType: form.service_type,
           engineHours: form.engine_hours, standbyHours: form.standby_hours, kilometres: form.kilometres,
@@ -143,6 +146,11 @@ export default function JobCardForm() {
         tech_name: form.tech_name || null,
         job_card_number: form.job_card_number || null,
         client_name: form.client_name || null,
+        client_address: form.client_address || null,
+        client_email: form.client_email || null,
+        client_vat_no: form.client_vat_no || null,
+        contact_person: form.contact_person || null,
+        contact_cell: form.contact_cell || null,
         order_no: form.order_no || null,
         engine_hours: hrs,
         standby_hours: parseFloat(form.standby_hours) || null,
@@ -179,7 +187,7 @@ export default function JobCardForm() {
 
       setSaving(false);
       toast.success("Job card submitted ✓ Office can now download the PDF");
-      navigate("/fridge-tracker");
+      navigate((profile as any)?.role === "technician" ? "/tech" : "/fridge-tracker");
     } catch (e: any) {
       setSaving(false);
       toast.error(e.message || "Failed to submit job card");
@@ -227,6 +235,21 @@ export default function JobCardForm() {
               <label className={labelCls}>Customer / Client</label>
               <input value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} placeholder="Auto-fills from unit" className={inputCls} />
             </div>
+
+            <details className="border border-border rounded-xl p-3">
+              <summary className="text-sm font-medium text-foreground cursor-pointer">More client details (optional)</summary>
+              <div className="space-y-3 mt-3">
+                <input value={form.client_address} onChange={e => setForm({ ...form, client_address: e.target.value })} placeholder="Address" className={inputCls} />
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={form.client_email} onChange={e => setForm({ ...form, client_email: e.target.value })} placeholder="Email" className={inputCls} />
+                  <input value={form.client_vat_no} onChange={e => setForm({ ...form, client_vat_no: e.target.value })} placeholder="VAT No." className={inputCls} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={form.contact_person} onChange={e => setForm({ ...form, contact_person: e.target.value })} placeholder="Contact Person" className={inputCls} />
+                  <input value={form.contact_cell} onChange={e => setForm({ ...form, contact_cell: e.target.value })} placeholder="Cell No." className={inputCls} />
+                </div>
+              </div>
+            </details>
 
             <div>
               <label className={labelCls}>Job Type *</label>

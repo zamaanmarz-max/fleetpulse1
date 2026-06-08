@@ -31,6 +31,8 @@ export default function Login() {
           .maybeSingle();
         if (profile?.role === "superadmin") {
           navigate("/admin");
+        } else if (profile?.role === "technician") {
+          navigate("/tech");
         } else {
           navigate("/dashboard");
         }
