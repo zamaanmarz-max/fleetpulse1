@@ -423,12 +423,13 @@ export default function FridgeTracker() {
           </div>
 
           {/* Table */}
-          <div className="glass-card overflow-x-auto">
+          {/* Desktop table */}
+          <div className="glass-card overflow-x-auto hidden md:block">
             <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-border">
                   {["Reg", "Customer", "Brand", "Model", "Last Svc Hrs", "Current Hrs", "Next Svc", "HRS Left", "Status", "Cert Expiry", "Actions"].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -437,40 +438,37 @@ export default function FridgeTracker() {
                   ? <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-muted-foreground">No fridge units found</td></tr>
                   : filtered.map(v => (
                     <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${v.hrsToNext <= 0 ? "bg-destructive/5" : v.hrsToNext <= 200 ? "bg-warning/5" : ""}`}>
-                      <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">{v.customer_name || <span className="text-muted-foreground">—</span>}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">{v.fridge_brand || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">{v.fridge_model || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{v.fridge_last_service_hrs ? `${Number(v.fridge_last_service_hrs).toLocaleString()} hrs` : "—"}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                      <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">{v.registration_number}</td>
+                      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{v.customer_name || <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{v.fridge_brand || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{v.fridge_model || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{v.fridge_last_service_hrs ? `${Number(v.fridge_last_service_hrs).toLocaleString()} hrs` : "—"}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">
                         {v.fridge_current_hrs ? `${Number(v.fridge_current_hrs).toLocaleString()} hrs` : "—"}
                         {v.fridge_hours_updated_at && (
                           <span className="block text-xs font-normal text-muted-foreground mt-0.5">
-                            {new Date(v.fridge_hours_updated_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short" })} {new Date(v.fridge_hours_updated_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                            {new Date(v.fridge_hours_updated_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short" })}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-foreground">{v.fridge_next_service_hrs ? `${Number(v.fridge_next_service_hrs).toLocaleString()} hrs` : "—"}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{v.fridge_next_service_hrs ? `${Number(v.fridge_next_service_hrs).toLocaleString()} hrs` : "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`text-sm font-bold ${v.hrsToNext <= 0 ? "text-destructive" : v.hrsToNext <= 200 ? "text-warning" : "text-success"}`}>
                           {v.hrsToNext <= 0 ? `${v.hrsToNext} hrs` : `+${v.hrsToNext} hrs`}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1.5 w-fit ${v.status.bg} ${v.status.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${v.status.dot}`} />
                           {v.status.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {v.fridge_cert_expiry
-                          ? <span className={`text-xs font-semibold ${v.certExpired ? "text-destructive" : "text-foreground"}`}>
-                              {v.certExpired ? "⚠ " : ""}{v.fridge_cert_expiry}
-                            </span>
-                          : <span className="text-xs text-muted-foreground">—</span>
-                        }
+                          ? <span className={`text-xs font-semibold ${v.certExpired ? "text-destructive" : "text-foreground"}`}>{v.certExpired ? "⚠ " : ""}{v.fridge_cert_expiry}</span>
+                          : <span className="text-xs text-muted-foreground">—</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex gap-1.5">
                           <button onClick={() => openServiceModal(v)} className="text-xs bg-primary/20 text-primary px-2 py-1.5 rounded-lg hover:opacity-80 font-semibold">Log Job</button>
                           <button onClick={() => openEditModal(v)} className="text-xs bg-secondary text-foreground px-2 py-1.5 rounded-lg hover:opacity-80">Edit</button>
@@ -482,65 +480,127 @@ export default function FridgeTracker() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-3">
+            {filtered.length === 0
+              ? <div className="glass-card p-8 text-center text-sm text-muted-foreground">No fridge units found</div>
+              : filtered.map(v => (
+                <div key={v.id} className={`glass-card p-4 ${v.hrsToNext <= 0 ? "border-destructive/30" : v.hrsToNext <= 200 ? "border-warning/30" : ""}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-base font-bold text-foreground">{v.registration_number}</p>
+                      <p className="text-xs text-muted-foreground">{v.customer_name || "No customer"}</p>
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${v.status.bg} ${v.status.color}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${v.status.dot}`} />{v.status.label}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">{v.fridge_brand || ""} {v.fridge_model || ""}</p>
+                  <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                    <div className="bg-secondary/40 rounded-lg py-2">
+                      <p className="text-xs text-muted-foreground">Current</p>
+                      <p className="text-sm font-bold text-foreground">{v.fridge_current_hrs ? `${Number(v.fridge_current_hrs).toLocaleString()}` : "—"}</p>
+                    </div>
+                    <div className="bg-secondary/40 rounded-lg py-2">
+                      <p className="text-xs text-muted-foreground">Next Svc</p>
+                      <p className="text-sm font-bold text-foreground">{v.fridge_next_service_hrs ? `${Number(v.fridge_next_service_hrs).toLocaleString()}` : "—"}</p>
+                    </div>
+                    <div className="bg-secondary/40 rounded-lg py-2">
+                      <p className="text-xs text-muted-foreground">Hrs Left</p>
+                      <p className={`text-sm font-bold ${v.hrsToNext <= 0 ? "text-destructive" : v.hrsToNext <= 200 ? "text-warning" : "text-success"}`}>{v.hrsToNext <= 0 ? v.hrsToNext : `+${v.hrsToNext}`}</p>
+                    </div>
+                  </div>
+                  {v.fridge_hours_updated_at ? (
+                    (() => {
+                      const days = Math.floor((Date.now() - new Date(v.fridge_hours_updated_at).getTime()) / 86400000);
+                      return days >= 14
+                        ? <p className="text-xs text-warning font-semibold mb-2">⏱ Hours not updated in {days} days</p>
+                        : <p className="text-xs text-muted-foreground mb-2">Hours updated {new Date(v.fridge_hours_updated_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}</p>;
+                    })()
+                  ) : (
+                    <p className="text-xs text-warning font-semibold mb-2">⏱ Hours never updated</p>
+                  )}
+                  {v.fridge_cert_expiry && (
+                    <p className={`text-xs mb-3 ${v.certExpired ? "text-destructive font-semibold" : "text-muted-foreground"}`}>Cert expiry: {v.certExpired ? "⚠ " : ""}{v.fridge_cert_expiry}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => openServiceModal(v)} className="flex-1 text-sm bg-primary text-primary-foreground py-2 rounded-lg font-semibold">Log Job</button>
+                    <button onClick={() => openEditModal(v)} className="flex-1 text-sm bg-secondary text-foreground py-2 rounded-lg">Edit</button>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
         </div>
       )}
 
       {activeTab === "history" && (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">{(serviceHistory || []).length} service records</p>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">{(serviceHistory || []).length} job cards</p>
           {(serviceHistory || []).length === 0
-            ? <div className="glass-card p-8 text-center"><p className="text-sm text-muted-foreground">No service history yet</p></div>
+            ? <div className="glass-card p-8 text-center"><p className="text-sm text-muted-foreground">No job cards yet</p></div>
             : (
-              <div className="glass-card overflow-x-auto">
-                <table className="w-full min-w-[800px]">
-                  <thead>
-                    <tr className="border-b border-border">
-                      {["Date", "Reg", "Brand/Model", "Type", "Work Done", "Parts", "Cost", "Tech", "Cert", "Via", ""].map(h => (
-                        <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(serviceHistory || []).map((s: any) => (
-                      <tr key={s.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                        <td className="px-4 py-3 text-sm font-mono text-foreground">{s.service_date}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-foreground">{s.vehicles?.registration_number || "—"}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{s.vehicles?.fridge_brand} {s.vehicles?.fridge_model}</td>
-                        <td className="px-4 py-3">
-                          <div>
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.service_type === "breakdown" ? "bg-destructive/20 text-destructive" : s.service_type === "scheduled" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
-                              {s.service_type}
-                            </span>
-                            {s.updates_service_clock === false && s.service_type !== "scheduled" && (
-                              <p className="text-xs text-muted-foreground mt-0.5">clock unchanged</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-foreground max-w-[200px] truncate">{s.work_done}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{s.parts_used || "—"}</td>
-                        <td className="px-4 py-3 text-sm text-foreground">{s.total_cost ? `R ${Number(s.total_cost).toLocaleString()}` : "—"}</td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{s.tech_name || "—"}</td>
-                        <td className="px-4 py-3">
-                          {s.certificate_url
-                            ? <a href={s.certificate_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">View</a>
-                            : s.certificate_number
-                              ? <span className="text-xs text-muted-foreground">{s.certificate_number}</span>
-                              : <span className="text-xs text-muted-foreground">—</span>
-                          }
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-muted-foreground">{s.logged_via === "whatsapp" ? "📱" : "💻"}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => handleDeleteJob(s.id)} className="text-muted-foreground hover:text-destructive" title="Delete job card">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
+              <>
+                {/* Desktop table */}
+                <div className="glass-card overflow-x-auto hidden md:block">
+                  <table className="w-full min-w-[900px]">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {["Date", "Reg", "Type", "Work Done", "Tech", "Invoice", "Job Card PDF", ""].map(h => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {(serviceHistory || []).map((s: any) => (
+                        <tr key={s.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                          <td className="px-4 py-3 text-sm font-mono text-foreground whitespace-nowrap">{s.service_date}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">{s.vehicles?.registration_number || "—"}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.service_type === "breakdown" ? "bg-destructive/20 text-destructive" : s.service_type === "scheduled" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>{s.service_type}</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground max-w-[220px] truncate">{s.work_done}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{s.tech_name || "—"}</td>
+                          <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{s.total_cost ? `R ${Number(s.total_cost).toLocaleString()}` : "—"}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex gap-2">
+                              {s.customer_pdf_url && <a href={`${s.customer_pdf_url}?download=jobcard-${s.job_card_number || s.id}.pdf`} className="text-xs text-primary underline">Customer</a>}
+                              {s.pdf_url && <a href={`${s.pdf_url}?download=jobcard-office-${s.job_card_number || s.id}.pdf`} className="text-xs text-primary underline">Office</a>}
+                              {!s.pdf_url && !s.customer_pdf_url && <span className="text-xs text-muted-foreground">—</span>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <button onClick={() => handleDeleteJob(s.id)} className="text-muted-foreground hover:text-destructive" title="Delete job card"><Trash2 className="w-4 h-4" /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-3">
+                  {(serviceHistory || []).map((s: any) => (
+                    <div key={s.id} className="glass-card p-4">
+                      <div className="flex items-start justify-between mb-1">
+                        <div>
+                          <p className="text-base font-bold text-foreground">{s.vehicles?.registration_number || "—"} {s.job_card_number ? <span className="text-xs text-muted-foreground">#{s.job_card_number}</span> : ""}</p>
+                          <p className="text-xs text-muted-foreground">{s.service_date}{s.tech_name ? ` · ${s.tech_name}` : ""}</p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.service_type === "breakdown" ? "bg-destructive/20 text-destructive" : s.service_type === "scheduled" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>{s.service_type}</span>
+                      </div>
+                      <p className="text-sm text-foreground mt-1 mb-2">{s.work_done}</p>
+                      {s.total_cost ? <p className="text-xs text-muted-foreground mb-2">Invoice: R {Number(s.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p> : null}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {s.customer_pdf_url && <a href={`${s.customer_pdf_url}?download=jobcard-${s.job_card_number || s.id}.pdf`} className="text-xs bg-primary text-primary-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Customer copy</a>}
+                        {s.pdf_url && <a href={`${s.pdf_url}?download=jobcard-office-${s.job_card_number || s.id}.pdf`} className="text-xs bg-secondary text-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Office copy</a>}
+                        <button onClick={() => handleDeleteJob(s.id)} className="text-xs text-destructive px-2.5 py-1.5 rounded-lg flex items-center gap-1 ml-auto"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )
           }
         </div>
