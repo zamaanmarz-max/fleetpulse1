@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { FileText, Plus, LogOut, Thermometer, Clock, Eye } from "lucide-react";
+import { FileText, Plus, LogOut, Thermometer, Clock, Download } from "lucide-react";
 
 export default function TechnicianHome() {
   const navigate = useNavigate();
@@ -13,7 +13,7 @@ export default function TechnicianHome() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fridge_service_log" as any)
-        .select("*, vehicles(registration_number)")
+        .select("id, vehicles(registration_number), job_card_number, service_type, service_date, tech_name, pdf_url, customer_pdf_url, created_at")
         .eq("organisation_id", profile?.organisation_id)
         .eq("logged_via", "tech_app")
         .order("created_at", { ascending: false })
@@ -79,9 +79,9 @@ export default function TechnicianHome() {
                         {typeLabel[j.service_type] || j.service_type} · {j.service_date}{j.tech_name ? ` · ${j.tech_name}` : ""}
                       </p>
                     </div>
-                    {j.pdf_url && (
-                      <a href={j.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs bg-secondary text-foreground px-2.5 py-1.5 rounded-lg">
-                        <Eye className="w-3.5 h-3.5" /> PDF
+                    {(j.customer_pdf_url || j.pdf_url) && (
+                      <a href={`${j.customer_pdf_url || j.pdf_url}?download=jobcard-${j.job_card_number || j.id}.pdf`} className="flex items-center gap-1 text-xs bg-primary text-primary-foreground px-2.5 py-1.5 rounded-lg">
+                        <Download className="w-3.5 h-3.5" /> Download
                       </a>
                     )}
                   </div>

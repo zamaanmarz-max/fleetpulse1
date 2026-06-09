@@ -187,10 +187,11 @@ export default function JobCardForm() {
       const costingData = { ...costing, total_parts: totalParts, total_labour: totalLabour, total_misc: totalMisc, subtotal, vat, invoice_amount: invoiceAmount };
       const cleanParts = parts.filter(p => p.description || p.part_no);
 
-      // Generate PDF (now embeds photos + signature)
-      let pdfUrl: string | null = null;
+      // Generate TWO PDFs: customer copy (no parts/costing) + office copy (full)
+      let pdfUrl: string | null = null;        // office full copy
+      let customerPdfUrl: string | null = null; // customer copy, no costing
       try {
-        const pdfBlob = await generateJobCardPDF({
+        const baseData = {
           jobCardNumber: jcNumber, clientName: form.client_name, orderNo: form.order_no,
           clientAddress: form.client_address, clientEmail: form.client_email, clientVatNo: form.client_vat_no,
           contactPerson: form.contact_person, contactCell: form.contact_cell,
@@ -201,10 +202,17 @@ export default function JobCardForm() {
           dateCommenced: form.date_commenced, timeCommenced: form.time_commenced, dateCompleted: form.date_completed, timeCompleted: form.time_completed,
           parts: cleanParts, costing: costingData, photos: photoUrls,
           signature: signatureData, signName: form.customer_sign_name, noSignature,
-        });
-        const pdfPath = `${reg}/${Date.now()}_jobcard.pdf`;
-        const { error: pdfErr } = await supabase.storage.from("job-cards").upload(pdfPath, pdfBlob, { upsert: true, contentType: "application/pdf" });
-        if (!pdfErr) { const { data } = supabase.storage.from("job-cards").getPublicUrl(pdfPath); pdfUrl = data.publicUrl; }
+        };
+        // Customer copy — no costing
+        const custBlob = await generateJobCardPDF({ ...baseData, includeCosting: false });
+        const custPath = `${reg}/${Date.now()}_customer.pdf`;
+        const { error: cErr } = await supabase.storage.from("job-cards").upload(custPath, custBlob, { upsert: true, contentType: "application/pdf" });
+        if (!cErr) { const { data } = supabase.storage.from("job-cards").getPublicUrl(custPath); customerPdfUrl = data.publicUrl; }
+        // Office copy — full with costing
+        const officeBlob = await generateJobCardPDF({ ...baseData, includeCosting: true });
+        const officePath = `${reg}/${Date.now()}_office.pdf`;
+        const { error: oErr } = await supabase.storage.from("job-cards").upload(officePath, officeBlob, { upsert: true, contentType: "application/pdf" });
+        if (!oErr) { const { data } = supabase.storage.from("job-cards").getPublicUrl(officePath); pdfUrl = data.publicUrl; }
       } catch (e) { console.error("PDF gen failed:", e); }
 
       const { error } = await supabase.from("fridge_service_log" as any).insert({
@@ -220,7 +228,7 @@ export default function JobCardForm() {
         date_commenced: form.date_commenced || null, time_commenced: form.time_commenced || null,
         date_completed: form.date_completed || null, time_completed: form.time_completed || null,
         unit_serial: selectedVehicle?.fridge_serial_number || null, parts_list: cleanParts, costing: costingData,
-        photos: photoUrls, pdf_url: pdfUrl, job_card_url: pdfUrl, total_cost: invoiceAmount || null,
+        photos: photoUrls, pdf_url: pdfUrl, customer_pdf_url: customerPdfUrl, job_card_url: pdfUrl, total_cost: invoiceAmount || null,
         parts_used: cleanParts.map(p => p.description).filter(Boolean).join(", ") || null,
         customer_signature: signatureData, customer_sign_name: form.customer_sign_name || null,
         no_customer_signature: noSignature, status: "submitted", logged_via: "tech_app", updates_service_clock: isScheduled,
@@ -235,8 +243,8 @@ export default function JobCardForm() {
 
       setSaving(false);
       toast.success("Job card submitted ✓");
-      // Offer the PDF for sharing
-      if (pdfUrl) window.open(pdfUrl, "_blank");
+      // Open the CUSTOMER copy (no costing) so the tech can share it with the customer
+      if (customerPdfUrl) window.open(customerPdfUrl, "_blank");
       navigate((profile as any)?.role === "technician" ? "/tech" : "/fridge-tracker");
     } catch (e: any) {
       setSaving(false);

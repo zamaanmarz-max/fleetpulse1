@@ -31,6 +31,7 @@ interface JobCardData {
   signature?: string | null;
   signName?: string;
   noSignature?: boolean;
+  includeCosting?: boolean; // false = customer copy (no parts/costing), true = office full copy
 }
 
 const NAVY: [number, number, number] = [20, 35, 60];
@@ -221,7 +222,8 @@ export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
     }
   }
 
-  // ===== PAGE 2: COSTING (landscape) =====
+  // ===== PAGE 2: COSTING (landscape) — OFFICE COPY ONLY =====
+  if (d.includeCosting) {
   doc.addPage("a4", "landscape");
   const LW = 297, LM = 10;
   const c = d.costing || {};
@@ -289,6 +291,7 @@ export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
     margin: { left: rightX }, tableWidth: 92,
     didParseCell: (data: any) => { if (data.row.index === specRows.length - 1) { data.cell.styles.fontStyle = "bold"; data.cell.styles.fontSize = 9; data.cell.styles.textColor = NAVY; } },
   });
+  } // end includeCosting
 
   return doc.output("blob");
 }
