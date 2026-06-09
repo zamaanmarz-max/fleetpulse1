@@ -47,6 +47,9 @@ export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) 
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [file, setFile] = useState<File | null>(null);
+  const [jcFrom, setJcFrom] = useState("");
+  const [jcTo, setJcTo] = useState("");
+  const [jcQuote, setJcQuote] = useState<"all" | "sent" | "not_sent">("all");
 
   // For fridge-only orgs, job cards come from fridge_service_log
   const { data: fridgeJobs, isLoading: fridgeLoading } = useQuery({
@@ -80,7 +83,14 @@ export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) 
   // Fridge-only: render service logs as job cards
   if (isFridgeOnly) {
     if (fridgeLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
-    const jobs = (fridgeJobs as any[]) || [];
+    const allJobs = (fridgeJobs as any[]) || [];
+    const jobs = allJobs.filter((j) => {
+      if (jcFrom && j.service_date < jcFrom) return false;
+      if (jcTo && j.service_date > jcTo) return false;
+      if (jcQuote === "sent" && !j.quote_sent) return false;
+      if (jcQuote === "not_sent" && j.quote_sent) return false;
+      return true;
+    });
     const typeLabel: Record<string, string> = { scheduled: "Scheduled Service", breakdown: "Breakdown Repair", inspection: "Inspection", certificate: "Certificate Renewal", other: "Other" };
     const deleteFridgeJob = async (id: string) => {
       if (!confirm("Delete this job card? This cannot be undone.")) return;
@@ -90,11 +100,36 @@ export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) 
       toast.success("Job card deleted");
       queryClient.invalidateQueries({ queryKey: ["fridge_job_cards", vehicleId] });
     };
+    const toggleQuote = async (id: string, current: boolean) => {
+      const { error } = await supabase.from("fridge_service_log" as any).update({ quote_sent: !current }).eq("id", id);
+      if (error) { toast.error(error.message); return; }
+      queryClient.invalidateQueries({ queryKey: ["fridge_job_cards", vehicleId] });
+    };
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">Job Cards ({jobs.length})</h3>
           <span className="text-xs text-muted-foreground">Logged via Fridge Tracker</span>
+        </div>
+        {/* Filters */}
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">From</label>
+            <input type="date" value={jcFrom} onChange={e => setJcFrom(e.target.value)} className="bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground" />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">To</label>
+            <input type="date" value={jcTo} onChange={e => setJcTo(e.target.value)} className="bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground" />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Quote</label>
+            <select value={jcQuote} onChange={e => setJcQuote(e.target.value as any)} className="bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground">
+              <option value="all">All</option>
+              <option value="sent">Sent</option>
+              <option value="not_sent">Not sent</option>
+            </select>
+          </div>
+          {(jcFrom || jcTo || jcQuote !== "all") && <button onClick={() => { setJcFrom(""); setJcTo(""); setJcQuote("all"); }} className="text-xs text-primary underline pb-1.5">Clear</button>}
         </div>
         {jobs.length === 0 ? (
           <div className="glass-card p-8 text-center text-sm text-muted-foreground">
@@ -130,6 +165,10 @@ export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) 
                   {j.parts_used && <p className="text-xs text-muted-foreground mt-1">Parts: {j.parts_used}</p>}
                   {j.total_cost && <p className="text-xs text-muted-foreground mt-1">Invoice: R {Number(j.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>}
                   {j.logged_via === "tech_app" && <p className="text-xs text-success mt-1">📱 Submitted by technician on site</p>}
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer w-fit">
+                    <input type="checkbox" checked={!!j.quote_sent} onChange={() => toggleQuote(j.id, !!j.quote_sent)} className="w-4 h-4 accent-primary" />
+                    <span className={`text-xs ${j.quote_sent ? "text-success font-semibold" : "text-muted-foreground"}`}>{j.quote_sent ? "Quote sent ✓" : "Quote not sent"}</span>
+                  </label>
                   {Array.isArray(j.photos) && j.photos.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {j.photos.map((url: string, i: number) => (

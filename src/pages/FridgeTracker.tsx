@@ -134,6 +134,17 @@ export default function FridgeTracker() {
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
   };
 
+  const toggleQuoteSent = async (id: string, current: boolean) => {
+    const { error } = await supabase.from("fridge_service_log" as any).update({ quote_sent: !current }).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
+  };
+
+  // Job card date + quote filters
+  const [jobFrom, setJobFrom] = useState("");
+  const [jobTo, setJobTo] = useState("");
+  const [quoteFilter, setQuoteFilter] = useState<"all" | "sent" | "not_sent">("all");
+
   const handleDeleteCert = async (id: string) => {
     if (!confirm("Delete this certificate? This cannot be undone.")) return;
     const { data, error } = await supabase.from("fridge_certificates" as any).delete().eq("id", id).select();
@@ -535,11 +546,41 @@ export default function FridgeTracker() {
         </div>
       )}
 
-      {activeTab === "history" && (
+      {activeTab === "history" && (() => {
+        const filteredJobs = (serviceHistory || []).filter((s: any) => {
+          if (jobFrom && s.service_date < jobFrom) return false;
+          if (jobTo && s.service_date > jobTo) return false;
+          if (quoteFilter === "sent" && !s.quote_sent) return false;
+          if (quoteFilter === "not_sent" && s.quote_sent) return false;
+          return true;
+        });
+        return (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{(serviceHistory || []).length} job cards</p>
-          {(serviceHistory || []).length === 0
-            ? <div className="glass-card p-8 text-center"><p className="text-sm text-muted-foreground">No job cards yet</p></div>
+          {/* Filters */}
+          <div className="glass-card p-3 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">From</label>
+              <input type="date" value={jobFrom} onChange={e => setJobFrom(e.target.value)} className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">To</label>
+              <input type="date" value={jobTo} onChange={e => setJobTo(e.target.value)} className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Quote</label>
+              <select value={quoteFilter} onChange={e => setQuoteFilter(e.target.value as any)} className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+                <option value="all">All</option>
+                <option value="sent">Quote sent</option>
+                <option value="not_sent">Quote not sent</option>
+              </select>
+            </div>
+            {(jobFrom || jobTo || quoteFilter !== "all") && (
+              <button onClick={() => { setJobFrom(""); setJobTo(""); setQuoteFilter("all"); }} className="text-xs text-primary underline pb-2">Clear filters</button>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">{filteredJobs.length} job card{filteredJobs.length === 1 ? "" : "s"}</p>
+          {filteredJobs.length === 0
+            ? <div className="glass-card p-8 text-center"><p className="text-sm text-muted-foreground">No job cards match these filters</p></div>
             : (
               <>
                 {/* Desktop table */}
@@ -547,13 +588,13 @@ export default function FridgeTracker() {
                   <table className="w-full min-w-[900px]">
                     <thead>
                       <tr className="border-b border-border">
-                        {["Date", "Reg", "Type", "Work Done", "Tech", "Invoice", "Job Card PDF", ""].map(h => (
+                        {["Date", "Reg", "Type", "Work Done", "Tech", "Invoice", "Quote Sent", "Job Card PDF", ""].map(h => (
                           <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {(serviceHistory || []).map((s: any) => (
+                      {filteredJobs.map((s: any) => (
                         <tr key={s.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                           <td className="px-4 py-3 text-sm font-mono text-foreground whitespace-nowrap">{s.service_date}</td>
                           <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">{s.vehicles?.registration_number || "—"}</td>
@@ -563,6 +604,12 @@ export default function FridgeTracker() {
                           <td className="px-4 py-3 text-sm text-foreground max-w-[220px] truncate">{s.work_done}</td>
                           <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{s.tech_name || "—"}</td>
                           <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{s.total_cost ? `R ${Number(s.total_cost).toLocaleString()}` : "—"}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input type="checkbox" checked={!!s.quote_sent} onChange={() => toggleQuoteSent(s.id, !!s.quote_sent)} className="w-4 h-4 accent-primary" />
+                              <span className={`text-xs ${s.quote_sent ? "text-success font-semibold" : "text-muted-foreground"}`}>{s.quote_sent ? "Sent" : "Not sent"}</span>
+                            </label>
+                          </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex gap-2">
                               {s.customer_pdf_url && <a href={`${s.customer_pdf_url}?download=jobcard-${s.job_card_number || s.id}.pdf`} className="text-xs text-primary underline">Customer</a>}
@@ -581,7 +628,7 @@ export default function FridgeTracker() {
 
                 {/* Mobile cards */}
                 <div className="md:hidden space-y-3">
-                  {(serviceHistory || []).map((s: any) => (
+                  {filteredJobs.map((s: any) => (
                     <div key={s.id} className="glass-card p-4">
                       <div className="flex items-start justify-between mb-1">
                         <div>
@@ -592,6 +639,10 @@ export default function FridgeTracker() {
                       </div>
                       <p className="text-sm text-foreground mt-1 mb-2">{s.work_done}</p>
                       {s.total_cost ? <p className="text-xs text-muted-foreground mb-2">Invoice: R {Number(s.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p> : null}
+                      <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                        <input type="checkbox" checked={!!s.quote_sent} onChange={() => toggleQuoteSent(s.id, !!s.quote_sent)} className="w-4 h-4 accent-primary" />
+                        <span className={`text-xs ${s.quote_sent ? "text-success font-semibold" : "text-muted-foreground"}`}>{s.quote_sent ? "Quote sent ✓" : "Quote not sent"}</span>
+                      </label>
                       <div className="flex items-center gap-2 flex-wrap">
                         {s.customer_pdf_url && <a href={`${s.customer_pdf_url}?download=jobcard-${s.job_card_number || s.id}.pdf`} className="text-xs bg-primary text-primary-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Customer copy</a>}
                         {s.pdf_url && <a href={`${s.pdf_url}?download=jobcard-office-${s.job_card_number || s.id}.pdf`} className="text-xs bg-secondary text-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Office copy</a>}
@@ -604,7 +655,8 @@ export default function FridgeTracker() {
             )
           }
         </div>
-      )}
+        );
+      })()}
 
       {activeTab === "certificates" && (
         <div className="space-y-4">
