@@ -82,6 +82,14 @@ export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) 
     if (fridgeLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
     const jobs = (fridgeJobs as any[]) || [];
     const typeLabel: Record<string, string> = { scheduled: "Scheduled Service", breakdown: "Breakdown Repair", inspection: "Inspection", certificate: "Certificate Renewal", other: "Other" };
+    const deleteFridgeJob = async (id: string) => {
+      if (!confirm("Delete this job card? This cannot be undone.")) return;
+      const { data, error } = await supabase.from("fridge_service_log" as any).delete().eq("id", id).select();
+      if (error) { toast.error(error.message); return; }
+      if (!data || data.length === 0) { toast.error("Could not delete — permission blocked"); return; }
+      toast.success("Job card deleted");
+      queryClient.invalidateQueries({ queryKey: ["fridge_job_cards", vehicleId] });
+    };
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -113,6 +121,9 @@ export function JobCardsTab({ vehicleId, organisationId, isFridgeOnly }: Props) 
                         <Eye className="w-3.5 h-3.5" /> View Document
                       </a>
                     )}
+                    <button onClick={() => deleteFridgeJob(j.id)} className="text-muted-foreground hover:text-destructive p-1" title="Delete job card">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                   <p className="text-sm text-foreground mt-2">{j.work_done}</p>
                   {j.client_name && <p className="text-xs text-muted-foreground mt-1">Customer: {j.client_name}</p>}

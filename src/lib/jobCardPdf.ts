@@ -28,6 +28,9 @@ interface JobCardData {
   parts: Array<{ qty: string; part_no: string; description: string; supplier: string; price: string }>;
   costing: any;
   photos: string[];
+  signature?: string | null;
+  signName?: string;
+  noSignature?: boolean;
 }
 
 const NAVY: [number, number, number] = [20, 35, 60];
@@ -35,11 +38,31 @@ const GREY: [number, number, number] = [110, 110, 110];
 const LINE: [number, number, number] = [160, 160, 160];
 const R = (n: number) => `R ${(Number(n) || 0).toFixed(2)}`;
 
-export function generateJobCardPDF(d: JobCardData): Blob {
+// load a remote image as a data URL so jsPDF can embed it
+async function loadImage(url: string): Promise<{ data: string; w: number; h: number } | null> {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const data: string = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+    const dims: { w: number; h: number } = await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.width, h: img.height });
+      img.onerror = () => resolve({ w: 1, h: 1 });
+      img.src = data;
+    });
+    return { data, w: dims.w, h: dims.h };
+  } catch { return null; }
+}
+
+export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, H = 297, M = 12;
 
-  // outer border
   doc.setDrawColor(...NAVY); doc.setLineWidth(0.5);
   doc.rect(M, M, W - 2 * M, H - 2 * M);
 
@@ -56,10 +79,8 @@ export function generateJobCardPDF(d: JobCardData): Blob {
 
   doc.setFont("times", "bold"); doc.setFontSize(26);
   doc.text("AC & R", W / 2 + 8, M + 9, { align: "center" });
-  doc.setFontSize(12);
-  doc.text("REFRIGERATION", W / 2 + 8, M + 15, { align: "center" });
-  doc.setFontSize(9);
-  doc.text("SERVICES", W / 2 + 8, M + 19, { align: "center" });
+  doc.setFontSize(12); doc.text("REFRIGERATION", W / 2 + 8, M + 15, { align: "center" });
+  doc.setFontSize(9); doc.text("SERVICES", W / 2 + 8, M + 19, { align: "center" });
 
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
   doc.text("DELIVERY NOTE", W - M - 3, M + 6, { align: "right" });
@@ -68,7 +89,6 @@ export function generateJobCardPDF(d: JobCardData): Blob {
 
   let y = M + 26;
   doc.setDrawColor(...NAVY); doc.line(M, y, W - M, y);
-
   const midX = W / 2 - 6;
   const blockBottom = y + 62;
   doc.line(midX, y, midX, blockBottom);
@@ -133,7 +153,7 @@ export function generateJobCardPDF(d: JobCardData): Blob {
   doc.setFont("helvetica", "normal");
   const ci = doc.splitTextToSize(d.clientInstructions || "", W - 2 * M - 6);
   doc.text(ci, M + 3, y + 5);
-  y += 5 + Math.max(ci.length * 4.5, 10);
+  y += 5 + Math.max(ci.length * 4.5, 8);
   doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, y, W - M, y);
 
   y += 5;
@@ -141,35 +161,67 @@ export function generateJobCardPDF(d: JobCardData): Blob {
   doc.setFont("helvetica", "normal"); doc.setFontSize(9);
   const tr = doc.splitTextToSize(d.technicianReport || "", W - 2 * M - 6);
   doc.text(tr, M + 3, y + 6);
-  const reportEnd = 232;
-  doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.1);
-  for (let r2 = y + 8; r2 < reportEnd; r2 += 7) doc.line(M + 3, r2, W - M - 3, r2);
+  y = y + 6 + tr.length * 4.5 + 4;
 
-  if (d.photos && d.photos.length > 0) {
-    doc.setTextColor(...NAVY); doc.setFont("helvetica", "bold"); doc.setFontSize(8);
-    doc.text(d.photos.length + " photo(s) attached - viewable in MARZ Fleet app", M + 3, reportEnd - 2);
+  // Signature block on page 1
+  const sigY = 232;
+  doc.setDrawColor(...NAVY); doc.setLineWidth(0.5); doc.line(M, sigY, W - M, sigY);
+  let sy = sigY + 6;
+  doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
+  doc.text("TECHNICIAN'S NAME:", M + 3, sy);
+  doc.setFont("helvetica", "normal"); doc.text(d.technicianName || "", M + 42, sy);
+
+  // customer signature
+  if (d.noSignature) {
+    doc.setFont("helvetica", "italic"); doc.setTextColor(...GREY);
+    doc.text("Customer signature: No customer available to sign", M + 105, sy);
+  } else if (d.signature) {
+    try { doc.addImage(d.signature, "PNG", M + 105, sy - 5, 45, 16); } catch {}
+    doc.setDrawColor(...LINE); doc.line(M + 105, sy + 12, M + 150, sy + 12);
+    doc.setFontSize(7); doc.setTextColor(...GREY);
+    doc.text(`Signed: ${d.signName || ""}`, M + 105, sy + 15);
   }
 
-  y = reportEnd;
-  doc.setDrawColor(...NAVY); doc.setLineWidth(0.5); doc.line(M, y, W - M, y);
-  y += 6;
-  doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
-  doc.text("TECHNICIAN'S NAME:", M + 3, y);
-  doc.setFont("helvetica", "normal"); doc.text(d.technicianName || "", M + 42, y);
-  y += 7; doc.setDrawColor(...NAVY); doc.line(M, y, W - M, y);
-  y += 6;
+  sy += 20;
+  doc.setDrawColor(...NAVY); doc.line(M, sy, W - M, sy);
+  sy += 5;
   doc.setTextColor(...GREY); doc.setFontSize(8);
-  doc.text("DATE COMMENCED: " + (d.dateCommenced || ""), M + 3, y);
-  doc.text("TIME: " + (d.timeCommenced || ""), M + 78, y);
-  doc.text("DATE COMPLETED: " + (d.dateCompleted || ""), M + 102, y);
-  doc.text("TIME: " + (d.timeCompleted || ""), W - M - 24, y);
-  y += 6; doc.setDrawColor(...NAVY); doc.line(M, y, W - M, y);
-  y += 4;
-  doc.setTextColor(...GREY); doc.setFont("helvetica", "italic"); doc.setFontSize(6);
+  doc.text("DATE COMMENCED: " + (d.dateCommenced || ""), M + 3, sy);
+  doc.text("TIME: " + (d.timeCommenced || ""), M + 70, sy);
+  doc.text("DATE COMPLETED: " + (d.dateCompleted || ""), M + 100, sy);
+  doc.text("TIME: " + (d.timeCompleted || ""), W - M - 22, sy);
+  sy += 5;
+  doc.setDrawColor(...NAVY); doc.line(M, sy, W - M, sy);
+  sy += 4;
+  doc.setFont("helvetica", "italic"); doc.setFontSize(5.5);
   const terms = doc.splitTextToSize("Our Warranty terms and conditions apply. A copy of this warranty is available to all customers. Acceptance of this implies acceptance of AC & R Refrigeration Services warranty. NOT RESPONSIBLE FOR LOSS OR DAMAGE TO TRACTORS, TRAILERS, UNITS AND ACCESSORIES, IN CASE OF FIRE, THEFT OR OTHER CAUSES BEYOND OUR CONTROL.", W - 2 * M - 6);
-  doc.text(terms, M + 3, y);
+  doc.text(terms, M + 3, sy);
 
-  // PAGE 2 landscape costing
+  // ===== PHOTO PAGES (embedded) =====
+  if (d.photos && d.photos.length > 0) {
+    doc.addPage("a4", "portrait");
+    doc.setTextColor(...NAVY); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text(`Job Card #${d.jobCardNumber} — Photos`, M, M + 6);
+    let px = M, py = M + 14;
+    const cellWp = (W - 2 * M - 6) / 2;
+    const cellHp = 65;
+    let count = 0;
+    for (const url of d.photos) {
+      const img = await loadImage(url);
+      if (img) {
+        const ratio = img.h / img.w;
+        let dw = cellWp, dh = cellWp * ratio;
+        if (dh > cellHp) { dh = cellHp; dw = cellHp / ratio; }
+        try { doc.addImage(img.data, "JPEG", px + (cellWp - dw) / 2, py, dw, dh); } catch {}
+      }
+      count++;
+      if (count % 2 === 0) { px = M; py += cellHp + 6; }
+      else { px = M + cellWp + 6; }
+      if (py > H - cellHp - M && count < d.photos.length) { doc.addPage("a4", "portrait"); px = M; py = M + 6; }
+    }
+  }
+
+  // ===== PAGE 2: COSTING (landscape) =====
   doc.addPage("a4", "landscape");
   const LW = 297, LM = 10;
   const c = d.costing || {};
@@ -184,12 +236,10 @@ export function generateJobCardPDF(d: JobCardData): Blob {
     p.price ? R(Number(p.price)) : "", p.price ? R((Number(p.price) || 0) * (Number(p.qty) || 1)) : "",
   ]);
   while (partRows.length < 8) partRows.push(["", "", "", "", "", ""]);
-
   autoTable(doc, {
     startY: LM + 12,
     head: [["QTY", "PART NO.", "DESCRIPTION", "SUPPLIER", "PRICE", "AC & R TOTAL"]],
-    body: partRows,
-    theme: "grid",
+    body: partRows, theme: "grid",
     headStyles: { fillColor: NAVY, fontSize: 7.5 },
     bodyStyles: { fontSize: 8, minCellHeight: 6 },
     columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 28 }, 2: { cellWidth: 55 }, 3: { cellWidth: 32 }, 4: { cellWidth: 24, halign: "right" }, 5: { cellWidth: 26, halign: "right" } },
@@ -212,8 +262,7 @@ export function generateJobCardPDF(d: JobCardData): Blob {
   ];
   autoTable(doc, {
     startY: LM + 12,
-    head: [["MISCELLANEOUS", "Amount"]],
-    body: miscRows, theme: "grid",
+    head: [["MISCELLANEOUS", "Amount"]], body: miscRows, theme: "grid",
     headStyles: { fillColor: NAVY, fontSize: 7.5 },
     bodyStyles: { fontSize: 7.5, minCellHeight: 5.5 },
     columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 34, halign: "right" } },
@@ -233,8 +282,7 @@ export function generateJobCardPDF(d: JobCardData): Blob {
   ];
   autoTable(doc, {
     startY: miscEndY + 3,
-    head: [["SPECIFICATION OF TOTAL INVOICE COSTS", "Selling Price"]],
-    body: specRows, theme: "grid",
+    head: [["SPECIFICATION OF TOTAL INVOICE COSTS", "Selling Price"]], body: specRows, theme: "grid",
     headStyles: { fillColor: NAVY, fontSize: 7 },
     bodyStyles: { fontSize: 7.5, minCellHeight: 5.5 },
     columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 34, halign: "right" } },
