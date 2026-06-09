@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { StartupSplash } from "@/components/StartupSplash";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
@@ -47,8 +49,19 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
+const App = () => {
+  const [splashDone, setSplashDone] = useState(() => {
+    // only show splash once per browser session
+    return sessionStorage.getItem("marz_splash_seen") === "1";
+  });
+  const finishSplash = () => {
+    sessionStorage.setItem("marz_splash_seen", "1");
+    setSplashDone(true);
+  };
+
+  return (
   <QueryClientProvider client={queryClient}>
+    {!splashDone && <StartupSplash onDone={finishSplash} />}
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
@@ -93,6 +106,7 @@ const App = () => (
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
