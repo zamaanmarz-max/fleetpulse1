@@ -23,9 +23,41 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="MARZ Fleet" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <style>
+      #marz-splash{position:fixed;inset:0;z-index:9999;background:#0a0e1a;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s ease;font-family:system-ui,-apple-system,sans-serif}
+      #marz-splash.hide{opacity:0;pointer-events:none}
+      #marz-splash .word{display:flex;gap:4px;position:relative}
+      #marz-splash .word span{font-size:64px;font-weight:800;color:#22c55e;opacity:0;transform:translateY(20px);animation:marzUp .5s ease forwards}
+      #marz-splash .word span:nth-child(1){animation-delay:.1s}
+      #marz-splash .word span:nth-child(2){animation-delay:.23s}
+      #marz-splash .word span:nth-child(3){animation-delay:.36s}
+      #marz-splash .word span:nth-child(4){animation-delay:.49s}
+      #marz-splash .truck{position:absolute;bottom:-26px;left:4px;opacity:0;transform:translateX(-60px);animation:marzTruck 1s ease forwards;animation-delay:.55s}
+      #marz-splash .bar{height:4px;width:0;background:rgba(34,197,94,.5);border-radius:99px;margin-top:38px;animation:marzBar .9s ease forwards;animation-delay:.65s}
+      #marz-splash .sub{font-size:12px;letter-spacing:.25em;text-transform:uppercase;color:#7a8699;margin-top:16px;opacity:0;animation:marzFade .5s ease forwards;animation-delay:.9s}
+      @keyframes marzUp{to{opacity:1;transform:translateY(0)}}
+      @keyframes marzTruck{to{opacity:1;transform:translateX(0)}}
+      @keyframes marzBar{to{width:180px}}
+      @keyframes marzFade{to{opacity:1}}
+    </style>
   </head>
   <body>
+    <div id="marz-splash">
+      <div class="word">
+        <span>M</span><span>A</span><span>R</span><span>Z</span>
+        <svg class="truck" width="48" height="26" viewBox="0 0 26 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="2" width="13" height="8" rx="1" fill="#22c55e"/>
+          <path d="M14 4 H20 L24 7 V10 H14 Z" fill="#22c55e"/>
+          <rect x="15.5" y="5" width="3.5" height="2.5" rx="0.5" fill="#0a0e1a"/>
+          <circle cx="6" cy="11" r="2" fill="#dde6f0"/>
+          <circle cx="19" cy="11" r="2" fill="#dde6f0"/>
+        </svg>
+      </div>
+      <div class="bar"></div>
+      <div class="sub">Fleet</div>
+    </div>
     <div id="root"></div>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
