@@ -119,6 +119,7 @@ export default function VehicleDetail() {
   const [editEquipment, setEditEquipment] = useState<string[]>([]);
   const [resolving, setResolving] = useState<{ kind: "certificate" | "tracker"; name: string; tracker?: ServiceTracker } | null>(null);
   const [resolveCertForm, setResolveCertForm] = useState({ certificate_number: "", issue_date: "", expiry_date: "" });
+  const [extForm, setExtForm] = useState({ make: "", medium: "", material: "", size: "", ext_class: "", serial_number: "", pressure_test_last: "", pressure_test_next: "", annual_service_last: "", annual_service_next: "" });
   const [resolveTrackerForm, setResolveTrackerForm] = useState({ last_done_date: new Date().toISOString().split("T")[0], last_done_value: "", notes: "" });
   const [resolveFile, setResolveFile] = useState<File | null>(null);
   const [resolveSaving, setResolveSaving] = useState(false);
@@ -422,6 +423,8 @@ export default function VehicleDetail() {
     const existing = (certificates || []).find(c => matchesCert(name, c.certificate_type));
     setResolving({ kind: "certificate", name });
     setResolveCertForm({ certificate_number: existing?.certificate_number || "", issue_date: existing?.issue_date || "", expiry_date: existing?.expiry_date || "" });
+    const ed = (existing as any)?.extinguisher_details || {};
+    setExtForm({ make: ed.make || "", medium: ed.medium || "", material: ed.material || "", size: ed.size || "", ext_class: ed.ext_class || "", serial_number: ed.serial_number || "", pressure_test_last: ed.pressure_test_last || "", pressure_test_next: ed.pressure_test_next || "", annual_service_last: ed.annual_service_last || "", annual_service_next: ed.annual_service_next || "" });
     setResolveFile(null);
   };
 
@@ -449,6 +452,10 @@ export default function VehicleDetail() {
         days_until_expiry: days, uploaded_by: profile?.id || null,
       };
       if (fileUrl) payload.file_url = fileUrl;
+      // For fire extinguisher certs, store the rich detail
+      if (/extinguisher/i.test(resolving.name)) {
+        payload.extinguisher_details = { ...extForm };
+      }
       const existing = (certificates || []).find(c => matchesCert(resolving.name, c.certificate_type));
       const { error } = existing ? await supabase.from("certificates").update(payload).eq("id", existing.id) : await supabase.from("certificates").insert(payload);
       if (error) { toast.error(error.message); setResolveSaving(false); return; }
@@ -981,6 +988,37 @@ export default function VehicleDetail() {
                 <div><label className="block text-sm font-medium text-foreground mb-1">Certificate Number</label><input value={resolveCertForm.certificate_number} onChange={e => setResolveCertForm({ ...resolveCertForm, certificate_number: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Issue Date</label><input type="date" value={resolveCertForm.issue_date} onChange={e => setResolveCertForm({ ...resolveCertForm, issue_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Expiry Date</label><input type="date" value={resolveCertForm.expiry_date} onChange={e => setResolveCertForm({ ...resolveCertForm, expiry_date: e.target.value })} className="w-full bg-secondary border border-border rounded-lg px-4 py-2.5 text-base md:text-sm text-foreground" /></div>
+                {/extinguisher/i.test(resolving.name) && (() => {
+                  const inp = "w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground";
+                  const lbl = "block text-xs font-medium text-muted-foreground mb-1";
+                  return (
+                    <div className="border-t border-border pt-4 space-y-3">
+                      <p className="text-sm font-semibold text-foreground">Extinguisher Details</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><label className={lbl}>Make</label><input value={extForm.make} onChange={e => setExtForm({ ...extForm, make: e.target.value })} placeholder="e.g. SafeQuip" className={inp} /></div>
+                        <div><label className={lbl}>Medium</label><input value={extForm.medium} onChange={e => setExtForm({ ...extForm, medium: e.target.value })} placeholder="e.g. Dry Chemical Powder" className={inp} /></div>
+                        <div><label className={lbl}>Material</label><input value={extForm.material} onChange={e => setExtForm({ ...extForm, material: e.target.value })} placeholder="e.g. Mild Steel" className={inp} /></div>
+                        <div><label className={lbl}>Size</label><input value={extForm.size} onChange={e => setExtForm({ ...extForm, size: e.target.value })} placeholder="e.g. 9.0 Kg" className={inp} /></div>
+                        <div><label className={lbl}>Class</label><input value={extForm.ext_class} onChange={e => setExtForm({ ...extForm, ext_class: e.target.value })} placeholder="e.g. ABC" className={inp} /></div>
+                        <div><label className={lbl}>Serial Number</label><input value={extForm.serial_number} onChange={e => setExtForm({ ...extForm, serial_number: e.target.value })} placeholder="Serial" className={inp} /></div>
+                      </div>
+                      <div className="bg-secondary/40 rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-semibold text-foreground">DCP Pressure Test</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div><label className={lbl}>Last Date</label><input type="date" value={extForm.pressure_test_last} onChange={e => setExtForm({ ...extForm, pressure_test_last: e.target.value })} className={inp} /></div>
+                          <div><label className={lbl}>Next Due</label><input type="date" value={extForm.pressure_test_next} onChange={e => setExtForm({ ...extForm, pressure_test_next: e.target.value })} className={inp} /></div>
+                        </div>
+                      </div>
+                      <div className="bg-secondary/40 rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-semibold text-foreground">Annual Service</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div><label className={lbl}>Last Date</label><input type="date" value={extForm.annual_service_last} onChange={e => setExtForm({ ...extForm, annual_service_last: e.target.value })} className={inp} /></div>
+                          <div><label className={lbl}>Next Due</label><input type="date" value={extForm.annual_service_next} onChange={e => setExtForm({ ...extForm, annual_service_next: e.target.value })} className={inp} /></div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div><label className="block text-sm font-medium text-foreground mb-1">Upload PDF</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setResolveFile(e.target.files?.[0] || null)} className="w-full text-sm text-foreground" /></div>
               </>
             ) : (
