@@ -1,4 +1,4 @@
-import { Search, Plus, Loader2, X, Eye, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, Loader2, X, Eye, Pencil, Trash2, Sparkles, CheckCircle, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,6 +43,95 @@ export default function Certificates() {
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+
+  // AI upload state
+  const [showAiUpload, setShowAiUpload] = useState(false);
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  const [aiReading, setAiReading] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiFields, setAiFields] = useState<any>(null);
+  const [aiMatchedVehicle, setAiMatchedVehicle] = useState<any>(null);
+  const [aiVehicleId, setAiVehicleId] = useState("");
+
+  const READ_CERT_URL = "https://cgqmyqveqnvrmytmpbfh.supabase.co/functions/v1/read-certificate";
+
+  const normReg = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  const handleAiRead = async () => {
+    if (!aiFile) { toast.error("Choose a file first"); return; }
+    setAiReading(true);
+    setAiFields(null); setAiMatchedVehicle(null);
+    try {
+      const base64: string = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve((r.result as string).split(",")[1]);
+        r.onerror = reject;
+        r.readAsDataURL(aiFile);
+      });
+      const res = await fetch(READ_CERT_URL, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileBase64: base64, mediaType: aiFile.type }),
+      });
+      const data = await res.json();
+      if (data.error || !data.fields || data.fields.error) { toast.error("Could not read the certificate — try the manual upload"); setAiReading(false); return; }
+      setAiFields(data.fields);
+      // try to match the reg to a vehicle
+      const targetReg = normReg(data.fields.registration_number);
+      const match = (vehicles || []).find((v: any) => normReg(v.registration_number) === targetReg);
+      if (match) { setAiMatchedVehicle(match); setAiVehicleId(match.id); }
+      else { setAiVehicleId(""); }
+    } catch (e: any) {
+      toast.error("Reading failed — try again or use manual upload");
+    }
+    setAiReading(false);
+  };
+
+  const handleAiSave = async () => {
+    if (!aiVehicleId) { toast.error("Select which vehicle this belongs to"); return; }
+    if (!aiFields) return;
+    setAiSaving(true);
+    try {
+      // upload the file
+      let fileUrl: string | null = null;
+      if (aiFile) {
+        const path = `${profile?.organisation_id}/${aiVehicleId}/${Date.now()}_${aiFile.name}`;
+        const { error: upErr } = await supabase.storage.from("documents").upload(path, aiFile);
+        if (upErr) { toast.error("File upload failed: " + upErr.message); setAiSaving(false); return; }
+        fileUrl = path;
+      }
+      const expiry = aiFields.expiry_date || null;
+      const days = expiry ? Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000) : null;
+      const payload: any = {
+        organisation_id: profile?.organisation_id,
+        vehicle_id: aiVehicleId,
+        certificate_type: aiFields.certificate_type || "Load Test Certificate",
+        certificate_number: aiFields.certificate_number || null,
+        issue_date: aiFields.issue_date || null,
+        expiry_date: expiry,
+        status: days === null ? "valid" : days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid",
+        days_until_expiry: days,
+        file_url: fileUrl,
+        uploaded_by: user?.id || null,
+        cert_details: {
+          serial_number: aiFields.serial_number || "",
+          machine_model: aiFields.machine_model || "",
+          manufacturer: aiFields.manufacturer || "",
+          customer: aiFields.customer || "",
+          rated_capacity: aiFields.rated_capacity || "",
+          pass_fail: aiFields.pass_fail || "",
+          inspector: aiFields.inspector || "",
+        },
+      };
+      const { error } = await supabase.from("certificates").insert(payload);
+      if (error) { toast.error(error.message); setAiSaving(false); return; }
+      toast.success("Certificate read and saved ✓ Now tracked with the vehicle");
+      queryClient.invalidateQueries({ queryKey: ["certificates"] });
+      setShowAiUpload(false); setAiFile(null); setAiFields(null); setAiMatchedVehicle(null); setAiVehicleId("");
+    } catch (e: any) {
+      toast.error(e.message || "Save failed");
+    }
+    setAiSaving(false);
+  };
 
   // Delete state
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -188,9 +277,14 @@ export default function Certificates() {
           <h1 className="text-2xl font-bold text-foreground">Certificates</h1>
           <p className="text-sm text-muted-foreground">Manage vehicle compliance certificates</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
-          <Plus className="w-4 h-4" /> Upload Certificate
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAiUpload(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
+            <Sparkles className="w-4 h-4" /> AI Upload
+          </button>
+          <button onClick={() => setShowForm(true)} className="flex items-center gap-2 bg-secondary text-foreground border border-border px-4 py-2 rounded-lg text-sm hover:opacity-90">
+            <Plus className="w-4 h-4" /> Manual
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -329,6 +423,70 @@ export default function Certificates() {
         </div>
       )}
 
+      {/* AI Upload Certificate */}
+      {showAiUpload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4" onClick={() => !aiReading && !aiSaving && setShowAiUpload(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Sparkles className="w-5 h-5 text-primary" /> AI Certificate Upload</h2>
+              <button onClick={() => setShowAiUpload(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-muted-foreground">Upload a certificate PDF (load test, calibration, inspection). The AI reads it, matches it to the vehicle by registration, and tracks the dates automatically.</p>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Certificate file</label>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => { setAiFile(e.target.files?.[0] || null); setAiFields(null); }} className="w-full text-sm text-foreground" />
+            </div>
+
+            {!aiFields && (
+              <button onClick={handleAiRead} disabled={!aiFile || aiReading} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                {aiReading ? <><Loader2 className="w-4 h-4 animate-spin" /> Reading certificate...</> : <><Sparkles className="w-4 h-4" /> Read with AI</>}
+              </button>
+            )}
+
+            {aiFields && (
+              <div className="space-y-3">
+                <div className="bg-secondary/40 rounded-xl p-4 space-y-1.5 text-sm">
+                  <p className="font-semibold text-foreground mb-1">What the AI found:</p>
+                  {aiFields.certificate_type && <Row k="Type" v={aiFields.certificate_type} />}
+                  {aiFields.certificate_number && <Row k="Cert No." v={aiFields.certificate_number} />}
+                  {aiFields.registration_number && <Row k="Registration" v={aiFields.registration_number} />}
+                  {aiFields.serial_number && <Row k="Serial" v={aiFields.serial_number} />}
+                  {aiFields.machine_model && <Row k="Model" v={aiFields.machine_model} />}
+                  {aiFields.rated_capacity && <Row k="Capacity" v={aiFields.rated_capacity} />}
+                  {aiFields.issue_date && <Row k="Test Date" v={aiFields.issue_date} />}
+                  {aiFields.expiry_date && <Row k="Next Due" v={aiFields.expiry_date} />}
+                  {aiFields.pass_fail && <Row k="Result" v={aiFields.pass_fail} />}
+                </div>
+
+                {aiMatchedVehicle ? (
+                  <div className="flex items-center gap-2 bg-success/10 border border-success/20 rounded-lg p-3">
+                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
+                    <p className="text-sm text-foreground">Matched to <span className="font-semibold">{aiMatchedVehicle.registration_number}</span> in your fleet.</p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 bg-warning/10 border border-warning/20 rounded-lg p-3 mb-2">
+                      <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
+                      <p className="text-sm text-foreground">No vehicle matched "{aiFields.registration_number || "unknown"}" — pick it manually:</p>
+                    </div>
+                    <select value={aiVehicleId} onChange={e => setAiVehicleId(e.target.value)} className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-foreground">
+                      <option value="">Select vehicle...</option>
+                      {(vehicles || []).map((v: any) => <option key={v.id} value={v.id}>{v.registration_number} — {v.make} {v.model}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                <button onClick={handleAiSave} disabled={aiSaving || !aiVehicleId} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {aiSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><CheckCircle className="w-4 h-4" /> Save & track with vehicle</>}
+                </button>
+                <button onClick={() => { setAiFields(null); setAiFile(null); }} className="w-full text-xs text-muted-foreground">Start over</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Upload New Certificate */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex flex-col md:flex-row">
@@ -394,6 +552,15 @@ export default function Certificates() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted-foreground">{k}</span>
+      <span className="text-foreground font-medium text-right">{v}</span>
     </div>
   );
 }
