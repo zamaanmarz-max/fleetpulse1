@@ -121,6 +121,21 @@ export function calculateVehicleComplianceScore(
     }
   }
 
+  // Any OTHER uploaded certificate with an expiry date (e.g. AI-uploaded load test,
+  // calibration) is auto-tracked: flag it when expired or expiring, even if not a
+  // formally "required" cert for this vehicle's equipment list.
+  for (const cert of vehicleCerts) {
+    if (!cert.expiry_date) continue;
+    if (required.some(req => matchesCert(req, cert.certificate_type))) continue; // already handled above
+    const days = Math.ceil((new Date(cert.expiry_date).getTime() - now) / 86400000);
+    if (days <= 0) {
+      score -= 15;
+      breakdown.push({ label: `${cert.certificate_type} expired — 15% deduction`, deduction: 15, severity: "critical" });
+    } else if (days <= 30) {
+      breakdown.push({ label: `${cert.certificate_type} expiring in ${days} days`, deduction: 0, severity: "warning" });
+    }
+  }
+
   // Service status
   if (kmUntilService < 0) {
     score -= 15;

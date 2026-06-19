@@ -70,7 +70,7 @@ export default function Certificates() {
       });
       const res = await fetch(READ_CERT_URL, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileBase64: base64, mediaType: aiFile.type }),
+        body: JSON.stringify({ fileBase64: base64, mediaType: aiFile.type, knownRegs: (vehicles || []).map((v: any) => v.registration_number).filter(Boolean) }),
       });
       const data = await res.json();
       if (data.error || !data.fields || data.fields.error) { toast.error("Could not read the certificate — try the manual upload"); setAiReading(false); return; }
@@ -101,10 +101,15 @@ export default function Certificates() {
       }
       const expiry = aiFields.expiry_date || null;
       const days = expiry ? Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000) : null;
+      // Canonicalise COF/roadworthy variants so they match the COF requirement
+      let certType = aiFields.certificate_type || "Load Test Certificate";
+      if (/roadworthy|certificate of fitness|\bcof\b|licence disc|license disc/i.test(certType)) {
+        certType = "COF & Vehicle Licence";
+      }
       const payload: any = {
         organisation_id: profile?.organisation_id,
         vehicle_id: aiVehicleId,
-        certificate_type: aiFields.certificate_type || "Load Test Certificate",
+        certificate_type: certType,
         certificate_number: aiFields.certificate_number || null,
         issue_date: aiFields.issue_date || null,
         expiry_date: expiry,
