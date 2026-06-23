@@ -1,8 +1,15 @@
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 interface JobCardData {
   jobCardNumber: string;
+  // ----- logged-in company branding (read per-org, no longer hardcoded) -----
+  orgName: string;
+  orgPhone?: string;
+  orgEmail?: string;
+  orgVat?: string;
+  orgAddress?: string;
+  orgLogoUrl?: string | null;
+  // ----- client -----
   clientName: string;
   clientAddress?: string;
   clientEmail?: string;
@@ -25,19 +32,17 @@ interface JobCardData {
   timeCommenced: string;
   dateCompleted: string;
   timeCompleted: string;
-  parts: Array<{ qty: string; part_no: string; description: string; supplier: string; price: string }>;
-  costing: any;
+  // simplified: part name + quantity only
+  parts: Array<{ name: string; qty: string }>;
   photos: string[];
   signature?: string | null;
   signName?: string;
   noSignature?: boolean;
-  includeCosting?: boolean; // false = customer copy (no parts/costing), true = office full copy
 }
 
 const NAVY: [number, number, number] = [20, 35, 60];
 const GREY: [number, number, number] = [110, 110, 110];
 const LINE: [number, number, number] = [160, 160, 160];
-const R = (n: number) => `R ${(Number(n) || 0).toFixed(2)}`;
 
 // load a remote image as a data URL so jsPDF can embed it
 async function loadImage(url: string): Promise<{ data: string; w: number; h: number } | null> {
@@ -63,26 +68,47 @@ async function loadImage(url: string): Promise<{ data: string; w: number; h: num
 export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, H = 297, M = 12;
+  const company = (d.orgName || "").trim() || "Company";
 
   doc.setDrawColor(...NAVY); doc.setLineWidth(0.5);
   doc.rect(M, M, W - 2 * M, H - 2 * M);
 
+  // ===== HEADER: per-org branding =====
+  // Left column: contact details (only render what the org actually has)
   doc.setTextColor(0, 0, 0);
-  doc.setFont("times", "bold"); doc.setFontSize(9);
-  doc.text("Tel:  010 496 8112", M + 3, M + 6);
-  doc.setFont("times", "normal"); doc.setFontSize(7);
-  doc.text("079 873 0277", M + 9, M + 9.5);
-  doc.text("078 512 9294", M + 9, M + 12.5);
-  doc.text("Email: info@ac-r.co.za", M + 3, M + 15.5);
-  doc.text("P.O. Box 3217, Bedfordview 2008", M + 38, M + 9.5);
-  doc.text("Unit 23 & 24, Commercia Business Park", M + 3, M + 19);
-  doc.text("734 Setter Road, Commercia", M + 3, M + 22);
+  let hy = M + 6;
+  const leftX = M + 3;
+  doc.setFont("times", "normal"); doc.setFontSize(8);
+  if (d.orgPhone) { doc.setFont("times", "bold"); doc.text(`Tel: ${d.orgPhone}`, leftX, hy); doc.setFont("times", "normal"); hy += 4; }
+  if (d.orgEmail) { doc.text(`Email: ${d.orgEmail}`, leftX, hy); hy += 4; }
+  if (d.orgAddress) {
+    const addrLines = doc.splitTextToSize(d.orgAddress, W / 2 - M - 8);
+    doc.text(addrLines, leftX, hy); hy += addrLines.length * 4;
+  }
+  if (d.orgVat) { doc.text(`VAT No: ${d.orgVat}`, leftX, hy); hy += 4; }
 
-  doc.setFont("times", "bold"); doc.setFontSize(26);
-  doc.text("AC & R", W / 2 + 8, M + 9, { align: "center" });
-  doc.setFontSize(12); doc.text("REFRIGERATION", W / 2 + 8, M + 15, { align: "center" });
-  doc.setFontSize(9); doc.text("SERVICES", W / 2 + 8, M + 19, { align: "center" });
+  // Centre: company wordmark (or logo if the org has uploaded one)
+  let logoDrawn = false;
+  if (d.orgLogoUrl) {
+    const logo = await loadImage(d.orgLogoUrl);
+    if (logo) {
+      const maxW = 55, maxH = 20;
+      const ratio = logo.h / logo.w;
+      let lw = maxW, lh = maxW * ratio;
+      if (lh > maxH) { lh = maxH; lw = maxH / ratio; }
+      try { doc.addImage(logo.data, "PNG", W / 2 - lw / 2, M + 2, lw, lh); logoDrawn = true; } catch { /* fall back to text */ }
+    }
+  }
+  if (!logoDrawn) {
+    // size the wordmark down for long names so it never collides with the columns
+    const nameSize = company.length <= 16 ? 24 : company.length <= 24 ? 18 : company.length <= 34 ? 14 : 11;
+    doc.setFont("times", "bold"); doc.setFontSize(nameSize); doc.setTextColor(...NAVY);
+    const nameLines = doc.splitTextToSize(company.toUpperCase(), 90);
+    doc.text(nameLines, W / 2 + 6, M + 10, { align: "center" });
+    doc.setTextColor(0, 0, 0);
+  }
 
+  // Right column: delivery note + job number
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
   doc.text("DELIVERY NOTE", W - M - 3, M + 6, { align: "right" });
   doc.setTextColor(200, 30, 30); doc.setFontSize(16);
@@ -158,11 +184,34 @@ export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
   doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, y, W - M, y);
 
   y += 5;
-  doc.setFont("helvetica", "bold"); doc.text("TECHNICIAN REPORT:", M + 3, y);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.text("TECHNICIAN REPORT:", M + 3, y);
   doc.setFont("helvetica", "normal"); doc.setFontSize(9);
   const tr = doc.splitTextToSize(d.technicianReport || "", W - 2 * M - 6);
   doc.text(tr, M + 3, y + 6);
   y = y + 6 + tr.length * 4.5 + 4;
+
+  // ===== PARTS USED (name + qty only) =====
+  const usedParts = (d.parts || []).filter(p => (p.name || "").trim());
+  if (usedParts.length > 0 && y < 224) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(0, 0, 0);
+    doc.text("PARTS USED:", M + 3, y);
+    y += 5;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
+    // keep it inside the page; if the list is long, summarise the overflow
+    const maxRows = Math.max(0, Math.floor((228 - y) / 4.4));
+    const shown = usedParts.slice(0, maxRows);
+    shown.forEach((p) => {
+      const qty = (p.qty || "").trim();
+      doc.text(`•  ${qty ? `${qty} ×  ` : ""}${p.name}`, M + 5, y);
+      y += 4.4;
+    });
+    if (usedParts.length > shown.length) {
+      doc.setTextColor(...GREY);
+      doc.text(`+ ${usedParts.length - shown.length} more part(s)`, M + 5, y);
+      doc.setTextColor(0, 0, 0);
+      y += 4.4;
+    }
+  }
 
   // Signature block on page 1
   const sigY = 232;
@@ -177,7 +226,7 @@ export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
     doc.setFont("helvetica", "italic"); doc.setTextColor(...GREY);
     doc.text("Customer signature: No customer available to sign", M + 105, sy);
   } else if (d.signature) {
-    try { doc.addImage(d.signature, "PNG", M + 105, sy - 5, 45, 16); } catch {}
+    try { doc.addImage(d.signature, "PNG", M + 105, sy - 5, 45, 16); } catch { /* ignore bad sig */ }
     doc.setDrawColor(...LINE); doc.line(M + 105, sy + 12, M + 150, sy + 12);
     doc.setFontSize(7); doc.setTextColor(...GREY);
     doc.text(`Signed: ${d.signName || ""}`, M + 105, sy + 15);
@@ -195,7 +244,7 @@ export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
   doc.setDrawColor(...NAVY); doc.line(M, sy, W - M, sy);
   sy += 4;
   doc.setFont("helvetica", "italic"); doc.setFontSize(5.5);
-  const terms = doc.splitTextToSize("Our Warranty terms and conditions apply. A copy of this warranty is available to all customers. Acceptance of this implies acceptance of AC & R Refrigeration Services warranty. NOT RESPONSIBLE FOR LOSS OR DAMAGE TO TRACTORS, TRAILERS, UNITS AND ACCESSORIES, IN CASE OF FIRE, THEFT OR OTHER CAUSES BEYOND OUR CONTROL.", W - 2 * M - 6);
+  const terms = doc.splitTextToSize(`Our Warranty terms and conditions apply. A copy of this warranty is available to all customers. Acceptance of this implies acceptance of ${company} warranty. NOT RESPONSIBLE FOR LOSS OR DAMAGE TO TRACTORS, TRAILERS, UNITS AND ACCESSORIES, IN CASE OF FIRE, THEFT OR OTHER CAUSES BEYOND OUR CONTROL.`, W - 2 * M - 6);
   doc.text(terms, M + 3, sy);
 
   // ===== PHOTO PAGES (embedded) =====
@@ -213,7 +262,7 @@ export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
         const ratio = img.h / img.w;
         let dw = cellWp, dh = cellWp * ratio;
         if (dh > cellHp) { dh = cellHp; dw = cellHp / ratio; }
-        try { doc.addImage(img.data, "JPEG", px + (cellWp - dw) / 2, py, dw, dh); } catch {}
+        try { doc.addImage(img.data, "JPEG", px + (cellWp - dw) / 2, py, dw, dh); } catch { /* skip bad image */ }
       }
       count++;
       if (count % 2 === 0) { px = M; py += cellHp + 6; }
@@ -221,77 +270,6 @@ export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
       if (py > H - cellHp - M && count < d.photos.length) { doc.addPage("a4", "portrait"); px = M; py = M + 6; }
     }
   }
-
-  // ===== PAGE 2: COSTING (landscape) — OFFICE COPY ONLY =====
-  if (d.includeCosting) {
-  doc.addPage("a4", "landscape");
-  const LW = 297, LM = 10;
-  const c = d.costing || {};
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("times", "bold"); doc.setFontSize(16);
-  doc.text("AC & R REFRIGERATION", LM, LM + 6);
-  doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-  doc.text("JOB NUMBER: " + (d.jobCardNumber || ""), LW - LM, LM + 6, { align: "right" });
-
-  const partRows = (d.parts || []).map(p => [
-    p.qty || "", p.part_no || "", p.description || "", p.supplier || "",
-    p.price ? R(Number(p.price)) : "", p.price ? R((Number(p.price) || 0) * (Number(p.qty) || 1)) : "",
-  ]);
-  while (partRows.length < 8) partRows.push(["", "", "", "", "", ""]);
-  autoTable(doc, {
-    startY: LM + 12,
-    head: [["QTY", "PART NO.", "DESCRIPTION", "SUPPLIER", "PRICE", "AC & R TOTAL"]],
-    body: partRows, theme: "grid",
-    headStyles: { fillColor: NAVY, fontSize: 7.5 },
-    bodyStyles: { fontSize: 8, minCellHeight: 6 },
-    columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 28 }, 2: { cellWidth: 55 }, 3: { cellWidth: 32 }, 4: { cellWidth: 24, halign: "right" }, 5: { cellWidth: 26, halign: "right" } },
-    margin: { left: LM }, tableWidth: 179,
-  });
-  const partsEndY = (doc as any).lastAutoTable.finalY;
-  autoTable(doc, {
-    startY: partsEndY + 2,
-    body: [["Total Parts", R(c.total_parts)], ["Less        %", ""], ["NETT TOTAL PARTS", R(c.total_parts)]],
-    theme: "grid", bodyStyles: { fontSize: 8 },
-    columnStyles: { 0: { cellWidth: 100, fontStyle: "bold" }, 1: { cellWidth: 79, halign: "right" } },
-    margin: { left: LM }, tableWidth: 179,
-  });
-
-  const rightX = LM + 185;
-  const miscRows = [
-    ["FUEL", R(c.fuel)], ["ENGINE OIL", R(c.engine_oil)], ["COMPRESSOR OIL", R(c.compressor_oil)],
-    ["REFRIGERANT", R(c.refrigerant)], ["ANTI-FREEZE", R(c.anti_freeze)], ["CONSUMABLES", R(c.consumables)],
-    ["TRAVELLING  " + (c.travelling_km || 0) + " km", R(c.travelling_amount)], ["TOTAL MISCELLANEOUS", R(c.total_misc)],
-  ];
-  autoTable(doc, {
-    startY: LM + 12,
-    head: [["MISCELLANEOUS", "Amount"]], body: miscRows, theme: "grid",
-    headStyles: { fillColor: NAVY, fontSize: 7.5 },
-    bodyStyles: { fontSize: 7.5, minCellHeight: 5.5 },
-    columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 34, halign: "right" } },
-    margin: { left: rightX }, tableWidth: 92,
-    didParseCell: (data: any) => { if (data.row.index === miscRows.length - 1) data.cell.styles.fontStyle = "bold"; },
-  });
-  const miscEndY = (doc as any).lastAutoTable.finalY;
-
-  const labourNormal = (Number(c.labour_normal_hrs) || 0) * (Number(c.labour_normal_rate) || 0);
-  const labourOT = (Number(c.labour_ot_hrs) || 0) * (Number(c.labour_ot_rate) || 0);
-  const specRows = [
-    ["Labour: " + (c.labour_normal_hrs || 0) + " hrs @ N.T.", R(labourNormal)],
-    ["Labour: " + (c.labour_ot_hrs || 0) + " hrs @ O.T.", R(labourOT)],
-    ["TOTAL LABOUR", R(c.total_labour)], ["TOTAL PARTS", R(c.total_parts)],
-    ["TOTAL MISCELLANEOUS", R(c.total_misc)], ["SUB TOTAL", R(c.subtotal)],
-    ["ADD VAT (15%)", R(c.vat)], ["INVOICE AMOUNT", R(c.invoice_amount)],
-  ];
-  autoTable(doc, {
-    startY: miscEndY + 3,
-    head: [["SPECIFICATION OF TOTAL INVOICE COSTS", "Selling Price"]], body: specRows, theme: "grid",
-    headStyles: { fillColor: NAVY, fontSize: 7 },
-    bodyStyles: { fontSize: 7.5, minCellHeight: 5.5 },
-    columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 34, halign: "right" } },
-    margin: { left: rightX }, tableWidth: 92,
-    didParseCell: (data: any) => { if (data.row.index === specRows.length - 1) { data.cell.styles.fontStyle = "bold"; data.cell.styles.fontSize = 9; data.cell.styles.textColor = NAVY; } },
-  });
-  } // end includeCosting
 
   return doc.output("blob");
 }

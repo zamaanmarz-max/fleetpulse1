@@ -39,7 +39,7 @@ function partsForIndustry(industry: string) {
 }
 
 
-type Part = { qty: string; part_no: string; description: string; supplier: string; price: string };
+type Part = { name: string; qty: string };
 
 export default function JobCardForm() {
   const navigate = useNavigate();
@@ -99,12 +99,7 @@ export default function JobCardForm() {
   });
   const [noSignature, setNoSignature] = useState(false);
 
-  const [parts, setParts] = useState<Part[]>([{ qty: "", part_no: "", description: "", supplier: "", price: "" }]);
-  const [costing, setCosting] = useState({
-    fuel: "", engine_oil: "", compressor_oil: "", refrigerant: "", anti_freeze: "", consumables: "",
-    travelling_km: "", travelling_amount: "",
-    labour_normal_hrs: "", labour_normal_rate: "", labour_ot_hrs: "", labour_ot_rate: "",
-  });
+  const [parts, setParts] = useState<Part[]>([{ name: "", qty: "" }]);
 
   const selectedVehicle = (vehicles || []).find((v: any) => v.id === form.vehicle_id);
 
@@ -151,15 +146,8 @@ export default function JobCardForm() {
   const clearSig = () => { const c = sigCanvas.current; if (c) c.getContext("2d")!.clearRect(0, 0, c.width, c.height); setHasSignature(false); };
 
   const updatePart = (i: number, field: keyof Part, val: string) => setParts(p => p.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
-  const addPart = () => setParts(p => [...p, { qty: "", part_no: "", description: "", supplier: "", price: "" }]);
+  const addPart = () => setParts(p => [...p, { name: "", qty: "" }]);
   const removePart = (i: number) => setParts(p => p.filter((_, idx) => idx !== i));
-
-  const totalParts = parts.reduce((s, p) => s + (parseFloat(p.price) || 0) * (parseFloat(p.qty) || 1), 0);
-  const totalMisc = ["fuel", "engine_oil", "compressor_oil", "refrigerant", "anti_freeze", "consumables", "travelling_amount"].reduce((s, k) => s + (parseFloat((costing as any)[k]) || 0), 0);
-  const totalLabour = (parseFloat(costing.labour_normal_hrs) || 0) * (parseFloat(costing.labour_normal_rate) || 0) + (parseFloat(costing.labour_ot_hrs) || 0) * (parseFloat(costing.labour_ot_rate) || 0);
-  const subtotal = totalParts + totalMisc + totalLabour;
-  const vat = subtotal * 0.15;
-  const invoiceAmount = subtotal + vat;
 
   const polishNotes = async () => {
     if (!form.work_done.trim()) { toast.error("Write some notes first"); return; }
@@ -213,15 +201,21 @@ export default function JobCardForm() {
       const hrs = parseFloat(form.engine_hours) || null;
       const isScheduled = form.service_type === "scheduled";
       const interval = selectedVehicle?.fridge_service_interval_hrs || 1000;
-      const costingData = { ...costing, total_parts: totalParts, total_labour: totalLabour, total_misc: totalMisc, subtotal, vat, invoice_amount: invoiceAmount };
-      const cleanParts = parts.filter(p => p.description || p.part_no);
+      const cleanParts = parts
+        .filter(p => (p.name || "").trim())
+        .map(p => ({ name: p.name.trim(), qty: (p.qty || "").trim() }));
 
-      // Generate TWO PDFs: customer copy (no parts/costing) + office copy (full)
-      let pdfUrl: string | null = null;        // office full copy
-      let customerPdfUrl: string | null = null; // customer copy, no costing
+      // Logged-in company branding for the PDF header (read per-org, never hardcoded)
+      const org = (profile as any)?.organisations || {};
+
+      // Generate the job card PDF (single copy — parts have no pricing, so no separate office costing copy)
+      let pdfUrl: string | null = null;
       try {
-        const baseData = {
-          jobCardNumber: jcNumber, clientName: form.client_name, orderNo: form.order_no,
+        const pdfData = {
+          jobCardNumber: jcNumber,
+          orgName: org.name || "", orgPhone: org.phone || "", orgEmail: org.email || "",
+          orgVat: org.vat_number || "", orgAddress: org.address || "", orgLogoUrl: org.logo_url || null,
+          clientName: form.client_name, orderNo: form.order_no,
           clientAddress: form.client_address, clientEmail: form.client_email, clientVatNo: form.client_vat_no,
           contactPerson: form.contact_person, contactCell: form.contact_cell,
           registration: reg, make: useOther ? form.other_make : (selectedVehicle?.fridge_brand || ""), model: useOther ? form.other_model : (selectedVehicle?.fridge_model || ""),
@@ -229,19 +223,13 @@ export default function JobCardForm() {
           engineHours: form.engine_hours, standbyHours: form.standby_hours, kilometres: form.kilometres,
           clientInstructions: form.client_instructions, technicianReport: form.work_done, technicianName: form.tech_name,
           dateCommenced: form.date_commenced, timeCommenced: form.time_commenced, dateCompleted: form.date_completed, timeCompleted: form.time_completed,
-          parts: cleanParts, costing: costingData, photos: photoUrls,
+          parts: cleanParts, photos: photoUrls,
           signature: signatureData, signName: form.customer_sign_name, noSignature,
         };
-        // Customer copy — no costing
-        const custBlob = await generateJobCardPDF({ ...baseData, includeCosting: false });
-        const custPath = `${reg}/${Date.now()}_customer.pdf`;
-        const { error: cErr } = await supabase.storage.from("job-cards").upload(custPath, custBlob, { upsert: true, contentType: "application/pdf" });
-        if (!cErr) { const { data } = supabase.storage.from("job-cards").getPublicUrl(custPath); customerPdfUrl = data.publicUrl; }
-        // Office copy — full with costing
-        const officeBlob = await generateJobCardPDF({ ...baseData, includeCosting: true });
-        const officePath = `${reg}/${Date.now()}_office.pdf`;
-        const { error: oErr } = await supabase.storage.from("job-cards").upload(officePath, officeBlob, { upsert: true, contentType: "application/pdf" });
-        if (!oErr) { const { data } = supabase.storage.from("job-cards").getPublicUrl(officePath); pdfUrl = data.publicUrl; }
+        const blob = await generateJobCardPDF(pdfData);
+        const pdfPath = `${reg}/${Date.now()}_jobcard.pdf`;
+        const { error: pErr } = await supabase.storage.from("job-cards").upload(pdfPath, blob, { upsert: true, contentType: "application/pdf" });
+        if (!pErr) { const { data } = supabase.storage.from("job-cards").getPublicUrl(pdfPath); pdfUrl = data.publicUrl; }
       } catch (e) { console.error("PDF gen failed:", e); }
 
       const { error } = await supabase.from("fridge_service_log" as any).insert({
@@ -256,9 +244,9 @@ export default function JobCardForm() {
         kilometres: parseFloat(form.kilometres) || null, client_instructions: form.client_instructions || null,
         date_commenced: form.date_commenced || null, time_commenced: form.time_commenced || null,
         date_completed: form.date_completed || null, time_completed: form.time_completed || null,
-        unit_serial: selectedVehicle?.fridge_serial_number || null, parts_list: cleanParts, costing: costingData,
-        photos: photoUrls, pdf_url: pdfUrl, customer_pdf_url: customerPdfUrl, job_card_url: pdfUrl, total_cost: invoiceAmount || null,
-        parts_used: cleanParts.map(p => p.description).filter(Boolean).join(", ") || null,
+        unit_serial: selectedVehicle?.fridge_serial_number || null, parts_list: cleanParts, costing: null,
+        photos: photoUrls, pdf_url: pdfUrl, customer_pdf_url: pdfUrl, job_card_url: pdfUrl, total_cost: null,
+        parts_used: cleanParts.map(p => (p.qty ? `${p.qty} × ${p.name}` : p.name)).join(", ") || null,
         customer_signature: signatureData, customer_sign_name: form.customer_sign_name || null,
         no_customer_signature: noSignature, status: "submitted", logged_via: "tech_app", updates_service_clock: isScheduled,
       });
@@ -272,8 +260,8 @@ export default function JobCardForm() {
 
       setSaving(false);
       toast.success("Job card submitted ✓");
-      // Open the CUSTOMER copy (no costing) so the tech can share it with the customer
-      if (customerPdfUrl) window.open(customerPdfUrl, "_blank");
+      // Open the job card so the tech can share it with the customer
+      if (pdfUrl) window.open(pdfUrl, "_blank");
       navigate((profile as any)?.role === "technician" ? "/tech" : "/fridge-tracker");
     } catch (e: any) {
       setSaving(false);
@@ -287,10 +275,10 @@ export default function JobCardForm() {
         <button onClick={() => step === 1 ? navigate(-1) : setStep(step - 1)} className="text-muted-foreground"><ArrowLeft className="w-5 h-5" /></button>
         <div className="flex-1">
           <h1 className="text-base font-bold text-foreground flex items-center gap-2"><Thermometer className="w-4 h-4 text-primary" /> Job Card {jcNumber && <span className="text-xs text-muted-foreground">#{jcNumber}</span>}</h1>
-          <p className="text-xs text-muted-foreground">Step {step} of 3 · {step === 1 ? "Job Details" : step === 2 ? "Parts & Costing" : "Sign & Submit"}</p>
+          <p className="text-xs text-muted-foreground">Step {step} of 2 · {step === 1 ? "Job Details" : "Sign & Submit"}</p>
         </div>
       </div>
-      <div className="h-1 bg-secondary"><div className="h-full bg-primary transition-all" style={{ width: `${(step / 3) * 100}%` }} /></div>
+      <div className="h-1 bg-secondary"><div className="h-full bg-primary transition-all" style={{ width: `${(step / 2) * 100}%` }} /></div>
 
       <div className="px-4 py-5 max-w-lg mx-auto space-y-5">
         {step === 1 && (
@@ -394,74 +382,33 @@ export default function JobCardForm() {
               <div><label className={labelCls}>Date Completed</label><input type="date" value={form.date_completed} onChange={e => setForm({ ...form, date_completed: e.target.value })} className={inputCls} /></div>
               <div><label className={labelCls}>Time Completed</label><input type="time" value={form.time_completed} onChange={e => setForm({ ...form, time_completed: e.target.value })} className={inputCls} /></div>
             </div>
-          </>
-        )}
 
-        {step === 2 && (
-          <>
             <div>
               <h2 className="text-sm font-bold text-foreground mb-2">Parts Used</h2>
+              <p className="text-xs text-muted-foreground mb-2">Just the part and how many — no pricing needed.</p>
               <div className="space-y-3">
                 {parts.map((p, i) => (
-                  <div key={i} className="border border-border rounded-xl p-3 space-y-2 relative">
-                    {parts.length > 1 && <button onClick={() => removePart(i)} className="absolute top-2 right-2 text-muted-foreground"><X className="w-4 h-4" /></button>}
-                    <select value={COMMON_PARTS.includes(p.description) ? p.description : (p.description ? "Other" : "")} onChange={e => updatePart(i, "description", e.target.value === "Other" ? "" : e.target.value)} className={inputCls}>
-                      <option value="">Select part...</option>
-                      {COMMON_PARTS.map(cp => <option key={cp} value={cp}>{cp}</option>)}
-                    </select>
-                    {(!COMMON_PARTS.includes(p.description) || p.description === "") && (
-                      <input value={p.description} onChange={e => updatePart(i, "description", e.target.value)} placeholder="Part description" className={inputCls} />
-                    )}
-                    <div className="grid grid-cols-3 gap-2">
-                      <input value={p.qty} onChange={e => updatePart(i, "qty", e.target.value)} placeholder="Qty" type="number" inputMode="decimal" className={inputCls} />
-                      <input value={p.part_no} onChange={e => updatePart(i, "part_no", e.target.value)} placeholder="Part No." className={`${inputCls} col-span-2`} />
+                  <div key={i} className="flex gap-2 items-start">
+                    <div className="flex-1 space-y-2">
+                      <select value={COMMON_PARTS.includes(p.name) ? p.name : (p.name ? "Other" : "")} onChange={e => updatePart(i, "name", e.target.value === "Other" ? "" : e.target.value)} className={inputCls}>
+                        <option value="">Select part...</option>
+                        {COMMON_PARTS.map(cp => <option key={cp} value={cp}>{cp}</option>)}
+                      </select>
+                      {(!COMMON_PARTS.includes(p.name) || p.name === "") && (
+                        <input value={p.name} onChange={e => updatePart(i, "name", e.target.value)} placeholder="Part name" className={inputCls} />
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input value={p.supplier} onChange={e => updatePart(i, "supplier", e.target.value)} placeholder="Supplier" className={inputCls} />
-                      <input value={p.price} onChange={e => updatePart(i, "price", e.target.value)} placeholder="Price (R)" type="number" inputMode="decimal" className={inputCls} />
-                    </div>
+                    <input value={p.qty} onChange={e => updatePart(i, "qty", e.target.value)} placeholder="Qty" type="number" inputMode="decimal" className={`${inputCls} w-20`} />
+                    {parts.length > 1 && <button onClick={() => removePart(i)} className="text-muted-foreground pt-3"><X className="w-4 h-4" /></button>}
                   </div>
                 ))}
                 <button onClick={addPart} className="flex items-center gap-1.5 text-sm text-primary font-semibold"><Plus className="w-4 h-4" /> Add another part</button>
               </div>
             </div>
-
-            <div>
-              <h2 className="text-sm font-bold text-foreground mb-2">Miscellaneous</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={labelCls}>Fuel (R)</label><input type="number" inputMode="decimal" value={costing.fuel} onChange={e => setCosting({ ...costing, fuel: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>{isFridge ? "Engine Oil (R)" : "Oil (R)"}</label><input type="number" inputMode="decimal" value={costing.engine_oil} onChange={e => setCosting({ ...costing, engine_oil: e.target.value })} className={inputCls} /></div>
-                {isFridge && <div><label className={labelCls}>Compressor Oil (R)</label><input type="number" inputMode="decimal" value={costing.compressor_oil} onChange={e => setCosting({ ...costing, compressor_oil: e.target.value })} className={inputCls} /></div>}
-                {isFridge && <div><label className={labelCls}>Refrigerant (R)</label><input type="number" inputMode="decimal" value={costing.refrigerant} onChange={e => setCosting({ ...costing, refrigerant: e.target.value })} className={inputCls} /></div>}
-                {isFridge && <div><label className={labelCls}>Anti-Freeze (R)</label><input type="number" inputMode="decimal" value={costing.anti_freeze} onChange={e => setCosting({ ...costing, anti_freeze: e.target.value })} className={inputCls} /></div>}
-                <div><label className={labelCls}>Consumables (R)</label><input type="number" inputMode="decimal" value={costing.consumables} onChange={e => setCosting({ ...costing, consumables: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Travelling (km)</label><input type="number" inputMode="decimal" value={costing.travelling_km} onChange={e => setCosting({ ...costing, travelling_km: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Travelling (R)</label><input type="number" inputMode="decimal" value={costing.travelling_amount} onChange={e => setCosting({ ...costing, travelling_amount: e.target.value })} className={inputCls} /></div>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-sm font-bold text-foreground mb-2">Labour</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={labelCls}>Normal Hrs</label><input type="number" inputMode="decimal" value={costing.labour_normal_hrs} onChange={e => setCosting({ ...costing, labour_normal_hrs: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Rate (R/hr)</label><input type="number" inputMode="decimal" value={costing.labour_normal_rate} onChange={e => setCosting({ ...costing, labour_normal_rate: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Overtime Hrs</label><input type="number" inputMode="decimal" value={costing.labour_ot_hrs} onChange={e => setCosting({ ...costing, labour_ot_hrs: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>OT Rate (R/hr)</label><input type="number" inputMode="decimal" value={costing.labour_ot_rate} onChange={e => setCosting({ ...costing, labour_ot_rate: e.target.value })} className={inputCls} /></div>
-              </div>
-            </div>
-
-            <div className="bg-secondary/50 rounded-xl p-4 space-y-1.5">
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Parts</span><span className="text-foreground font-mono">R {totalParts.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Labour</span><span className="text-foreground font-mono">R {totalLabour.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Miscellaneous</span><span className="text-foreground font-mono">R {totalMisc.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm border-t border-border pt-1.5"><span className="text-muted-foreground">Subtotal</span><span className="text-foreground font-mono">R {subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">VAT (15%)</span><span className="text-foreground font-mono">R {vat.toFixed(2)}</span></div>
-              <div className="flex justify-between text-base font-bold border-t border-border pt-1.5"><span className="text-foreground">Invoice Amount</span><span className="text-primary font-mono">R {invoiceAmount.toFixed(2)}</span></div>
-            </div>
           </>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <div className="space-y-4">
             <div className="bg-secondary/50 rounded-xl p-4 space-y-2">
               <Row label="Job Card No." value={`#${jcNumber}`} />
@@ -470,8 +417,7 @@ export default function JobCardForm() {
               <Row label="Job Type" value={JOB_TYPES.find(t => t.value === form.service_type)?.label || form.service_type} />
               <Row label="Technician" value={form.tech_name || "—"} />
               <Row label="Photos" value={`${photos.length} attached`} />
-              <Row label="Parts" value={`${parts.filter(p => p.description || p.part_no).length} item(s)`} />
-              <Row label="Invoice Total" value={`R ${invoiceAmount.toFixed(2)}`} />
+              <Row label="Parts" value={`${parts.filter(p => (p.name || "").trim()).length} item(s)`} />
             </div>
 
             <div>
@@ -505,7 +451,7 @@ export default function JobCardForm() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 py-3 flex gap-3 max-w-lg mx-auto">
-        {step < 3 ? (
+        {step < 2 ? (
           <button onClick={() => { if (step === 1 && !useOther && !form.vehicle_id) { toast.error("Select a vehicle first"); return; } if (step === 1 && useOther && !form.other_reg) { toast.error("Enter the unit reg"); return; } setStep(step + 1); }} className="flex-1 bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">Next <ArrowRight className="w-4 h-4" /></button>
         ) : (
           <button onClick={handleSubmit} disabled={saving} className="flex-1 bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50">{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />} Submit Job Card</button>
