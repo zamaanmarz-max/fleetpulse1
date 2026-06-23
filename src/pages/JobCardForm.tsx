@@ -390,7 +390,7 @@ export default function JobCardForm() {
               <div className="space-y-3">
                 {parts.map((p, i) => (
                   <div key={i} className="flex gap-2 items-start">
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 min-w-0 space-y-2">
                       <select value={COMMON_PARTS.includes(p.name) ? p.name : (p.name ? "Other" : "")} onChange={e => updatePart(i, "name", e.target.value === "Other" ? "" : e.target.value)} className={inputCls}>
                         <option value="">Select part...</option>
                         {COMMON_PARTS.map(cp => <option key={cp} value={cp}>{cp}</option>)}
@@ -399,8 +399,8 @@ export default function JobCardForm() {
                         <input value={p.name} onChange={e => updatePart(i, "name", e.target.value)} placeholder="Part name" className={inputCls} />
                       )}
                     </div>
-                    <input value={p.qty} onChange={e => updatePart(i, "qty", e.target.value)} placeholder="Qty" type="number" inputMode="decimal" className={`${inputCls} w-20`} />
-                    {parts.length > 1 && <button onClick={() => removePart(i)} className="text-muted-foreground pt-3"><X className="w-4 h-4" /></button>}
+                    <input value={p.qty} onChange={e => updatePart(i, "qty", e.target.value)} placeholder="Qty" type="number" inputMode="decimal" className="w-20 shrink-0 bg-secondary border border-border rounded-xl px-3 py-3 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+                    {parts.length > 1 && <button onClick={() => removePart(i)} className="text-muted-foreground pt-3 shrink-0"><X className="w-4 h-4" /></button>}
                   </div>
                 ))}
                 <button onClick={addPart} className="flex items-center gap-1.5 text-sm text-primary font-semibold"><Plus className="w-4 h-4" /> Add another part</button>

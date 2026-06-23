@@ -10,6 +10,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
+import { getModuleTerms } from "@/lib/moduleTerms";
 
 type MoreItem = { to?: string; icon: any; label: string; action?: "ai" | "signout"; modules?: string[] };
 
@@ -40,10 +41,12 @@ export function MobileNav({ onOpenAI }: { onOpenAI?: () => void }) {
   const navigate = useNavigate();
   const isAdmin = profile?.role === "superadmin";
   const moduleType = (profile as any)?.organisations?.module_type || "fleet_hs";
+  const terms = getModuleTerms((profile as any)?.organisations?.industry);
+  const relabel = (i: MoreItem): MoreItem => (i.to === "/fridge-tracker" && !terms.isRefrigeration) ? { ...i, label: terms.trackerLabel, icon: Wrench } : i;
 
   const primary = ALL_PRIMARY.filter(i => i.modules?.includes("all") || i.modules?.includes(moduleType));
   const moreItems: MoreItem[] = [
-    ...ALL_MORE_ITEMS.filter(i => i.modules?.includes("all") || i.modules?.includes(moduleType)),
+    ...ALL_MORE_ITEMS.filter(i => i.modules?.includes("all") || i.modules?.includes(moduleType)).map(relabel),
     ...(isAdmin ? [{ to: "/admin", icon: UserCog, label: "Admin Panel" }] : []),
     { icon: Sparkles, label: "AI Chat", action: "ai" as const },
     { icon: LogOut, label: "Sign Out", action: "signout" as const },

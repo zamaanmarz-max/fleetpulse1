@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload, Trash2, FileText } from "lucide-react";
+import { getModuleTerms } from "@/lib/moduleTerms";
+import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload, Trash2, FileText, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -20,6 +21,7 @@ function getFridgeStatus(current: number, next: number) {
 
 export default function FridgeTracker() {
   const { profile } = useAuth();
+  const terms = getModuleTerms((profile as any)?.organisations?.industry);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -374,7 +376,7 @@ export default function FridgeTracker() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Thermometer className="w-6 h-6 text-primary" /> Fridge Tracker
+            {terms.isRefrigeration ? <Thermometer className="w-6 h-6 text-primary" /> : <Wrench className="w-6 h-6 text-primary" />} {terms.trackerLabel}
           </h1>
           <p className="text-sm text-muted-foreground">Live service status · Hours tracking · Jobs done & certificates</p>
         </div>

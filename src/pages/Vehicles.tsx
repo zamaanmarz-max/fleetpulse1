@@ -12,6 +12,7 @@ import { BranchFilter } from "@/components/filters/BranchFilter";
 import { UpdateKMDialog } from "@/components/vehicle/UpdateKMDialog";
 import { useQuery } from "@tanstack/react-query";
 import { computeTrackerStatus } from "@/lib/serviceTrackers";
+import { getModuleTerms } from "@/lib/moduleTerms";
 
 const statusStyles: Record<string, string> = {
   compliant: "bg-success/20 text-success",
@@ -29,6 +30,7 @@ export default function Vehicles() {
   const [updateKmFor, setUpdateKmFor] = useState<{ id: string; reg: string; km: number } | null>(null);
   const { profile } = useAuth();
   const isFridgeOnly = (profile as any)?.organisations?.module_type === "fridge_only";
+  const terms = getModuleTerms((profile as any)?.organisations?.industry);
   const { data: vehicles, isLoading } = useVehicles();
   const { data: allCerts } = useCertificates();
   const { data: allTrackers } = useQuery({
@@ -226,7 +228,7 @@ export default function Vehicles() {
                   </div>
                   {isFridgeOnly ? (
                     <div onClick={(e) => e.stopPropagation()} className="flex gap-2 mt-3">
-                      <button onClick={() => navigate("/fridge-tracker")} className="flex-1 text-xs bg-primary/20 text-primary px-3 py-2 rounded-md font-semibold">Open in Fridge Tracker</button>
+                      <button onClick={() => navigate("/fridge-tracker")} className="flex-1 text-xs bg-primary/20 text-primary px-3 py-2 rounded-md font-semibold">{terms.openInTracker}</button>
                       <button onClick={(e) => handleDeleteVehicle(e, v.id, v.registration_number)} className="text-muted-foreground hover:text-destructive px-3 py-2"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ) : (
@@ -269,7 +271,7 @@ export default function Vehicles() {
                   {isFridgeOnly ? (
                     <>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fridge Unit</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{terms.unitColumn}</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Type</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
                     </>

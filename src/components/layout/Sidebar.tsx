@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { getModuleTerms } from "@/lib/moduleTerms";
 
 const ALL_NAV_ITEMS = [
   { to: "/dashboard",          icon: LayoutDashboard, label: "Dashboard",        modules: ["all"] },
@@ -39,9 +40,10 @@ export function Sidebar() {
 
   // Filter nav based on org module type
   const moduleType = (profile as any)?.organisations?.module_type || "fleet_hs";
+  const terms = getModuleTerms((profile as any)?.organisations?.industry);
   const navItems = ALL_NAV_ITEMS.filter(item =>
     item.modules.includes("all") || item.modules.includes(moduleType)
-  );
+  ).map(item => (item.to === "/fridge-tracker" && !terms.isRefrigeration) ? { ...item, label: terms.trackerLabel, icon: Wrench } : item);
 
   const handleSignOut = async () => {
     await signOut();

@@ -1,7 +1,7 @@
 import {
   Truck, ShieldCheck, FileWarning, AlertTriangle,
   Sparkles, RefreshCw, Loader2, Users, X, ChevronRight,
-  Wrench, CheckCircle, Upload, Gauge, ArrowRightLeft, Warehouse, Thermometer,
+  Wrench, CheckCircle, Upload, Gauge, ArrowRightLeft, Warehouse, Thermometer, FileText, Plus,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -109,6 +109,107 @@ function FridgeDashboard({ vehicles, navigate }: { vehicles: any[]; navigate: (p
           </button>
           <button onClick={() => navigate("/vehicles")} className="flex items-center gap-2 bg-secondary text-foreground border border-border rounded-xl px-4 py-3 text-sm font-semibold hover:opacity-80">
             <Truck className="w-4 h-4" /> View All Trailers
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Job-card dashboard for non-refrigeration simple-module clients (e.g. auto electrical) ──
+function ServiceDashboard({ vehicles, navigate, orgId, companyName }: { vehicles: any[]; navigate: (path: string) => void; orgId?: string; companyName?: string }) {
+  const { data: jobCards = [] } = useQuery({
+    queryKey: ["dash_jobcards", orgId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("fridge_service_log" as any)
+        .select("id, service_date, work_done, job_card_number, client_name, pdf_url, vehicles(registration_number)")
+        .eq("organisation_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      return (data as any[]) || [];
+    },
+    enabled: !!orgId,
+  });
+
+  const now = new Date();
+  const thisMonth = jobCards.filter((j: any) => {
+    const d = j.service_date ? new Date(j.service_date) : null;
+    return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const certExpired = vehicles.filter(v => v.fridge_cert_expiry && new Date(v.fridge_cert_expiry) < now);
+  const recent = jobCards.slice(0, 5);
+
+  const stats = [
+    { label: "Vehicles", value: vehicles.length, color: "text-foreground", to: "/vehicles" },
+    { label: "Job Cards", value: jobCards.length >= 50 ? "50+" : jobCards.length, color: "text-primary", to: "/fridge-tracker" },
+    { label: "This Month", value: thisMonth.length, color: "text-primary", to: "/fridge-tracker" },
+    { label: "Certs Expired", value: certExpired.length, color: certExpired.length > 0 ? "text-destructive" : "text-success", to: "/fridge-tracker" },
+  ];
+
+  const openCard = (j: any) => { if (j.pdf_url) window.open(j.pdf_url, "_blank"); else navigate("/fridge-tracker"); };
+
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      <div>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
+          <Wrench className="w-6 h-6 text-primary" /> Service Dashboard
+        </h1>
+        <p className="text-muted-foreground text-sm">{companyName ? `${companyName} · ` : ""}Job cards &amp; vehicle status</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {stats.map((s) => (
+          <div key={s.label} className="stat-card p-4 cursor-pointer hover:ring-2 hover:ring-primary" onClick={() => navigate(s.to)}>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">{s.label}</p>
+            <p className={`text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent job cards */}
+      <div className="glass-card p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-bold text-foreground flex items-center gap-2"><FileText className="w-4 h-4 text-primary" /> Recent Job Cards</p>
+          {jobCards.length > 0 && <button onClick={() => navigate("/fridge-tracker")} className="text-xs text-primary font-semibold flex items-center gap-1">View all <ChevronRight className="w-3 h-3" /></button>}
+        </div>
+        {recent.length === 0 ? (
+          <div className="text-center py-6">
+            <FileText className="w-9 h-9 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">No job cards yet</p>
+            <button onClick={() => navigate("/fridge-tracker")} className="mt-3 inline-flex items-center gap-1.5 text-xs bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-2 font-semibold">
+              <Plus className="w-3.5 h-3.5" /> Log your first job card
+            </button>
+          </div>
+        ) : (
+          recent.map((j: any) => (
+            <div key={j.id} onClick={() => openCard(j)} className="flex items-center justify-between bg-secondary/40 rounded-lg px-3 py-2 cursor-pointer hover:bg-secondary/70">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {j.vehicles?.registration_number || j.client_name || "Job card"}
+                  {j.job_card_number && <span className="text-muted-foreground font-normal"> · #{j.job_card_number}</span>}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{j.work_done || "—"}</p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0 pl-2">
+                <span className="text-xs text-muted-foreground">{j.service_date ? new Date(j.service_date).toLocaleDateString("en-ZA", { day: "2-digit", month: "short" }) : ""}</span>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Quick actions */}
+      <div className="glass-card p-4">
+        <p className="text-sm font-semibold text-foreground mb-3">Quick Actions</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => navigate("/fridge-tracker")} className="flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 rounded-xl px-4 py-3 text-sm font-semibold hover:opacity-80">
+            <FileText className="w-4 h-4" /> Open Job Cards
+          </button>
+          <button onClick={() => navigate("/vehicles")} className="flex items-center gap-2 bg-secondary text-foreground border border-border rounded-xl px-4 py-3 text-sm font-semibold hover:opacity-80">
+            <Truck className="w-4 h-4" /> View All Vehicles
           </button>
         </div>
       </div>
@@ -371,7 +472,11 @@ export default function Dashboard() {
 
   const moduleType = (profile as any)?.organisations?.module_type || "fleet_hs";
   if (moduleType === "fridge_only") {
-    return <FridgeDashboard vehicles={vehicles || []} navigate={navigate} />;
+    const industry = ((profile as any)?.organisations?.industry || "").toLowerCase();
+    if (industry === "refrigeration") {
+      return <FridgeDashboard vehicles={vehicles || []} navigate={navigate} />;
+    }
+    return <ServiceDashboard vehicles={vehicles || []} navigate={navigate} orgId={(profile as any)?.organisation_id} companyName={(profile as any)?.organisations?.name} />;
   }
 
   return (
