@@ -19,12 +19,25 @@ const JOB_TYPES = [
 ];
 
 // Common fridge repair parts for quick selection
-const COMMON_PARTS = [
+const FRIDGE_PARTS = [
   "Belt", "Compressor", "Solenoid valve", "Refrigerant gas (R404a)", "Refrigerant gas (R134a)",
   "Electric motor", "Fuel filter", "Air filter", "Oil filter", "Engine oil", "Compressor oil",
   "Thermostat sensor", "Control board", "Fan motor", "Fan blade", "Drier", "Expansion valve",
   "Contactor", "Relay", "Fuse", "Wiring harness", "Door seal", "Hose", "Pulley", "Bearing", "Other",
 ];
+const ELECTRICAL_PARTS = [
+  "Globe / Bulb", "Headlight", "Tail light", "Indicator", "Fuse", "Relay", "Wiring harness",
+  "Battery", "Alternator", "Starter motor", "Solenoid", "Switch", "Sensor", "Connector",
+  "Cable", "Terminal", "Earth strap", "Fuse box", "Control module", "Motor", "Other",
+];
+const GENERIC_PARTS = ["Fuse", "Relay", "Switch", "Cable", "Connector", "Filter", "Belt", "Bearing", "Seal", "Hose", "Other"];
+
+function partsForIndustry(industry: string) {
+  if (industry === "refrigeration") return FRIDGE_PARTS;
+  if (industry === "electrical") return ELECTRICAL_PARTS;
+  return GENERIC_PARTS;
+}
+
 
 type Part = { qty: string; part_no: string; description: string; supplier: string; price: string };
 
@@ -45,6 +58,7 @@ export default function JobCardForm() {
     showStandbyHrs: isFridge,
     kmLabel: isFridge ? "Kilometres" : "Odometer (km)",
   };
+  const COMMON_PARTS = partsForIndustry(industry);
 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -416,10 +430,10 @@ export default function JobCardForm() {
               <h2 className="text-sm font-bold text-foreground mb-2">Miscellaneous</h2>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls}>Fuel (R)</label><input type="number" inputMode="decimal" value={costing.fuel} onChange={e => setCosting({ ...costing, fuel: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Engine Oil (R)</label><input type="number" inputMode="decimal" value={costing.engine_oil} onChange={e => setCosting({ ...costing, engine_oil: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Compressor Oil (R)</label><input type="number" inputMode="decimal" value={costing.compressor_oil} onChange={e => setCosting({ ...costing, compressor_oil: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Refrigerant (R)</label><input type="number" inputMode="decimal" value={costing.refrigerant} onChange={e => setCosting({ ...costing, refrigerant: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Anti-Freeze (R)</label><input type="number" inputMode="decimal" value={costing.anti_freeze} onChange={e => setCosting({ ...costing, anti_freeze: e.target.value })} className={inputCls} /></div>
+                <div><label className={labelCls}>{isFridge ? "Engine Oil (R)" : "Oil (R)"}</label><input type="number" inputMode="decimal" value={costing.engine_oil} onChange={e => setCosting({ ...costing, engine_oil: e.target.value })} className={inputCls} /></div>
+                {isFridge && <div><label className={labelCls}>Compressor Oil (R)</label><input type="number" inputMode="decimal" value={costing.compressor_oil} onChange={e => setCosting({ ...costing, compressor_oil: e.target.value })} className={inputCls} /></div>}
+                {isFridge && <div><label className={labelCls}>Refrigerant (R)</label><input type="number" inputMode="decimal" value={costing.refrigerant} onChange={e => setCosting({ ...costing, refrigerant: e.target.value })} className={inputCls} /></div>}
+                {isFridge && <div><label className={labelCls}>Anti-Freeze (R)</label><input type="number" inputMode="decimal" value={costing.anti_freeze} onChange={e => setCosting({ ...costing, anti_freeze: e.target.value })} className={inputCls} /></div>}
                 <div><label className={labelCls}>Consumables (R)</label><input type="number" inputMode="decimal" value={costing.consumables} onChange={e => setCosting({ ...costing, consumables: e.target.value })} className={inputCls} /></div>
                 <div><label className={labelCls}>Travelling (km)</label><input type="number" inputMode="decimal" value={costing.travelling_km} onChange={e => setCosting({ ...costing, travelling_km: e.target.value })} className={inputCls} /></div>
                 <div><label className={labelCls}>Travelling (R)</label><input type="number" inputMode="decimal" value={costing.travelling_amount} onChange={e => setCosting({ ...costing, travelling_amount: e.target.value })} className={inputCls} /></div>
