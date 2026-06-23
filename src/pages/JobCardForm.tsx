@@ -31,6 +31,21 @@ type Part = { qty: string; part_no: string; description: string; supplier: strin
 export default function JobCardForm() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+
+  // Industry-aware labels so the job card speaks the client's language
+  const industry = (profile as any)?.organisations?.industry || "transport";
+  const isFridge = industry === "refrigeration";
+  const L = {
+    unitLabel: isFridge ? "Unit" : "Vehicle / Asset",
+    unitLabelStar: isFridge ? "Fridge Unit *" : "Vehicle / Asset *",
+    brandPlaceholder: isFridge ? "Fridge Brand" : "Make (e.g. Hino 500)",
+    modelPlaceholder: isFridge ? "Fridge Model" : "Model",
+    // metric fields
+    showEngineHrs: isFridge,
+    showStandbyHrs: isFridge,
+    kmLabel: isFridge ? "Kilometres" : "Odometer (km)",
+  };
+
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [polishing, setPolishing] = useState(false);
@@ -267,11 +282,11 @@ export default function JobCardForm() {
         {step === 1 && (
           <>
             <div>
-              <label className={labelCls}>Vehicle / Unit *</label>
+              <label className={labelCls}>{L.unitLabelStar}</label>
               <select value={useOther ? "__other__" : form.vehicle_id} onChange={e => { if (e.target.value === "__other__") { setUseOther(true); setForm({ ...form, vehicle_id: "" }); } else { setUseOther(false); setForm({ ...form, vehicle_id: e.target.value }); } }} className={inputCls}>
-                <option value="">Select the unit...</option>
-                {(vehicles || []).map((v: any) => <option key={v.id} value={v.id}>{v.registration_number} — {v.fridge_brand} {v.fridge_model}</option>)}
-                <option value="__other__">+ Other / New unit</option>
+                <option value="">{isFridge ? "Select the unit..." : "Select the vehicle..."}</option>
+                {(vehicles || []).map((v: any) => <option key={v.id} value={v.id}>{v.registration_number}{(v.fridge_brand || v.fridge_model) ? ` — ${v.fridge_brand || ""} ${v.fridge_model || ""}` : ""}</option>)}
+                <option value="__other__">{isFridge ? "+ Other / New unit" : "+ Other / New vehicle"}</option>
               </select>
             </div>
             {useOther && (
@@ -279,8 +294,8 @@ export default function JobCardForm() {
                 <p className="text-xs text-muted-foreground">New unit — it'll be added to the fleet.</p>
                 <input value={form.other_reg} onChange={e => setForm({ ...form, other_reg: e.target.value.toUpperCase() })} placeholder="Registration *" className={inputCls} />
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={form.other_make} onChange={e => setForm({ ...form, other_make: e.target.value })} placeholder="Fridge Brand" className={inputCls} />
-                  <input value={form.other_model} onChange={e => setForm({ ...form, other_model: e.target.value })} placeholder="Fridge Model" className={inputCls} />
+                  <input value={form.other_make} onChange={e => setForm({ ...form, other_make: e.target.value })} placeholder={L.brandPlaceholder} className={inputCls} />
+                  <input value={form.other_model} onChange={e => setForm({ ...form, other_model: e.target.value })} placeholder={L.modelPlaceholder} className={inputCls} />
                 </div>
               </div>
             )}
@@ -315,10 +330,10 @@ export default function JobCardForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div><label className={labelCls}>Engine Hrs</label><input type="number" inputMode="decimal" value={form.engine_hours} onChange={e => setForm({ ...form, engine_hours: e.target.value })} placeholder="hrs" className={inputCls} /></div>
-              <div><label className={labelCls}>Standby Hrs</label><input type="number" inputMode="decimal" value={form.standby_hours} onChange={e => setForm({ ...form, standby_hours: e.target.value })} className={inputCls} /></div>
-              <div><label className={labelCls}>Kilometres</label><input type="number" inputMode="decimal" value={form.kilometres} onChange={e => setForm({ ...form, kilometres: e.target.value })} className={inputCls} /></div>
+            <div className={isFridge ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
+              {L.showEngineHrs && <div><label className={labelCls}>Engine Hrs</label><input type="number" inputMode="decimal" value={form.engine_hours} onChange={e => setForm({ ...form, engine_hours: e.target.value })} placeholder="hrs" className={inputCls} /></div>}
+              {L.showStandbyHrs && <div><label className={labelCls}>Standby Hrs</label><input type="number" inputMode="decimal" value={form.standby_hours} onChange={e => setForm({ ...form, standby_hours: e.target.value })} className={inputCls} /></div>}
+              <div><label className={labelCls}>{L.kmLabel}</label><input type="number" inputMode="decimal" value={form.kilometres} onChange={e => setForm({ ...form, kilometres: e.target.value })} placeholder="km" className={inputCls} /></div>
             </div>
 
             <div><label className={labelCls}>Client's Instructions</label><textarea value={form.client_instructions} onChange={e => setForm({ ...form, client_instructions: e.target.value })} rows={2} placeholder="What did the client ask for?" className={inputCls} /></div>
