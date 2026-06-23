@@ -215,6 +215,7 @@ export default function JobCardForm() {
           jobCardNumber: jcNumber,
           orgName: org.name || "", orgPhone: org.phone || "", orgEmail: org.email || "",
           orgVat: org.vat_number || "", orgAddress: org.address || "", orgLogoUrl: org.logo_url || null,
+          industry: org.industry || industry,
           clientName: form.client_name, orderNo: form.order_no,
           clientAddress: form.client_address, clientEmail: form.client_email, clientVatNo: form.client_vat_no,
           contactPerson: form.contact_person, contactCell: form.contact_cell,

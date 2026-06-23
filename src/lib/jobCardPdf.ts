@@ -1,14 +1,15 @@
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 
 interface JobCardData {
   jobCardNumber: string;
-  // ----- logged-in company branding (read per-org, no longer hardcoded) -----
+  // ----- logged-in company branding (read per-org, never hardcoded) -----
   orgName: string;
   orgPhone?: string;
   orgEmail?: string;
   orgVat?: string;
   orgAddress?: string;
   orgLogoUrl?: string | null;
+  industry?: string;
   // ----- client -----
   clientName: string;
   clientAddress?: string;
@@ -32,7 +33,6 @@ interface JobCardData {
   timeCommenced: string;
   dateCompleted: string;
   timeCompleted: string;
-  // simplified: part name + quantity only
   parts: Array<{ name: string; qty: string }>;
   photos: string[];
   signature?: string | null;
@@ -40,11 +40,62 @@ interface JobCardData {
   noSignature?: boolean;
 }
 
-const NAVY: [number, number, number] = [20, 35, 60];
-const GREY: [number, number, number] = [110, 110, 110];
-const LINE: [number, number, number] = [160, 160, 160];
+// ---- palette (MARZ Fleet job card) ----
+type RGB = [number, number, number];
+const NAVY: RGB = [21, 49, 79];
+const NAVY_SOFT: RGB = [42, 70, 104];
+const AMBER: RGB = [230, 145, 42];
+const GREEN: RGB = [31, 160, 110];
+const INK: RGB = [30, 36, 45];
+const MUTED: RGB = [125, 134, 146];
+const LINE: RGB = [223, 228, 234];
+const CARD: RGB = [248, 250, 252];
 
-// load a remote image as a data URL so jsPDF can embed it
+const W = 210, H = 297, M = 14;
+const CONTENT_W = W - 2 * M;
+
+const JOB_LABELS: Record<string, string> = {
+  inspection: "Inspection", repair: "Repair", scheduled: "Service", breakdown: "Breakdown",
+};
+
+function industrySubtitle(industry?: string): string {
+  switch ((industry || "").toLowerCase()) {
+    case "electrical": return "Auto Electrical Specialists";
+    case "refrigeration": return "Transport Refrigeration Specialists";
+    case "transport": return "Fleet & Logistics Services";
+    default: return "Fleet Service Specialists";
+  }
+}
+
+function initials(name: string): string {
+  const words = (name || "").replace(/\(.*?\)/g, "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "MF";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function fmtDate(s?: string): string {
+  if (!s) return "—";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("en-ZA", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+// split a free-text technician report into clean numbered work items
+function workItems(report: string): string[] {
+  const raw = (report || "").trim();
+  if (!raw) return [];
+  let parts = raw.split(/\r?\n+/).map(s => s.trim()).filter(Boolean);
+  // strip any leading "1." / "1)" / "-" / "•" the tech may have typed
+  parts = parts.map(s => s.replace(/^\s*(?:\d+[.)]|[-•*])\s*/, "").trim()).filter(Boolean);
+  if (parts.length <= 1) {
+    // one block — break on sentence boundaries so it still reads as a checklist
+    const sentences = raw.split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(s => s.trim()).filter(Boolean);
+    if (sentences.length > 1) return sentences;
+  }
+  return parts.length ? parts : [raw];
+}
+
 async function loadImage(url: string): Promise<{ data: string; w: number; h: number } | null> {
   try {
     const res = await fetch(url);
@@ -67,208 +118,251 @@ async function loadImage(url: string): Promise<{ data: string; w: number; h: num
 
 export async function generateJobCardPDF(d: JobCardData): Promise<Blob> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const W = 210, H = 297, M = 12;
-  const company = (d.orgName || "").trim() || "Company";
+  const company = (d.orgName || "").trim() || "MARZ Fleet";
 
-  doc.setDrawColor(...NAVY); doc.setLineWidth(0.5);
-  doc.rect(M, M, W - 2 * M, H - 2 * M);
+  const sd = (c: RGB) => doc.setDrawColor(...c);
+  const sf = (c: RGB) => doc.setFillColor(...c);
+  const st = (c: RGB) => doc.setTextColor(...c);
+  const font = (style: "normal" | "bold" | "italic", size: number) => { doc.setFont("helvetica", style); doc.setFontSize(size); };
 
-  // ===== HEADER: per-org branding =====
-  // Left column: contact details (only render what the org actually has)
-  doc.setTextColor(0, 0, 0);
-  let hy = M + 6;
-  const leftX = M + 3;
-  doc.setFont("times", "normal"); doc.setFontSize(8);
-  if (d.orgPhone) { doc.setFont("times", "bold"); doc.text(`Tel: ${d.orgPhone}`, leftX, hy); doc.setFont("times", "normal"); hy += 4; }
-  if (d.orgEmail) { doc.text(`Email: ${d.orgEmail}`, leftX, hy); hy += 4; }
-  if (d.orgAddress) {
-    const addrLines = doc.splitTextToSize(d.orgAddress, W / 2 - M - 8);
-    doc.text(addrLines, leftX, hy); hy += addrLines.length * 4;
-  }
-  if (d.orgVat) { doc.text(`VAT No: ${d.orgVat}`, leftX, hy); hy += 4; }
-
-  // Centre: company wordmark (or logo if the org has uploaded one)
+  // ===================== HEADER =====================
+  // logo badge (org logo if available, otherwise a navy monogram)
   let logoDrawn = false;
   if (d.orgLogoUrl) {
     const logo = await loadImage(d.orgLogoUrl);
     if (logo) {
-      const maxW = 55, maxH = 20;
-      const ratio = logo.h / logo.w;
-      let lw = maxW, lh = maxW * ratio;
-      if (lh > maxH) { lh = maxH; lw = maxH / ratio; }
-      try { doc.addImage(logo.data, "PNG", W / 2 - lw / 2, M + 2, lw, lh); logoDrawn = true; } catch { /* fall back to text */ }
+      const s = 16, ratio = logo.h / logo.w;
+      let lw = s, lh = s * ratio; if (lh > s) { lh = s; lw = s / ratio; }
+      try { doc.addImage(logo.data, "PNG", M, 16, lw, lh); logoDrawn = true; } catch { /* fall back */ }
     }
   }
   if (!logoDrawn) {
-    // size the wordmark down for long names so it never collides with the columns
-    const nameSize = company.length <= 16 ? 24 : company.length <= 24 ? 18 : company.length <= 34 ? 14 : 11;
-    doc.setFont("times", "bold"); doc.setFontSize(nameSize); doc.setTextColor(...NAVY);
-    const nameLines = doc.splitTextToSize(company.toUpperCase(), 90);
-    doc.text(nameLines, W / 2 + 6, M + 10, { align: "center" });
-    doc.setTextColor(0, 0, 0);
+    sf(NAVY); doc.circle(M + 8, 23, 8, "F");
+    st([255, 255, 255]); font("bold", 13);
+    doc.text(initials(company), M + 8, 25.4, { align: "center" });
   }
 
-  // Right column: delivery note + job number
-  doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
-  doc.text("DELIVERY NOTE", W - M - 3, M + 6, { align: "right" });
-  doc.setTextColor(200, 30, 30); doc.setFontSize(16);
-  doc.text(d.jobCardNumber || "", W - M - 3, M + 13, { align: "right" });
+  // company name + subtitle
+  st(NAVY); font("bold", 17);
+  const nameMax = 95;
+  let nameSize = 17;
+  while (doc.getTextWidth(company.toUpperCase()) > nameMax && nameSize > 10) { nameSize -= 0.5; font("bold", nameSize); }
+  doc.text(company.toUpperCase(), M + 21, 22);
+  st(MUTED); font("bold", 7.5);
+  doc.text(industrySubtitle(d.industry).toUpperCase(), M + 21, 27.5);
 
-  let y = M + 26;
-  doc.setDrawColor(...NAVY); doc.line(M, y, W - M, y);
-  const midX = W / 2 - 6;
-  const blockBottom = y + 62;
-  doc.line(midX, y, midX, blockBottom);
+  // right-aligned contact block
+  const rX = W - M;
+  st(MUTED); font("normal", 8);
+  let hy = 18;
+  if (d.orgAddress) { doc.text(d.orgAddress, rX, hy, { align: "right" }); hy += 4.2; }
+  const phone = (d.orgPhone || "").trim();
+  if (phone) {
+    let phoneLine = `Tel ${phone}`;
+    if (phone.includes("/")) { const [a, b] = phone.split("/").map(s => s.trim()); phoneLine = `Tel ${a}  ·  Cell ${b}`; }
+    doc.text(phoneLine, rX, hy, { align: "right" }); hy += 4.2;
+  }
+  if (d.orgEmail) { doc.text(d.orgEmail, rX, hy, { align: "right" }); hy += 4.2; }
+  if (d.orgVat) { st(INK); font("bold", 8); doc.text(`VAT No. ${d.orgVat}`, rX, hy, { align: "right" }); hy += 4.2; }
 
-  doc.setFontSize(8.5);
-  const lx = M + 3; let ly = y + 7;
-  const labelVal = (label: string, val: string, x: number, yy: number, valX: number, endX: number) => {
-    doc.setTextColor(...GREY); doc.setFont("helvetica", "normal"); doc.text(label, x, yy);
-    doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.text(val || "", valX, yy);
-    doc.setDrawColor(...LINE); doc.setLineWidth(0.1); doc.line(valX, yy + 1, endX, yy + 1);
-  };
-  labelVal("NAME:", d.clientName, lx, ly, lx + 18, midX - 3); ly += 9;
-  labelVal("ADDRESS:", d.clientAddress || "", lx, ly, lx + 22, midX - 3); ly += 9;
-  labelVal("EMAIL:", d.clientEmail || "", lx, ly, lx + 16, lx + 55);
-  labelVal("VAT NO:", d.clientVatNo || "", lx + 58, ly, lx + 74, midX - 3); ly += 9;
-  labelVal("CONTACT PERSON:", d.contactPerson || "", lx, ly, lx + 38, midX - 3); ly += 9;
-  labelVal("CELL NO:", d.contactCell || "", lx, ly, lx + 20, midX - 3); ly += 9;
-  labelVal("ORDER NO:", d.orderNo || "", lx, ly, lx + 24, midX - 3);
+  // two-tone divider (navy -> amber) under the header
+  const divY = Math.max(34, hy + 1);
+  sf(NAVY); doc.rect(M, divY, CONTENT_W * 0.64, 1.3, "F");
+  sf(AMBER); doc.rect(M + CONTENT_W * 0.64, divY, CONTENT_W * 0.36, 1.3, "F");
 
-  const rx = midX + 4; let ry = y + 7; const rValX = rx + 34;
-  const labelValR = (label: string, val: string, yy: number) => {
-    doc.setTextColor(...GREY); doc.setFont("helvetica", "normal"); doc.text(label, rx, yy);
-    doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.text(val || "", rValX, yy);
-    doc.setDrawColor(...LINE); doc.setLineWidth(0.1); doc.line(rValX, yy + 1, W - M - 3, yy + 1);
-  };
-  labelValR("DATE:", d.dateCompleted || d.dateCommenced || "", ry); ry += 8.8;
-  labelValR("VEHICLE REG:", d.registration, ry); ry += 8.8;
-  labelValR("MAKE:", d.make, ry);
-  doc.setTextColor(...GREY); doc.setFont("helvetica", "normal"); doc.text("MODEL:", rx + 52, ry);
-  doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.text(d.model || "", rx + 68, ry);
-  ry += 8.8;
-  labelValR("UNIT SERIAL NO:", d.unitSerial, ry); ry += 8.8;
-  labelValR("ENGINE HOURS:", d.engineHours, ry); ry += 8.8;
-  labelValR("STANDBY HOURS:", d.standbyHours, ry); ry += 8.8;
-  labelValR("KILOMETRES:", d.kilometres, ry);
+  // ===================== TITLE ROW =====================
+  let y = divY + 12;
+  st(NAVY); font("bold", 23);
+  doc.text("JOB CARD", M, y);
+  const refText = d.orderNo ? `Ref: ${d.orderNo}` : (d.clientInstructions ? "" : "");
+  if (refText) { st(MUTED); font("normal", 9); doc.text(refText, M, y + 5.5); }
 
-  y = blockBottom;
-  doc.setDrawColor(...NAVY); doc.setLineWidth(0.5); doc.line(M, y, W - M, y);
+  // job number + status pill (right)
+  st(MUTED); font("bold", 7.5);
+  doc.text("JOB CARD NO.", rX, y - 6.5, { align: "right" });
+  st(NAVY); font("bold", 18);
+  doc.text(`#${d.jobCardNumber || "—"}`, rX, y, { align: "right" });
+  const completed = !!d.dateCompleted;
+  const statusTxt = completed ? "COMPLETED" : "IN PROGRESS";
+  const statusCol = completed ? GREEN : AMBER;
+  font("bold", 7.5);
+  const pillW = doc.getTextWidth(statusTxt) + 10;
+  const pillX = rX - pillW, pillY = y + 3.5;
+  sf([statusCol[0], statusCol[1], statusCol[2]]);
+  // tint background
+  doc.setFillColor(Math.round(statusCol[0] * 0.16 + 255 * 0.84), Math.round(statusCol[1] * 0.16 + 255 * 0.84), Math.round(statusCol[2] * 0.16 + 255 * 0.84));
+  doc.roundedRect(pillX, pillY, pillW, 6, 3, 3, "F");
+  sf(statusCol); doc.circle(pillX + 4, pillY + 3, 1.1, "F");
+  st(statusCol); doc.text(statusTxt, pillX + 7, pillY + 4);
 
-  const types = [
-    { key: "inspection", label: "INSPECTION REPORT" },
-    { key: "repair", label: "REPAIR" },
-    { key: "scheduled", label: "SERVICE" },
-    { key: "breakdown", label: "BREAKDOWN" },
+  // ===================== DETAILS CARD =====================
+  y += 11;
+  const make = [d.make, d.model].filter(Boolean).join(" ").trim();
+  const cells: Array<{ label: string; value: string }> = [
+    { label: "CUSTOMER", value: d.clientName || "—" },
+    { label: "DATE", value: fmtDate(d.dateCompleted || d.dateCommenced) },
+    { label: "TECHNICIAN", value: d.technicianName || "—" },
+    { label: "VEHICLE / UNIT REG", value: d.registration || "—" },
+    { label: "MAKE / MODEL", value: make || "—" },
+    { label: "KM READING", value: d.kilometres ? `${Number(d.kilometres).toLocaleString("en-ZA")} km` : "—" },
+    { label: "JOB TYPE", value: JOB_LABELS[d.jobType] || d.jobType || "—" },
+    { label: "ORDER / REF NO.", value: d.orderNo || "—" },
+    { label: d.engineHours ? "ENGINE HOURS" : "UNIT SERIAL NO.", value: d.engineHours ? `${d.engineHours} hrs` : (d.unitSerial || "—") },
   ];
-  const cellW = (W - 2 * M) / 4; const rowH = 8;
-  types.forEach((t, i) => {
-    const cx = M + i * cellW;
-    doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.rect(cx, y, cellW, rowH);
-    const boxX = cx + cellW - 9;
-    doc.rect(boxX, y + 2, 5, 4);
-    if (d.jobType === t.key) { doc.setTextColor(...NAVY); doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text("X", boxX + 1, y + 5.4); }
-    doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
-    doc.text(t.label, cx + 2, y + 5);
+  const rows = 3, cols = 3;
+  const cellW = CONTENT_W / cols, cellH = 13.5;
+  const cardH = rows * cellH;
+  sf([255, 255, 255]); sd(LINE); doc.setLineWidth(0.3);
+  doc.roundedRect(M, y, CONTENT_W, cardH, 2.5, 2.5, "FD");
+  // grid lines
+  sd(LINE); doc.setLineWidth(0.2);
+  for (let r = 1; r < rows; r++) doc.line(M, y + r * cellH, M + CONTENT_W, y + r * cellH);
+  for (let c = 1; c < cols; c++) doc.line(M + c * cellW, y + 4, M + c * cellW, y + cardH - 4);
+  cells.forEach((cell, i) => {
+    const r = Math.floor(i / cols), c = i % cols;
+    const cx = M + c * cellW + 4, cy = y + r * cellH;
+    st(MUTED); font("bold", 6.8);
+    doc.text(cell.label, cx, cy + 5);
+    st(INK); font("bold", 10);
+    const v = doc.splitTextToSize(cell.value, cellW - 8);
+    doc.text(v[0], cx, cy + 10.5);
   });
-  y += rowH;
-  doc.setDrawColor(...NAVY); doc.setLineWidth(0.5); doc.line(M, y, W - M, y);
+  y += cardH + 9;
 
-  y += 5;
-  doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
-  doc.text("CLIENT'S INSTRUCTIONS:", M + 3, y);
-  doc.setFont("helvetica", "normal");
-  const ci = doc.splitTextToSize(d.clientInstructions || "", W - 2 * M - 6);
-  doc.text(ci, M + 3, y + 5);
-  y += 5 + Math.max(ci.length * 4.5, 8);
-  doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M, y, W - M, y);
+  // section heading helper (amber accent bar + navy title)
+  const heading = (text: string) => {
+    sf(AMBER); doc.roundedRect(M, y - 3.6, 1.8, 5, 0.9, 0.9, "F");
+    st(NAVY); font("bold", 11);
+    doc.text(text.toUpperCase(), M + 5, y);
+    y += 6.5;
+  };
+  const pageBreak = (need: number) => {
+    if (y + need > H - 22) { doc.addPage(); y = M + 6; }
+  };
 
-  y += 5;
-  doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.text("TECHNICIAN REPORT:", M + 3, y);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-  const tr = doc.splitTextToSize(d.technicianReport || "", W - 2 * M - 6);
-  doc.text(tr, M + 3, y + 6);
-  y = y + 6 + tr.length * 4.5 + 4;
-
-  // ===== PARTS USED (name + qty only) =====
-  const usedParts = (d.parts || []).filter(p => (p.name || "").trim());
-  if (usedParts.length > 0 && y < 224) {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(0, 0, 0);
-    doc.text("PARTS USED:", M + 3, y);
-    y += 5;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
-    // keep it inside the page; if the list is long, summarise the overflow
-    const maxRows = Math.max(0, Math.floor((228 - y) / 4.4));
-    const shown = usedParts.slice(0, maxRows);
-    shown.forEach((p) => {
-      const qty = (p.qty || "").trim();
-      doc.text(`•  ${qty ? `${qty} ×  ` : ""}${p.name}`, M + 5, y);
-      y += 4.4;
+  // ===================== WORK CARRIED OUT =====================
+  const items = workItems(d.technicianReport);
+  if (items.length) {
+    heading("Work Carried Out / Job Description");
+    font("normal", 9.5);
+    items.forEach((it, i) => {
+      const lines = doc.splitTextToSize(it, CONTENT_W - 16);
+      const rowH = Math.max(8, lines.length * 4.6 + 3.5);
+      pageBreak(rowH);
+      sf(CARD); sd(LINE); doc.setLineWidth(0.2);
+      doc.roundedRect(M, y, CONTENT_W, rowH, 1.6, 1.6, "FD");
+      // number badge
+      sf([237, 242, 247]); doc.circle(M + 6, y + rowH / 2, 3, "F");
+      st(NAVY); font("bold", 8);
+      doc.text(String(i + 1), M + 6, y + rowH / 2 + 1, { align: "center" });
+      st(INK); font("normal", 9.5);
+      doc.text(lines, M + 13, y + 5);
+      y += rowH + 2.5;
     });
-    if (usedParts.length > shown.length) {
-      doc.setTextColor(...GREY);
-      doc.text(`+ ${usedParts.length - shown.length} more part(s)`, M + 5, y);
-      doc.setTextColor(0, 0, 0);
-      y += 4.4;
-    }
+    y += 3;
   }
 
-  // Signature block on page 1
-  const sigY = 232;
-  doc.setDrawColor(...NAVY); doc.setLineWidth(0.5); doc.line(M, sigY, W - M, sigY);
-  let sy = sigY + 6;
-  doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
-  doc.text("TECHNICIAN'S NAME:", M + 3, sy);
-  doc.setFont("helvetica", "normal"); doc.text(d.technicianName || "", M + 42, sy);
-
-  // customer signature
-  if (d.noSignature) {
-    doc.setFont("helvetica", "italic"); doc.setTextColor(...GREY);
-    doc.text("Customer signature: No customer available to sign", M + 105, sy);
-  } else if (d.signature) {
-    try { doc.addImage(d.signature, "PNG", M + 105, sy - 5, 45, 16); } catch { /* ignore bad sig */ }
-    doc.setDrawColor(...LINE); doc.line(M + 105, sy + 12, M + 150, sy + 12);
-    doc.setFontSize(7); doc.setTextColor(...GREY);
-    doc.text(`Signed: ${d.signName || ""}`, M + 105, sy + 15);
+  // ===================== CLIENT'S INSTRUCTIONS =====================
+  if ((d.clientInstructions || "").trim()) {
+    pageBreak(18);
+    heading("Client's Instructions");
+    st(INK); font("normal", 9.5);
+    const ci = doc.splitTextToSize(d.clientInstructions.trim(), CONTENT_W - 4);
+    doc.text(ci, M + 1, y);
+    y += ci.length * 4.6 + 6;
   }
 
-  sy += 20;
-  doc.setDrawColor(...NAVY); doc.line(M, sy, W - M, sy);
-  sy += 5;
-  doc.setTextColor(...GREY); doc.setFontSize(8);
-  doc.text("DATE COMMENCED: " + (d.dateCommenced || ""), M + 3, sy);
-  doc.text("TIME: " + (d.timeCommenced || ""), M + 70, sy);
-  doc.text("DATE COMPLETED: " + (d.dateCompleted || ""), M + 100, sy);
-  doc.text("TIME: " + (d.timeCompleted || ""), W - M - 22, sy);
-  sy += 5;
-  doc.setDrawColor(...NAVY); doc.line(M, sy, W - M, sy);
-  sy += 4;
-  doc.setFont("helvetica", "italic"); doc.setFontSize(5.5);
-  const terms = doc.splitTextToSize(`Our Warranty terms and conditions apply. A copy of this warranty is available to all customers. Acceptance of this implies acceptance of ${company} warranty. NOT RESPONSIBLE FOR LOSS OR DAMAGE TO TRACTORS, TRAILERS, UNITS AND ACCESSORIES, IN CASE OF FIRE, THEFT OR OTHER CAUSES BEYOND OUR CONTROL.`, W - 2 * M - 6);
-  doc.text(terms, M + 3, sy);
+  // ===================== PARTS USED =====================
+  const parts = (d.parts || []).filter(p => (p.name || "").trim());
+  if (parts.length) {
+    pageBreak(14 + parts.length * 6);
+    heading("Parts Used");
+    st(INK); font("normal", 9.5);
+    parts.forEach(p => {
+      const qty = (p.qty || "").trim();
+      sf(AMBER); doc.circle(M + 2, y - 1.3, 0.9, "F");
+      st(INK);
+      doc.text(`${qty ? `${qty} ×  ` : ""}${p.name}`, M + 6, y);
+      y += 5.4;
+    });
+    y += 4;
+  }
 
-  // ===== PHOTO PAGES (embedded) =====
-  if (d.photos && d.photos.length > 0) {
-    doc.addPage("a4", "portrait");
-    doc.setTextColor(...NAVY); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-    doc.text(`Job Card #${d.jobCardNumber} — Photos`, M, M + 6);
-    let px = M, py = M + 14;
-    const cellWp = (W - 2 * M - 6) / 2;
-    const cellHp = 65;
-    let count = 0;
+  // ===================== JOB PHOTOS =====================
+  if (d.photos && d.photos.length) {
+    pageBreak(20);
+    heading("Job Photos · Captured On Site");
+    const gap = 6, photoW = (CONTENT_W - gap) / 2, photoH = 58;
+    let col = 0;
     for (const url of d.photos) {
+      pageBreak(photoH + 4);
+      const px = M + col * (photoW + gap);
+      // frame
+      sf([15, 23, 36]); doc.roundedRect(px, y, photoW, photoH, 2, 2, "F");
       const img = await loadImage(url);
       if (img) {
         const ratio = img.h / img.w;
-        let dw = cellWp, dh = cellWp * ratio;
-        if (dh > cellHp) { dh = cellHp; dw = cellHp / ratio; }
-        try { doc.addImage(img.data, "JPEG", px + (cellWp - dw) / 2, py, dw, dh); } catch { /* skip bad image */ }
+        let dw = photoW - 4, dh = (photoW - 4) * ratio;
+        const maxH = photoH - 9;
+        if (dh > maxH) { dh = maxH; dw = maxH / ratio; }
+        try { doc.addImage(img.data, "JPEG", px + (photoW - dw) / 2, y + 2, dw, dh); } catch { /* skip */ }
       }
-      count++;
-      if (count % 2 === 0) { px = M; py += cellHp + 6; }
-      else { px = M + cellWp + 6; }
-      if (py > H - cellHp - M && count < d.photos.length) { doc.addPage("a4", "portrait"); px = M; py = M + 6; }
+      // caption strip
+      sf([0, 0, 0]); doc.rect(px, y + photoH - 6, photoW, 6, "F");
+      st([235, 235, 235]); font("normal", 6.8);
+      doc.text(`Captured on site · ${fmtDate(d.dateCompleted || d.dateCommenced)}`, px + 3, y + photoH - 2);
+      col++;
+      if (col === 2) { col = 0; y += photoH + gap; }
     }
+    if (col === 1) y += photoH + gap;
+    y += 2;
+  }
+
+  // ===================== SIGNATURES =====================
+  pageBreak(30);
+  y += 2;
+  const colW = (CONTENT_W - 10) / 2;
+  // technician
+  st(MUTED); font("bold", 7);
+  doc.text("TECHNICIAN", M, y);
+  st(INK); font("bold", 11);
+  doc.text(d.technicianName || "—", M, y + 7);
+  sd(LINE); doc.setLineWidth(0.3); doc.line(M, y + 11, M + colW, y + 11);
+  st(MUTED); font("normal", 7.5);
+  doc.text(`Signed & completed on site · ${fmtDate(d.dateCompleted || d.dateCommenced)}`, M, y + 15);
+
+  // customer acceptance
+  const cX = M + colW + 10;
+  st(MUTED); font("bold", 7);
+  doc.text("CUSTOMER ACCEPTANCE", cX, y);
+  if (d.noSignature) {
+    st(MUTED); font("italic", 8.5);
+    doc.text("No customer available to sign.", cX, y + 7);
+  } else if (d.signature) {
+    try { doc.addImage(d.signature, "PNG", cX, y - 3, 40, 14); } catch { /* ignore */ }
+  }
+  sd(LINE); doc.setLineWidth(0.3); doc.line(cX, y + 11, cX + colW, y + 11);
+  st(MUTED); font("normal", 7.5);
+  doc.text(d.signName ? d.signName : "Name & signature on completion", cX, y + 15);
+
+  // ===================== FOOTER (every page) =====================
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    const fy = H - 12;
+    sd(LINE); doc.setLineWidth(0.2); doc.line(M, fy, W - M, fy);
+    sf(NAVY); doc.roundedRect(M, fy + 2.5, 5, 5, 1.2, 1.2, "F");
+    st([255, 255, 255]); font("bold", 7.5); doc.text("M", M + 2.5, fy + 6, { align: "center" });
+    st(MUTED); font("normal", 7);
+    doc.text("Powered by ", M + 7, fy + 5.7);
+    const pw = doc.getTextWidth("Powered by ");
+    st(NAVY); font("bold", 7);
+    doc.text("MARZ Fleet", M + 7 + pw, fy + 5.7);
+    const mw = doc.getTextWidth("MARZ Fleet");
+    st(MUTED); font("normal", 7);
+    doc.text(" · fleet.marzai.co.za", M + 7 + pw + mw, fy + 5.7);
+    doc.text("Digital job card · captured on a phone, nothing lost.", W - M, fy + 5.7, { align: "right" });
+    if (pages > 1) { st(MUTED); font("normal", 6.5); doc.text(`Page ${p} of ${pages}`, W / 2, fy + 5.7, { align: "center" }); }
   }
 
   return doc.output("blob");
