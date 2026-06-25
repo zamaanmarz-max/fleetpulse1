@@ -78,6 +78,18 @@ export default function FleetAvailability() {
   });
 
   // Build maps
+  const { data: branchList } = useQuery({
+    queryKey: ["branches", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("id, name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!profile?.organisation_id,
+  });
+  const branchMap = new Map<string, string>();
+  (branchList || []).forEach((b: any) => branchMap.set(b.id, b.name));
+
   const statusMap = new Map<string, any>();
   (statuses || []).forEach(s => { if (!statusMap.has(s.vehicle_id)) statusMap.set(s.vehicle_id, s); });
 
@@ -95,7 +107,7 @@ export default function FleetAvailability() {
       currentStatus: st?.status || "available",
       statusRecord: st || null,
       owningBranch: (v as any).owning_branch || null,
-      currentSite: st?.current_site || null,
+      currentSite: branchMap.get((v as any).branch_id) || (v as any).owning_branch || st?.current_site || null,
       pairedTrailer,
       isPairedTrailer: pairedTrailerIds.has(v.id),
     };
@@ -125,20 +137,22 @@ export default function FleetAvailability() {
   });
 
   // Group + order so the list isn't interleaved: all of one status together, in a fixed order
-  const STATUS_ORDER: Record<string, number> = { out_for_repair: 0, off_road: 1, standby: 2, available: 3, on_route: 3 };
+  const STATUS_ORDER: Record<string, number> = { out_for_repair: 0, off_road: 1, standby: 2, available: 3, on_route: 3, trailer: 8 };
+  const groupKey = (v: any) => v.vehicle_type === "trailer" ? "trailer" : (v.currentStatus === "on_route" ? "available" : v.currentStatus);
   const groupedFiltered = [...filtered].sort((a, b) => {
-    const sa = STATUS_ORDER[a.currentStatus] ?? 9, sb = STATUS_ORDER[b.currentStatus] ?? 9;
+    const sa = STATUS_ORDER[groupKey(a)] ?? 9, sb = STATUS_ORDER[groupKey(b)] ?? 9;
     if (sa !== sb) return sa - sb;
     const fa = parseInt((a as any).fleet_number) || 99999, fb = parseInt((b as any).fleet_number) || 99999;
     if (fa !== fb) return fa - fb;
     return a.registration_number.localeCompare(b.registration_number);
   });
-  const groupCounts = groupedFiltered.reduce((acc: Record<string, number>, v) => { acc[v.currentStatus] = (acc[v.currentStatus] || 0) + 1; return acc; }, {});
+  const groupCounts = groupedFiltered.reduce((acc: Record<string, number>, v) => { const k = groupKey(v); acc[k] = (acc[k] || 0) + 1; return acc; }, {});
 
   const counts = useMemo(() => {
     const c = { available: 0, out_for_repair: 0, off_road: 0, standby: 0, total: 0 };
     // Only count non-paired-trailer vehicles for totals
     unpaired
+      .filter(v => (v as any).vehicle_type !== "trailer")
       .filter(v => branchFilter === "all" || branchFilter === "unassigned" || v.currentSite === branchFilter)
       .forEach(v => {
         c.total++;
@@ -184,6 +198,7 @@ export default function FleetAvailability() {
       comments: st?.comments || "",
       waiting_for: wf,
       current_site: st?.current_site || "",
+      branch_id: (v as any).branch_id || "",
     });
     setModalVehicle(v);
   };
@@ -240,6 +255,10 @@ export default function FleetAvailability() {
     if (form.owning_branch !== undefined && form.owning_branch !== modalVehicle.owningBranch) {
       await supabase.from("vehicles").update({ owning_branch: form.owning_branch } as any).eq("id", modalVehicle.id);
     }
+    // Sync current site -> vehicle branch (so it matches the Vehicles tab both ways)
+    if (form.branch_id !== undefined && form.branch_id !== ((modalVehicle as any).branch_id || "")) {
+      await supabase.from("vehicles").update({ branch_id: form.branch_id || null } as any).eq("id", modalVehicle.id);
+    }
 
     setSaving(false);
     if (error) { toast.error(error.message); return; }
@@ -252,7 +271,7 @@ export default function FleetAvailability() {
   const exportPDF = (reportType: "manager" | "customer" = "manager") => {
     const doc = new jsPDF({ orientation: "landscape" });
     const scope = branchFilter !== "all" ? branchFilter : "All Sites";
-    const data = filtered;
+    const data = groupedFiltered;
     const isCustomer = reportType === "customer";
     const today = new Date();
     const dateStr = today.toLocaleDateString("en-ZA", { day: "2-digit", month: "long", year: "numeric" });
@@ -286,11 +305,12 @@ export default function FleetAvailability() {
     doc.setTextColor(0, 0, 0);
 
     // Stats boxes
-    const total = data.length;
-    const avail = data.filter(v => v.currentStatus === "available" || v.currentStatus === "on_route").length;
-    const repair = data.filter(v => v.currentStatus === "out_for_repair").length;
-    const offRoad = data.filter(v => v.currentStatus === "off_road").length;
-    const standby = data.filter(v => v.currentStatus === "standby").length;
+    const fleetVehicles = data.filter(v => (v as any).vehicle_type !== "trailer");
+    const total = fleetVehicles.length;
+    const avail = fleetVehicles.filter(v => v.currentStatus === "available" || v.currentStatus === "on_route").length;
+    const repair = fleetVehicles.filter(v => v.currentStatus === "out_for_repair").length;
+    const offRoad = fleetVehicles.filter(v => v.currentStatus === "off_road").length;
+    const standby = fleetVehicles.filter(v => v.currentStatus === "standby").length;
     const availPct = total > 0 ? Math.round((avail / total) * 100) : 0;
     const stats = [
       { label: "Total Fleet", value: String(total), color: [30, 58, 138] as [number,number,number] },
@@ -320,20 +340,21 @@ export default function FleetAvailability() {
     // Table rows
     const rows = data.map(v => {
       const st = v.statusRecord;
-      const daysOut = st?.date_sent_for_repair
+      const daysOut = (v.currentStatus === "out_for_repair" && st?.date_sent_for_repair)
         ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000)
         : null;
       const trailerReg = v.pairedTrailer?.registration_number || "-";
+      const makeModel = (`${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-") + ((v as any).vehicle_type ? ` · ${(v as any).vehicle_type}` : "");
       if (isCustomer) return [
         (v as any).fleet_number || "-", v.registration_number, trailerReg,
-        `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
+        makeModel,
         v.currentSite || "-", STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
         st?.workshop_name || "-",
         v.currentStatus === "available" ? "" : (st?.estimated_return_date || ""),
       ];
       return [
         (v as any).fleet_number || "-", v.registration_number, trailerReg,
-        `${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "-",
+        makeModel,
         v.owningBranch || "-", v.currentSite || "-",
         STATUS_CONFIG[v.currentStatus]?.label || v.currentStatus,
         st?.workshop_name || "-", st?.date_sent_for_repair || "-",
@@ -516,24 +537,30 @@ export default function FleetAvailability() {
                   <tr><td colSpan={13} className="px-4 py-8 text-center text-sm text-muted-foreground">No vehicles found</td></tr>
                 ) : groupedFiltered.flatMap((v, i) => {
                   const st = v.statusRecord;
-                  const daysOut = st?.date_sent_for_repair
+                  const daysOut = (v.currentStatus === "out_for_repair" && st?.date_sent_for_repair)
                     ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000)
                     : null;
                   const cfg = STATUS_CONFIG[v.currentStatus] || STATUS_CONFIG.available;
                   const isLongOut = daysOut !== null && daysOut > 14;
-                  const showHeader = i === 0 || groupedFiltered[i - 1].currentStatus !== v.currentStatus;
+                  const gk = groupKey(v);
+                  const showHeader = i === 0 || groupKey(groupedFiltered[i - 1]) !== gk;
+                  const groupLabel = gk === "trailer" ? "Trailers — not counted in fleet total" : cfg.label;
+                  const groupColor = gk === "trailer" ? "text-primary" : cfg.color;
                   return [
                     showHeader ? (
-                      <tr key={`hdr-${v.currentStatus}`} className="bg-secondary/40 border-y border-border">
+                      <tr key={`hdr-${gk}`} className="bg-secondary/40 border-y border-border">
                         <td colSpan={13} className="px-4 py-2 text-xs font-bold uppercase tracking-wider">
-                          <span className={cfg.color}>{cfg.label}</span>
-                          <span className="text-muted-foreground ml-2">· {groupCounts[v.currentStatus]} vehicle{groupCounts[v.currentStatus] === 1 ? "" : "s"}</span>
+                          <span className={groupColor}>{groupLabel}</span>
+                          <span className="text-muted-foreground ml-2">· {groupCounts[gk]} vehicle{groupCounts[gk] === 1 ? "" : "s"}</span>
                         </td>
                       </tr>
                     ) : null,
                     <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${isLongOut ? "bg-destructive/5" : ""}`}>
                       <td className="px-4 py-3 text-sm font-mono text-foreground">{(v as any).fleet_number || "—"}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                        {v.registration_number}
+                        {(v as any).vehicle_type && <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{(v as any).vehicle_type}</span>}
+                      </td>
                       <td className="px-4 py-3">
                         {v.pairedTrailer
                           ? <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full">{v.pairedTrailer.registration_number}</span>
@@ -694,8 +721,12 @@ export default function FleetAvailability() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Current Site</label>
-                  <input value={form.current_site} onChange={e => setForm({ ...form, current_site: e.target.value })} placeholder="e.g. Midrand, Cape Town" className={inputCls} />
+                  <label className={labelCls}>Current Site / Branch</label>
+                  <select value={form.branch_id || ""} onChange={e => setForm({ ...form, branch_id: e.target.value })} className={inputCls}>
+                    <option value="">— Select site —</option>
+                    {(branchList || []).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">Synced with the vehicle's branch — transferring on the Vehicles tab updates this, and vice-versa.</p>
                   <p className="text-xs text-muted-foreground mt-1">Where is this vehicle now?</p>
                 </div>
                 <div>
