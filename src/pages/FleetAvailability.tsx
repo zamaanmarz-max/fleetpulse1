@@ -124,6 +124,17 @@ export default function FleetAvailability() {
     return true;
   });
 
+  // Group + order so the list isn't interleaved: all of one status together, in a fixed order
+  const STATUS_ORDER: Record<string, number> = { out_for_repair: 0, off_road: 1, standby: 2, available: 3, on_route: 3 };
+  const groupedFiltered = [...filtered].sort((a, b) => {
+    const sa = STATUS_ORDER[a.currentStatus] ?? 9, sb = STATUS_ORDER[b.currentStatus] ?? 9;
+    if (sa !== sb) return sa - sb;
+    const fa = parseInt((a as any).fleet_number) || 99999, fb = parseInt((b as any).fleet_number) || 99999;
+    if (fa !== fb) return fa - fb;
+    return a.registration_number.localeCompare(b.registration_number);
+  });
+  const groupCounts = groupedFiltered.reduce((acc: Record<string, number>, v) => { acc[v.currentStatus] = (acc[v.currentStatus] || 0) + 1; return acc; }, {});
+
   const counts = useMemo(() => {
     const c = { available: 0, out_for_repair: 0, off_road: 0, standby: 0, total: 0 };
     // Only count non-paired-trailer vehicles for totals
@@ -209,7 +220,7 @@ export default function FleetAvailability() {
       status: form.status,
       workshop_name: form.workshop_name || null,
       workshop_contact: form.workshop_contact || null,
-      date_sent_for_repair: form.status === "out_for_repair" ? (form.date_sent_for_repair || null) : null,
+      date_sent_for_repair: form.date_sent_for_repair || null,
       repair_description: form.repair_description || null,
       estimated_return_date: form.estimated_return_date || null,
       actual_return_date: form.status === "available" ? (form.actual_return_date || null) : null,
@@ -501,16 +512,25 @@ export default function FleetAvailability() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {groupedFiltered.length === 0 ? (
                   <tr><td colSpan={13} className="px-4 py-8 text-center text-sm text-muted-foreground">No vehicles found</td></tr>
-                ) : filtered.map(v => {
+                ) : groupedFiltered.flatMap((v, i) => {
                   const st = v.statusRecord;
                   const daysOut = st?.date_sent_for_repair
                     ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000)
                     : null;
                   const cfg = STATUS_CONFIG[v.currentStatus] || STATUS_CONFIG.available;
                   const isLongOut = daysOut !== null && daysOut > 14;
-                  return (
+                  const showHeader = i === 0 || groupedFiltered[i - 1].currentStatus !== v.currentStatus;
+                  return [
+                    showHeader ? (
+                      <tr key={`hdr-${v.currentStatus}`} className="bg-secondary/40 border-y border-border">
+                        <td colSpan={13} className="px-4 py-2 text-xs font-bold uppercase tracking-wider">
+                          <span className={cfg.color}>{cfg.label}</span>
+                          <span className="text-muted-foreground ml-2">· {groupCounts[v.currentStatus]} vehicle{groupCounts[v.currentStatus] === 1 ? "" : "s"}</span>
+                        </td>
+                      </tr>
+                    ) : null,
                     <tr key={v.id} className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${isLongOut ? "bg-destructive/5" : ""}`}>
                       <td className="px-4 py-3 text-sm font-mono text-foreground">{(v as any).fleet_number || "—"}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-foreground">{v.registration_number}</td>
@@ -547,7 +567,7 @@ export default function FleetAvailability() {
                         <button onClick={() => openModal(v)} className="text-xs text-primary hover:underline whitespace-nowrap">Update</button>
                       </td>
                     </tr>
-                  );
+                  ];
                 })}
               </tbody>
             </table>
@@ -736,10 +756,12 @@ export default function FleetAvailability() {
                 <div className="border border-border rounded-xl p-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                   Trailer Pairing
-                  <span className="text-xs font-normal text-muted-foreground">— {(modalVehicle as any)?.vehicle_type === "trailer" ? "This is a trailer" : "This is a horse"}</span>
+                  <span className="text-xs font-normal text-muted-foreground">— {(modalVehicle as any)?.vehicle_type === "trailer" ? "This is a trailer" : (modalVehicle as any)?.vehicle_type === "horse" ? "This is a horse" : "Not a horse — no trailer pairing"}</span>
                 </p>
                 {(modalVehicle as any)?.vehicle_type === "trailer" ? (
                   <p className="text-xs text-muted-foreground">Trailers are paired from the horse vehicle. Find the horse this trailer is attached to and pair from there.</p>
+                ) : (modalVehicle as any)?.vehicle_type !== "horse" ? (
+                  <p className="text-xs text-muted-foreground">Only horses (truck-tractors) pair with trailers — nothing to pair for this vehicle.</p>
                 ) : modalVehicle?.pairedTrailer ? (
                   <div className="flex items-center justify-between">
                     <div>

@@ -184,6 +184,17 @@ export default function VehicleDetail() {
     },
   });
 
+  const { data: liveStatus } = useQuery({
+    queryKey: ["vehicle_status", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicle_status").select("*").eq("vehicle_id", id!).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!id,
+    staleTime: 0, refetchOnMount: "always",
+  });
+
   const { data: trackers } = useQuery({
     queryKey: ["service_trackers", id],
     queryFn: async () => {
@@ -631,6 +642,14 @@ export default function VehicleDetail() {
                   (vehicle as any).vehicle_type || "Not set"
                 } />
                 <InfoRow label="Branch" value={(vehicle as any).branches?.name || "-"} />
+                <InfoRow label="Current Site" value={liveStatus?.current_site || "-"} />
+                <InfoRow label="Availability" value={
+                  liveStatus?.status === "out_for_repair" ? "Out for Repair" :
+                  liveStatus?.status === "off_road" ? "Off Road" :
+                  liveStatus?.status === "standby" ? "Standby" :
+                  liveStatus?.status === "available" ? "Available" :
+                  "Available"
+                } />
               </>
             )}
           </div>
