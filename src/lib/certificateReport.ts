@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import {
   OrgBranding, COLORS, bandRow, computeCertStatus, certStatusColor, fmtDate,
   drawReportHeader, drawReportFooter, drawStatBoxes, loadLogoDataUrl, CertStatus,
+  startOfDay,
 } from "./reportBranding";
 
 export interface CertReportVehicle {
@@ -47,6 +48,19 @@ export function prettifyCertType(t: string): string {
 export async function generateCertificateReport(args: GenerateCertReportArgs): Promise<void> {
   const { certType, certificates, vehicleMap, org } = args;
 
+  // The 6-month interim inspection / Certified-vs-Not-Certified ruling is unique
+  // to load-test certificates. Every other certificate type is simply
+  // valid-until-expiry, so those reports drop the inspection column entirely and
+  // use a plain VALID / EXPIRED status.
+  const isLoadTest = (certType || "").toLowerCase().includes("load test");
+
+  const simpleStatus = (expiry?: string | null): "VALID" | "EXPIRED" => {
+    if (!expiry) return "VALID";
+    const e = startOfDay(new Date(expiry));
+    if (isNaN(e.getTime())) return "VALID";
+    return startOfDay(new Date()).getTime() > e.getTime() ? "EXPIRED" : "VALID";
+  };
+
   const rowsData = certificates
     .filter((c) => (c.certificate_type || "") === certType)
     .map((c) => {
@@ -54,7 +68,7 @@ export async function generateCertificateReport(args: GenerateCertReportArgs): P
       const reg = v?.registration_number || c.vehicles?.registration_number || "—";
       const makeModel = [v?.make, v?.model].filter(Boolean).join(" ").trim();
       const vType = (v?.vehicle_type || "other").toLowerCase();
-      const status = computeCertStatus(c);
+      const status: string = isLoadTest ? computeCertStatus(c) : simpleStatus(c.expiry_date);
       return {
         reg,
         makeType: makeModel ? `${makeModel}${v?.vehicle_type ? ` · ${v.vehicle_type}` : ""}` : (v?.vehicle_type || "—"),
@@ -85,17 +99,29 @@ export async function generateCertificateReport(args: GenerateCertReportArgs): P
     logo,
   });
 
-  // Tally
-  const counts: Record<CertStatus, number> = { CERTIFIED: 0, "NOT CERTIFIED": 0, EXPIRED: 0 };
-  rowsData.forEach((r) => { counts[r.status]++; });
-  const afterStats = drawStatBoxes(doc, 14, startY, [
-    { label: "Total", value: String(rowsData.length), color: COLORS.primary },
-    { label: "Certified", value: String(counts.CERTIFIED), color: COLORS.green },
-    { label: "Not Certified", value: String(counts["NOT CERTIFIED"]), color: COLORS.amber },
-    { label: "Expired", value: String(counts.EXPIRED), color: COLORS.red },
-  ]);
+  // Tally — load test has a third "not certified" state; others are valid/expired.
+  let afterStats: number;
+  if (isLoadTest) {
+    const counts: Record<CertStatus, number> = { CERTIFIED: 0, "NOT CERTIFIED": 0, EXPIRED: 0 };
+    rowsData.forEach((r) => { counts[r.status as CertStatus]++; });
+    afterStats = drawStatBoxes(doc, 14, startY, [
+      { label: "Total", value: String(rowsData.length), color: COLORS.primary },
+      { label: "Certified", value: String(counts.CERTIFIED), color: COLORS.green },
+      { label: "Not Certified", value: String(counts["NOT CERTIFIED"]), color: COLORS.amber },
+      { label: "Expired", value: String(counts.EXPIRED), color: COLORS.red },
+    ]);
+  } else {
+    const valid = rowsData.filter((r) => r.status === "VALID").length;
+    const expired = rowsData.filter((r) => r.status === "EXPIRED").length;
+    afterStats = drawStatBoxes(doc, 14, startY, [
+      { label: "Total", value: String(rowsData.length), color: COLORS.primary },
+      { label: "Valid", value: String(valid), color: COLORS.green },
+      { label: "Expired", value: String(expired), color: COLORS.red },
+    ]);
+  }
 
-  const NCOLS = 6;
+  const NCOLS = isLoadTest ? 6 : 5;
+  const statusColIdx = isLoadTest ? 5 : 4;
   const body: any[] = [];
   let lastType: string | null = null;
   const groupCount = (vt: string) => rowsData.filter((r) => r.vType === vt).length;
@@ -109,30 +135,50 @@ export async function generateCertificateReport(args: GenerateCertReportArgs): P
         const bandColor = r.vType === "trailer" ? COLORS.primary : COLORS.navy;
         body.push(bandRow(TYPE_LABEL[r.vType] || "UNITS", groupCount(r.vType), NCOLS, bandColor));
       }
-      body.push([r.reg, r.makeType, r.issue, r.expiry, r.inspection, r.status]);
+      body.push(
+        isLoadTest
+          ? [r.reg, r.makeType, r.issue, r.expiry, r.inspection, r.status]
+          : [r.reg, r.makeType, r.issue, r.expiry, r.status]
+      );
     });
   }
 
+  const head = isLoadTest
+    ? [["Reg", "Make / Type", "Last Tested", "Expiry", "6-Month Inspection", "Status"]]
+    : [["Reg", "Make / Type", "Issued", "Expiry", "Status"]];
+
+  const columnStyles: Record<number, any> = isLoadTest
+    ? {
+        0: { cellWidth: 34, fontStyle: "bold" },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 38, halign: "center" },
+        3: { cellWidth: 37, halign: "center" },
+        4: { cellWidth: 42, halign: "center" },
+        5: { cellWidth: 38, halign: "center", fontStyle: "bold" },
+      }
+    : {
+        0: { cellWidth: 36, fontStyle: "bold" },
+        1: { cellWidth: 99 },
+        2: { cellWidth: 44, halign: "center" },
+        3: { cellWidth: 44, halign: "center" },
+        4: { cellWidth: 46, halign: "center", fontStyle: "bold" },
+      };
+
   autoTable(doc, {
     startY: afterStats + 6,
-    head: [["Reg", "Make / Type", "Last Tested", "Expiry", "6-Month Inspection", "Status"]],
+    head,
     body,
     styles: { fontSize: 8.5, cellPadding: 3, lineColor: [225, 228, 235], lineWidth: 0.1, valign: "middle" },
     headStyles: { fillColor: COLORS.navy, textColor: 255, fontStyle: "bold", fontSize: 8.5 },
     alternateRowStyles: { fillColor: COLORS.faintRow },
-    columnStyles: {
-      0: { cellWidth: 34, fontStyle: "bold" },
-      1: { cellWidth: 80 },
-      2: { cellWidth: 38, halign: "center" },
-      3: { cellWidth: 37, halign: "center" },
-      4: { cellWidth: 42, halign: "center" },
-      5: { cellWidth: 38, halign: "center", fontStyle: "bold" },
-    },
+    columnStyles,
     didParseCell: (d) => {
-      if (d.section === "body" && d.column.index === 5) {
-        const val = (d.cell.text[0] || "") as CertStatus;
+      if (d.section === "body" && d.column.index === statusColIdx) {
+        const val = (d.cell.text[0] || "");
         if (val === "CERTIFIED" || val === "NOT CERTIFIED" || val === "EXPIRED") {
-          d.cell.styles.textColor = certStatusColor(val);
+          d.cell.styles.textColor = certStatusColor(val as CertStatus);
+        } else if (val === "VALID") {
+          d.cell.styles.textColor = COLORS.green;
         }
       }
     },
