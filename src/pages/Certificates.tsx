@@ -1,9 +1,11 @@
-import { Search, Plus, Loader2, X, Eye, Pencil, Trash2, Sparkles, CheckCircle, AlertTriangle } from "lucide-react";
+import { Search, Plus, Loader2, X, Eye, Pencil, Trash2, Sparkles, CheckCircle, AlertTriangle, FileText } from "lucide-react";
 import { useState } from "react";
 import { useCertificates, useVehicles } from "@/hooks/useOrgData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { generateCertificateReport, prettifyCertType } from "@/lib/certificateReport";
+import { computeCertStatus, getOrgBranding } from "@/lib/reportBranding";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -37,6 +39,10 @@ export default function Certificates() {
   const { data: vehicles } = useVehicles();
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Export report (per-type, per-org branded PDF) state
+  const [showExport, setShowExport] = useState(false);
+  const [exportingType, setExportingType] = useState<string | null>(null);
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -161,6 +167,35 @@ export default function Certificates() {
       c.certificate_type.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Map of vehicle_id -> vehicle (for make/type/fleet on reports — useCertificates only joins reg)
+  const vehicleMap = new Map<string, any>();
+  (vehicles || []).forEach((v: any) => vehicleMap.set(v.id, v));
+
+  // Distinct certificate types present (each exports its own branded PDF)
+  const certTypeCounts = (certificates || []).reduce((acc: Record<string, number>, c: any) => {
+    const t = c.certificate_type || "Uncategorised";
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+  const exportTypes = Object.entries(certTypeCounts).sort((a, b) => b[1] - a[1]);
+
+  const handleExportType = async (certType: string) => {
+    if (!certificates) return;
+    setExportingType(certType);
+    try {
+      await generateCertificateReport({
+        certType,
+        certificates: certificates as any,
+        vehicleMap,
+        org: getOrgBranding(profile),
+      });
+      toast.success(`${prettifyCertType(certType)} report downloaded`);
+    } catch (e: any) {
+      toast.error(e?.message || "Could not generate the report");
+    }
+    setExportingType(null);
+  };
+
   const [form, setForm] = useState({
     vehicle_id: "", certificate_type: "", certificate_type_other: "", certificate_number: "",
     issue_date: "", expiry_date: "", issuing_authority: "", notes: "", last_inspection_date: "",
@@ -283,6 +318,9 @@ export default function Certificates() {
           <p className="text-sm text-muted-foreground">Manage vehicle compliance certificates</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setShowExport(true)} className="flex items-center gap-2 bg-secondary text-foreground border border-border px-4 py-2 rounded-lg text-sm hover:opacity-90">
+            <FileText className="w-4 h-4" /> Export Report
+          </button>
           <button onClick={() => setShowAiUpload(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
             <Sparkles className="w-4 h-4" /> AI Upload
           </button>
@@ -329,6 +367,13 @@ export default function Certificates() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusStyles[c.calcStatus]}`}>{c.calcStatus}</span>
+                    {(c.certificate_type || "").toLowerCase().includes("load test") && (() => {
+                      const ls = computeCertStatus(c as any);
+                      const cls = ls === "EXPIRED" ? "bg-destructive/20 text-destructive"
+                        : ls === "NOT CERTIFIED" ? "bg-warning/20 text-warning"
+                        : "bg-success/20 text-success";
+                      return <div className="mt-1"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide ${cls}`} title="Load-test certification status">{ls}</span></div>;
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center gap-2 justify-center">
@@ -351,6 +396,41 @@ export default function Certificates() {
           </table>
         )}
       </div>
+
+      {/* Export Report — pick a certificate type (one branded PDF each) */}
+      {showExport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4" onClick={() => !exportingType && setShowExport(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><FileText className="w-5 h-5 text-primary" /> Export Certificate Report</h2>
+              <button onClick={() => !exportingType && setShowExport(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-muted-foreground">Pick a certificate type. Each generates its own branded PDF — grouped by vehicle type with a status tally, branded for {getOrgBranding(profile).name}.</p>
+            {exportTypes.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">No certificates to export yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {exportTypes.map(([type, count]) => (
+                  <button
+                    key={type}
+                    onClick={() => handleExportType(type)}
+                    disabled={!!exportingType}
+                    className="w-full flex items-center justify-between gap-3 bg-secondary/60 hover:bg-secondary border border-border rounded-xl px-4 py-3 text-left disabled:opacity-50"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{prettifyCertType(type)}</p>
+                      <p className="text-xs text-muted-foreground">{count} certificate{count === 1 ? "" : "s"}</p>
+                    </div>
+                    {exportingType === type
+                      ? <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      : <FileText className="w-4 h-4 text-muted-foreground" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* PDF Viewer Modal */}
       <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
