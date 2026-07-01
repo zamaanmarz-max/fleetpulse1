@@ -57,7 +57,7 @@ export default function FleetAvailability() {
   const [tempForm, setTempForm] = useState({ registration_number: "", make: "", model: "", from_branch: "", reason: "Replacement", current_site: "", comments: "" });
   const [savingTemp, setSavingTemp] = useState(false);
 
-  const { data: statuses, refetch: refetchStatuses } = useQuery({
+  const { data: statuses, refetch: refetchStatuses, isError: statusesError } = useQuery({
     queryKey: ["vehicle_statuses", profile?.organisation_id],
     queryFn: async () => {
       const { data, error } = await supabase.from("vehicle_status").select("*").order("updated_at", { ascending: false });
@@ -448,6 +448,14 @@ export default function FleetAvailability() {
         </div>
       </div>
 
+      {/* Live status load error */}
+      {statusesError && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-destructive">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>Couldn't load live vehicle statuses. Vehicles may show as available until this reconnects — refresh to try again.</span>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="stat-card text-left p-3">
@@ -563,7 +571,7 @@ export default function FleetAvailability() {
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground">{st?.workshop_name || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{st?.date_sent_for_repair || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{(v.currentStatus !== "available" && v.currentStatus !== "standby") ? (st?.date_sent_for_repair || "—") : "—"}</td>
                       <td className="px-4 py-3">
                         {v.currentStatus !== "available" && v.currentStatus !== "standby" && (
                           st?.estimated_return_date

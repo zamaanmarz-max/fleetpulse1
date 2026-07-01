@@ -35,7 +35,7 @@ export default function Certificates() {
   const [showForm, setShowForm] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
-  const { data: certificates, isLoading } = useCertificates();
+  const { data: certificates, isLoading, isError } = useCertificates();
   const { data: vehicles } = useVehicles();
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
@@ -152,13 +152,19 @@ export default function Certificates() {
   const enriched = (certificates || []).map((c) => {
     const days = c.expiry_date ? Math.ceil((new Date(c.expiry_date).getTime() - now) / 86400000) : 999;
     let status: string = days <= 0 ? "expired" : days <= 30 ? "expiring" : "valid";
-    // Load test certs require an inspection within the last 6 months
     const isLoadTest = (c.certificate_type || "").toLowerCase().includes("load test");
-    const lastInsp = (c as any).last_inspection_date ? new Date((c as any).last_inspection_date).getTime() : null;
-    const monthsSinceInsp = lastInsp ? (now - lastInsp) / (86400000 * 30) : null;
-    const inspectionOverdue = isLoadTest && (lastInsp === null || (monthsSinceInsp !== null && monthsSinceInsp > 6));
-    if (status === "valid" && inspectionOverdue) status = "expiring";
-    return { ...c, daysRemaining: days, calcStatus: status, inspectionOverdue };
+    // Load-test certs carry the interim-inspection rule (measured from the issue
+    // date; a logged inspection always counts). Keep the row's status pill in
+    // sync with the load-test badge so the two never contradict each other.
+    const loadTestStatus = isLoadTest ? computeCertStatus(c as any) : null;
+    if (loadTestStatus === "EXPIRED") status = "expired";
+    else if (loadTestStatus === "NOT CERTIFIED" && status === "valid") status = "expiring";
+    // Data-quality flag: a load-test inspection dated on/before the issue date is
+    // almost always a placeholder rather than a real interim inspection.
+    const issueTime = c.issue_date ? new Date(c.issue_date).getTime() : null;
+    const inspTime = (c as any).last_inspection_date ? new Date((c as any).last_inspection_date).getTime() : null;
+    const inspectionLooksPlaceholder = isLoadTest && issueTime !== null && inspTime !== null && inspTime <= issueTime;
+    return { ...c, daysRemaining: days, calcStatus: status, inspectionLooksPlaceholder };
   });
 
   const filtered = enriched.filter(
@@ -338,7 +344,11 @@ export default function Certificates() {
       </div>
 
       <div className="glass-card overflow-x-auto">
-        {isLoading ? (
+        {isError ? (
+          <div className="text-center py-12 text-sm text-destructive">
+            Couldn't load certificates. Check your connection and try again.
+          </div>
+        ) : isLoading ? (
           <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">No certificates found.</div>
@@ -374,6 +384,16 @@ export default function Certificates() {
                         : "bg-success/20 text-success";
                       return <div className="mt-1"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide ${cls}`} title="Load-test certification status">{ls}</span></div>;
                     })()}
+                    {c.inspectionLooksPlaceholder && (
+                      <div className="mt-1">
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-warning"
+                          title="The 6-month inspection date is on or before the issue date — this looks like a placeholder, not a real interim inspection. Please confirm the actual inspection date."
+                        >
+                          <AlertTriangle className="w-3 h-3" /> check inspection date
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center gap-2 justify-center">

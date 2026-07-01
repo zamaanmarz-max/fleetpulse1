@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { registerServiceWorker } from "./registerSW";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
@@ -15,11 +16,5 @@ function hideSplash() {
 }
 setTimeout(hideSplash, 2000);
 
-// Register the PWA service worker (makes the app installable on phones)
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.log("Service worker registration skipped:", err);
-    });
-  });
-}
+// Register the PWA service worker + new-version update prompt.
+registerServiceWorker();

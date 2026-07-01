@@ -1,9 +1,19 @@
 // MARZ Fleet service worker — minimal, network-first.
 // Its presence (plus the manifest) is what makes the app installable.
-const CACHE = "marz-fleet-v1";
+// Bump CACHE on every meaningful change so the activate step below purges
+// old caches. The version string is also what lets the app prompt users to
+// refresh when a new deploy is live (see src/registerSW.ts).
+const CACHE = "marz-fleet-v2";
 
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
+self.addEventListener("install", () => {
+  // NOTE: we intentionally do NOT call skipWaiting() here. A freshly deployed
+  // worker waits until the user taps "Refresh" (or reopens the app) so we never
+  // yank the page out from under someone mid-form. The app messages us with
+  // { type: "SKIP_WAITING" } when the user opts in.
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
