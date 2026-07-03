@@ -302,6 +302,27 @@ export default function FleetAvailability() {
         logo,
       });
 
+      // Prominent scope strip so the site being reported on is unmistakable
+      // (the small "Scope:" line in the header alone was easy to miss).
+      const W0 = doc.internal.pageSize.getWidth();
+      const scopeLabel = branchFilter === "all"
+        ? "ALL SITES  ·  split by branch"
+        : `SITE:  ${branchFilter === "unassigned" ? "Unassigned" : branchFilter}`;
+      doc.setFillColor(238, 241, 246);
+      doc.rect(14, startY, W0 - 28, 9, "F");
+      doc.setFillColor(...COLORS.accent);
+      doc.rect(14, startY, 2.5, 9, "F");
+      doc.setTextColor(...COLORS.navy);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(scopeLabel, 20, startY + 6.2);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(90, 90, 100);
+      doc.text(`${data.length} vehicle${data.length === 1 ? "" : "s"} in scope`, W0 - 16, startY + 6.2, { align: "right" });
+      doc.setTextColor(0, 0, 0);
+      const scopeStripBottom = startY + 9 + 4;
+
       // Stat tally — fleet vehicles only (trailers are excluded from fleet totals)
       const fleetVehicles = data.filter(v => (v as any).vehicle_type !== "trailer");
       const total = fleetVehicles.length;
@@ -310,7 +331,7 @@ export default function FleetAvailability() {
       const offRoad = fleetVehicles.filter(v => v.currentStatus === "off_road").length;
       const standby = fleetVehicles.filter(v => v.currentStatus === "standby").length;
       const availPct = total > 0 ? Math.round((avail / total) * 100) : 0;
-      const afterStats = drawStatBoxes(doc, 14, startY, [
+      const afterStats = drawStatBoxes(doc, 14, scopeStripBottom, [
         { label: "Total Fleet", value: String(total), color: COLORS.primary },
         { label: "Available", value: `${avail} (${availPct}%)`, color: COLORS.green },
         { label: "Out for Repair", value: String(repair), color: COLORS.red },
@@ -332,39 +353,80 @@ export default function FleetAvailability() {
       const NCOLS = isCustomer ? 7 : 11;
       const body: any[] = [];
 
-      GROUPS.forEach(g => {
-        const groupRows = data.filter(v => groupKey(v) === g.key);
-        if (groupRows.length === 0) return;
-        body.push(bandRow(g.label, groupRows.length, NCOLS, g.color));
-        groupRows.forEach(v => {
-          const st = v.statusRecord;
-          // Available / Standby / Trailer rows must never show ETA, Date Out or Days.
-          const showRepairCols = isRepairGroup(g.key);
-          const daysOut = (v.currentStatus === "out_for_repair" && st?.date_sent_for_repair)
-            ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000)
-            : null;
-          const trailerReg = v.pairedTrailer?.registration_number || "—";
-          const makeType = (`${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "—")
-            + ((v as any).vehicle_type ? ` · ${(v as any).vehicle_type}` : "");
-          const eta = showRepairCols ? (st?.estimated_return_date ? fmtDate(st.estimated_return_date) : "No ETA") : "";
-          const dateOut = showRepairCols ? (st?.date_sent_for_repair ? fmtDate(st.date_sent_for_repair) : "—") : "";
-          const daysCell = (showRepairCols && daysOut !== null) ? `${daysOut}d` : "";
-          const notes = [st?.waiting_for, st?.comments].filter(Boolean).join(" · ") || "—";
+      // Level-1 "branch" band — visually distinct from the status bands — used
+      // to split the all-sites report into a section per site.
+      const branchBandRow = (label: string): any => ([{
+        content: label,
+        colSpan: NCOLS,
+        styles: {
+          fillColor: COLORS.navy, textColor: [0, 200, 150] as any,
+          fontStyle: "bold" as const, fontSize: 10.5, halign: "left" as const,
+          cellPadding: { top: 3, bottom: 3, left: 4, right: 4 } as any,
+        },
+      }]);
 
-          if (isCustomer) {
-            body.push([
-              (v as any).fleet_number || "—", v.registration_number, trailerReg, makeType,
-              v.currentSite || "—", st?.workshop_name || "—", eta,
-            ]);
-          } else {
-            body.push([
-              (v as any).fleet_number || "—", v.registration_number, trailerReg, makeType,
-              v.owningBranch || "—", v.currentSite || "—", st?.workshop_name || "—",
-              dateOut, eta, daysCell, notes,
-            ]);
-          }
+      const pushVehicleRow = (v: any, groupK: string) => {
+        const st = v.statusRecord;
+        // Available / Standby / Trailer rows must never show ETA, Date Out or Days.
+        const showRepairCols = isRepairGroup(groupK);
+        const daysOut = (v.currentStatus === "out_for_repair" && st?.date_sent_for_repair)
+          ? Math.ceil((Date.now() - new Date(st.date_sent_for_repair).getTime()) / 86400000)
+          : null;
+        const trailerReg = v.pairedTrailer?.registration_number || "—";
+        const makeType = (`${(v as any).make || ""} ${(v as any).model || ""}`.trim() || "—")
+          + ((v as any).vehicle_type ? ` · ${(v as any).vehicle_type}` : "");
+        const eta = showRepairCols ? (st?.estimated_return_date ? fmtDate(st.estimated_return_date) : "No ETA") : "";
+        const dateOut = showRepairCols ? (st?.date_sent_for_repair ? fmtDate(st.date_sent_for_repair) : "—") : "";
+        const daysCell = (showRepairCols && daysOut !== null) ? `${daysOut}d` : "";
+        const notes = [st?.waiting_for, st?.comments].filter(Boolean).join(" · ") || "—";
+        if (isCustomer) {
+          body.push([
+            (v as any).fleet_number || "—", v.registration_number, trailerReg, makeType,
+            v.currentSite || "—", st?.workshop_name || "—", eta,
+          ]);
+        } else {
+          body.push([
+            (v as any).fleet_number || "—", v.registration_number, trailerReg, makeType,
+            v.owningBranch || "—", v.currentSite || "—", st?.workshop_name || "—",
+            dateOut, eta, daysCell, notes,
+          ]);
+        }
+      };
+
+      const renderGroups = (rows: any[]) => {
+        GROUPS.forEach(g => {
+          const groupRows = rows.filter(v => groupKey(v) === g.key);
+          if (groupRows.length === 0) return;
+          body.push(bandRow(g.label, groupRows.length, NCOLS, g.color));
+          groupRows.forEach(v => pushVehicleRow(v, g.key));
         });
-      });
+      };
+
+      // Single site selected -> one flat list. All sites -> split into a section
+      // per branch, each with its own status bands and availability tally.
+      if (branchFilter === "all") {
+        const bySite = new Map<string, any[]>();
+        data.forEach(v => {
+          const s = (v as any).currentSite || "Unassigned";
+          if (!bySite.has(s)) bySite.set(s, []);
+          bySite.get(s)!.push(v);
+        });
+        const siteNames = Array.from(bySite.keys()).sort((a, b) =>
+          a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b));
+        const multi = siteNames.length > 1;
+        siteNames.forEach(site => {
+          const rows = bySite.get(site)!;
+          if (multi) {
+            const fleetInSite = rows.filter(v => (v as any).vehicle_type !== "trailer");
+            const availInSite = fleetInSite.filter(v => v.currentStatus === "available" || v.currentStatus === "on_route").length;
+            const pct = fleetInSite.length > 0 ? Math.round((availInSite / fleetInSite.length) * 100) : 0;
+            body.push(branchBandRow(`${site.toUpperCase()}    ${fleetInSite.length} fleet  ·  ${availInSite} available (${pct}%)`));
+          }
+          renderGroups(rows);
+        });
+      } else {
+        renderGroups(data);
+      }
 
       autoTable(doc, {
         startY: afterStats + 6,
@@ -500,8 +562,8 @@ export default function FleetAvailability() {
           </button>
         ))}
         {branchFilter !== "all" && (
-          <button onClick={() => exportPDF(branchFilter)} className="flex items-center gap-1.5 text-xs bg-success/20 text-success px-3 py-1.5 rounded-lg hover:opacity-80 ml-auto">
-            <Download className="w-3.5 h-3.5" /> {branchFilter} Report
+          <button onClick={() => exportPDF("manager")} className="flex items-center gap-1.5 text-xs bg-success/20 text-success px-3 py-1.5 rounded-lg hover:opacity-80 ml-auto">
+            <Download className="w-3.5 h-3.5" /> Download {branchFilter === "unassigned" ? "Unassigned" : branchFilter} PDF
           </button>
         )}
       </div>
