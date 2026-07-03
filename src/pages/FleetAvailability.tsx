@@ -239,19 +239,24 @@ export default function FleetAvailability() {
   const handleSave = async () => {
     if (!profile?.organisation_id || !modalVehicle) return;
     setSaving(true);
+    // When a vehicle is set back to Available it's operational again, so wipe
+    // every repair/workshop field — no stale workshop, dates, waiting-for,
+    // repair notes or cost should linger on an available vehicle. Current
+    // site/branch is a location (not repair data) so it's left untouched.
+    const isAvailable = form.status === "available";
     const payload = {
       organisation_id: profile.organisation_id,
       vehicle_id: modalVehicle.id,
       status: form.status,
-      workshop_name: form.workshop_name || null,
-      workshop_contact: form.workshop_contact || null,
-      date_sent_for_repair: form.date_sent_for_repair || null,
-      repair_description: form.repair_description || null,
-      estimated_return_date: form.estimated_return_date || null,
-      actual_return_date: form.status === "available" ? (form.actual_return_date || null) : null,
-      repair_cost: form.repair_cost ? parseFloat(form.repair_cost) : 0,
-      comments: form.comments || null,
-      waiting_for: form.waiting_for !== "—" ? form.waiting_for : null,
+      workshop_name: isAvailable ? null : (form.workshop_name || null),
+      workshop_contact: isAvailable ? null : (form.workshop_contact || null),
+      date_sent_for_repair: isAvailable ? null : (form.date_sent_for_repair || null),
+      repair_description: isAvailable ? null : (form.repair_description || null),
+      estimated_return_date: isAvailable ? null : (form.estimated_return_date || null),
+      actual_return_date: null,
+      repair_cost: isAvailable ? 0 : (form.repair_cost ? parseFloat(form.repair_cost) : 0),
+      comments: isAvailable ? null : (form.comments || null),
+      waiting_for: isAvailable ? null : (form.waiting_for !== "—" ? form.waiting_for : null),
       current_site: form.current_site || null,
       updated_by: profile.id,
       updated_at: new Date().toISOString(),
@@ -716,6 +721,12 @@ export default function FleetAvailability() {
                   ))}
                 </div>
               </div>
+
+              {form.status === "available" && (
+                <div className="text-xs text-muted-foreground bg-secondary/30 border border-border rounded-lg px-3 py-2">
+                  Setting this vehicle to <span className="text-success font-medium">Available</span> clears its workshop, dates, waiting-for, repair notes and cost on save.
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
