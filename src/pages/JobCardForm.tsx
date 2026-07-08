@@ -65,6 +65,7 @@ export default function JobCardForm() {
   const [polishing, setPolishing] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
   const [useOther, setUseOther] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState("");
   const [jcNumber, setJcNumber] = useState<string>("");
 
   // signature pad
@@ -102,6 +103,7 @@ export default function JobCardForm() {
   const [parts, setParts] = useState<Part[]>([{ name: "", qty: "" }]);
 
   const selectedVehicle = (vehicles || []).find((v: any) => v.id === form.vehicle_id);
+  const customerList = Array.from(new Set((vehicles || []).map((v: any) => v.customer_name).filter(Boolean))).sort() as string[];
 
   // Auto-fill tech name from the logged-in account
   useEffect(() => {
@@ -285,10 +287,17 @@ export default function JobCardForm() {
         {step === 1 && (
           <>
             <div>
+              <label className={labelCls}>Customer</label>
+              <select value={selectedCustomer} onChange={e => { setSelectedCustomer(e.target.value); setUseOther(false); setForm({ ...form, vehicle_id: "" }); }} className={inputCls}>
+                <option value="">Select the customer...</option>
+                {customerList.map((c: string) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>{L.unitLabelStar}</label>
-              <select value={useOther ? "__other__" : form.vehicle_id} onChange={e => { if (e.target.value === "__other__") { setUseOther(true); setForm({ ...form, vehicle_id: "" }); } else { setUseOther(false); setForm({ ...form, vehicle_id: e.target.value }); } }} className={inputCls}>
-                <option value="">{isFridge ? "Select the unit..." : "Select the vehicle..."}</option>
-                {(vehicles || []).map((v: any) => <option key={v.id} value={v.id}>{v.registration_number}{(v.fridge_brand || v.fridge_model) ? ` — ${v.fridge_brand || ""} ${v.fridge_model || ""}` : ""}</option>)}
+              <select value={useOther ? "__other__" : form.vehicle_id} disabled={!selectedCustomer && !useOther} onChange={e => { if (e.target.value === "__other__") { setUseOther(true); setForm({ ...form, vehicle_id: "" }); } else { setUseOther(false); setForm({ ...form, vehicle_id: e.target.value }); } }} className={inputCls}>
+                <option value="">{!selectedCustomer ? "Select a customer first..." : (isFridge ? "Select the unit..." : "Select the vehicle...")}</option>
+                {(vehicles || []).filter((v: any) => v.customer_name === selectedCustomer).map((v: any) => <option key={v.id} value={v.id}>{v.registration_number}{(v.fridge_brand || v.fridge_model) ? ` — ${v.fridge_brand || ""} ${v.fridge_model || ""}` : ""}</option>)}
                 <option value="__other__">{isFridge ? "+ Other / New unit" : "+ Other / New vehicle"}</option>
               </select>
             </div>

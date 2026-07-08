@@ -1,16 +1,13 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { FileText, Plus, LogOut, Clock, Download, Sparkles } from "lucide-react";
+import { FileText, Plus, LogOut, Clock, Download } from "lucide-react";
 import { MarzLogo } from "@/components/MarzLogo";
-import { TechAssist } from "@/components/TechAssist";
 
 export default function TechnicianHome() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
-  const [showAssist, setShowAssist] = useState(false);
 
   const { data: recentJobs } = useQuery({
     queryKey: ["tech_recent_jobs", profile?.organisation_id],
@@ -50,20 +47,6 @@ export default function TechnicianHome() {
             <p className="text-sm opacity-90">Start a job card on this unit</p>
           </div>
         </button>
-
-        {/* Ask MARZ Assist */}
-        <button onClick={() => setShowAssist(true)}
-          className="w-full bg-card border border-primary/30 rounded-2xl p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
-          <div className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-6 h-6 text-primary" />
-          </div>
-          <div className="text-left">
-            <p className="text-base font-bold text-foreground">Ask MARZ Assist</p>
-            <p className="text-xs text-muted-foreground">Unit history, repair help, or send a photo of a part</p>
-          </div>
-        </button>
-
-        {showAssist && <TechAssist onClose={() => setShowAssist(false)} />}
 
         {/* Recent submissions */}
         <div>
