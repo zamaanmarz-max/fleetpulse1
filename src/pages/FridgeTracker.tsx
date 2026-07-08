@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getModuleTerms } from "@/lib/moduleTerms";
-import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload, Trash2, FileText, Wrench } from "lucide-react";
+import { Thermometer, Plus, X, Loader2, AlertTriangle, CheckCircle, Clock, Search, Download, Upload, Trash2, FileText, Wrench, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -139,6 +139,29 @@ export default function FridgeTracker() {
   const toggleQuoteSent = async (id: string, current: boolean) => {
     const { error } = await supabase.from("fridge_service_log" as any).update({ quote_sent: !current }).eq("id", id);
     if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
+  };
+
+  // Office edit of a job card (updates the record; already-generated PDFs keep the original)
+  const [editJob, setEditJob] = useState<any>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const saveEditJob = async () => {
+    if (!editJob) return;
+    setSavingEdit(true);
+    const { data, error } = await supabase.from("fridge_service_log" as any).update({
+      service_date: editJob.service_date || null,
+      service_type: editJob.service_type,
+      work_done: editJob.work_done || null,
+      parts_used: editJob.parts_used || null,
+      tech_name: editJob.tech_name || null,
+      job_card_number: editJob.job_card_number || null,
+      notes: editJob.notes || null,
+    }).eq("id", editJob.id).select();
+    setSavingEdit(false);
+    if (error) { toast.error(error.message); return; }
+    if (!data || data.length === 0) { toast.error("Could not save — permission blocked."); return; }
+    toast.success("Job card updated");
+    setEditJob(null);
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
   };
 
@@ -620,7 +643,10 @@ export default function FridgeTracker() {
                             </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <button onClick={() => handleDeleteJob(s.id)} className="text-muted-foreground hover:text-destructive" title="Delete job card"><Trash2 className="w-4 h-4" /></button>
+                            <div className="flex gap-3">
+                              <button onClick={() => setEditJob({ ...s })} className="text-muted-foreground hover:text-primary" title="Edit job card"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => handleDeleteJob(s.id)} className="text-muted-foreground hover:text-destructive" title="Delete job card"><Trash2 className="w-4 h-4" /></button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -648,7 +674,8 @@ export default function FridgeTracker() {
                       <div className="flex items-center gap-2 flex-wrap">
                         {s.customer_pdf_url && <a href={`${s.customer_pdf_url}?download=jobcard-${s.job_card_number || s.id}.pdf`} className="text-xs bg-primary text-primary-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Customer copy</a>}
                         {s.pdf_url && <a href={`${s.pdf_url}?download=jobcard-office-${s.job_card_number || s.id}.pdf`} className="text-xs bg-secondary text-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Office copy</a>}
-                        <button onClick={() => handleDeleteJob(s.id)} className="text-xs text-destructive px-2.5 py-1.5 rounded-lg flex items-center gap-1 ml-auto"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+                        <button onClick={() => setEditJob({ ...s })} className="text-xs text-primary px-2.5 py-1.5 rounded-lg flex items-center gap-1 ml-auto"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+                        <button onClick={() => handleDeleteJob(s.id)} className="text-xs text-destructive px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
                       </div>
                     </div>
                   ))}
@@ -728,6 +755,61 @@ export default function FridgeTracker() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit Job Card Modal */}
+      {editJob && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-background/60 backdrop-blur-sm" onClick={() => setEditJob(null)} />
+          <div className="w-full max-w-md bg-card border-l border-border flex flex-col max-h-screen">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+              <h2 className="text-base font-bold text-foreground">Edit Job Card {editJob.job_card_number ? `#${editJob.job_card_number}` : ""}</h2>
+              <button onClick={() => setEditJob(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Job card #</label>
+                <input value={editJob.job_card_number || ""} onChange={e => setEditJob({ ...editJob, job_card_number: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground">Date</label>
+                  <input type="date" value={editJob.service_date || ""} onChange={e => setEditJob({ ...editJob, service_date: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground">Type</label>
+                  <select value={editJob.service_type || "scheduled"} onChange={e => setEditJob({ ...editJob, service_type: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+                    <option value="scheduled">Scheduled service</option>
+                    <option value="repair">Repair</option>
+                    <option value="breakdown">Breakdown</option>
+                    <option value="inspection">Inspection</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Technician</label>
+                <input value={editJob.tech_name || ""} onChange={e => setEditJob({ ...editJob, tech_name: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Work done</label>
+                <textarea rows={4} value={editJob.work_done || ""} onChange={e => setEditJob({ ...editJob, work_done: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Parts used</label>
+                <textarea rows={3} value={editJob.parts_used || ""} onChange={e => setEditJob({ ...editJob, parts_used: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Notes</label>
+                <textarea rows={2} value={editJob.notes || ""} onChange={e => setEditJob({ ...editJob, notes: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Note: editing updates the system record. PDFs already generated keep the original details.</p>
+            </div>
+            <div className="px-5 py-4 border-t border-border flex-shrink-0 flex gap-3">
+              <button onClick={() => setEditJob(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-semibold text-foreground">Cancel</button>
+              <button onClick={saveEditJob} disabled={savingEdit} className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-bold disabled:opacity-60">{savingEdit ? "Saving..." : "Save changes"}</button>
+            </div>
+          </div>
         </div>
       )}
 
