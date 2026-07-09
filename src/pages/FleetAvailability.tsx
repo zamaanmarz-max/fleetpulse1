@@ -209,6 +209,7 @@ export default function FleetAvailability() {
       waiting_for: wf,
       current_site: st?.current_site || "",
       branch_id: (v as any).branch_id || "",
+      owning_branch: (v as any).owning_branch || "",
     });
     setModalVehicle(v);
   };
@@ -266,9 +267,11 @@ export default function FleetAvailability() {
       ? await supabase.from("vehicle_status").update(payload).eq("id", existing.id)
       : await supabase.from("vehicle_status").insert(payload);
 
-    // Update owning branch on vehicles table if changed
-    if (form.owning_branch !== undefined && form.owning_branch !== modalVehicle.owningBranch) {
-      await supabase.from("vehicles").update({ owning_branch: form.owning_branch } as any).eq("id", modalVehicle.id);
+    // Update owning branch on vehicles table if changed. Normalise "" -> null so
+    // clearing the field blanks the column rather than storing an empty string.
+    const nextOwning = form.owning_branch ? form.owning_branch : null;
+    if (nextOwning !== (modalVehicle.owningBranch || null)) {
+      await supabase.from("vehicles").update({ owning_branch: nextOwning } as any).eq("id", modalVehicle.id);
     }
     // Sync current site -> vehicle branch (so it matches the Vehicles tab both ways)
     if (form.branch_id !== undefined && form.branch_id !== ((modalVehicle as any).branch_id || "")) {
@@ -393,10 +396,28 @@ export default function FleetAvailability() {
         }
       };
 
+      // Days a vehicle has been out for repair (null when not applicable).
+      const daysOutOf = (v: any): number | null => {
+        const d = v.statusRecord?.date_sent_for_repair;
+        if (v.currentStatus !== "out_for_repair" || !d) return null;
+        return Math.ceil((Date.now() - new Date(d).getTime()) / 86400000);
+      };
+
       const renderGroups = (rows: any[]) => {
         GROUPS.forEach(g => {
-          const groupRows = rows.filter(v => groupKey(v) === g.key);
+          let groupRows = rows.filter(v => groupKey(v) === g.key);
           if (groupRows.length === 0) return;
+          // Out-for-repair is ordered longest-down first so the worst offenders
+          // are at the top. Rows with no "date sent" fall to the bottom.
+          if (g.key === "out_for_repair") {
+            groupRows = [...groupRows].sort((a, b) => {
+              const da = daysOutOf(a), db = daysOutOf(b);
+              if (da === null && db === null) return 0;
+              if (da === null) return 1;
+              if (db === null) return -1;
+              return db - da;
+            });
+          }
           body.push(bandRow(g.label, groupRows.length, NCOLS, g.color));
           groupRows.forEach(v => pushVehicleRow(v, g.key));
         });
@@ -792,13 +813,20 @@ export default function FleetAvailability() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Current Site / Branch</label>
+                  <label className={labelCls}>Current Site (where it is now)</label>
                   <select value={form.branch_id || ""} onChange={e => setForm({ ...form, branch_id: e.target.value })} className={inputCls}>
                     <option value="">— Select site —</option>
                     {(branchList || []).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                   <p className="text-xs text-muted-foreground mt-1">Synced with the vehicle's branch — transferring on the Vehicles tab updates this, and vice-versa.</p>
-                  <p className="text-xs text-muted-foreground mt-1">Where is this vehicle now?</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Owning Branch (home depot)</label>
+                  <select value={form.owning_branch || ""} onChange={e => setForm({ ...form, owning_branch: e.target.value })} className={inputCls}>
+                    <option value="">— Not set —</option>
+                    {(branchList || []).map((b: any) => <option key={b.id} value={b.name}>{b.name}</option>)}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">The branch that owns this vehicle. This fills the "Branch" column on reports.</p>
                 </div>
                 <div>
                   <label className={labelCls}>Workshop</label>
