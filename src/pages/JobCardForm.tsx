@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, Plus, X, Upload, Check, ArrowLeft, ArrowRight, Thermometer, Sparkles, Eraser } from "lucide-react";
@@ -88,8 +88,31 @@ export default function JobCardForm() {
     enabled: !!profile?.organisation_id,
   });
 
+  const queryClient = useQueryClient();
+
+  // All customers for this org (a real table now, not just distinct vehicle values),
+  // so the tech can pick any customer and add new ones on the fly.
+  const { data: customers } = useQuery({
+    queryKey: ["jobcard_customers", profile?.organisation_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers" as any)
+        .select("id, name")
+        .eq("organisation_id", profile?.organisation_id)
+        .order("name");
+      if (error) throw error;
+      return (data || []) as { id: string; name: string }[];
+    },
+    enabled: !!profile?.organisation_id,
+  });
+
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [savingCustomer, setSavingCustomer] = useState(false);
+
   const [form, setForm] = useState({
     vehicle_id: "", other_reg: "", other_make: "", other_model: "",
+    unit_make: "", unit_model: "",
     client_name: "", client_address: "", client_email: "", client_vat_no: "",
     contact_person: "", contact_cell: "", order_no: "",
     service_type: "scheduled", engine_hours: "", standby_hours: "", kilometres: "",
@@ -103,7 +126,29 @@ export default function JobCardForm() {
   const [parts, setParts] = useState<Part[]>([{ name: "", qty: "" }]);
 
   const selectedVehicle = (vehicles || []).find((v: any) => v.id === form.vehicle_id);
-  const customerList = Array.from(new Set((vehicles || []).map((v: any) => v.customer_name).filter(Boolean))).sort() as string[];
+  const customerList = (customers || []).map(c => c.name);
+
+  const addCustomer = async () => {
+    const name = newCustomerName.trim();
+    if (!name) { toast.error("Enter a customer name"); return; }
+    if (customerList.some(c => c.toLowerCase() === name.toLowerCase())) {
+      toast.error("That customer already exists");
+      return;
+    }
+    setSavingCustomer(true);
+    const { error } = await supabase.from("customers" as any).insert({
+      organisation_id: profile?.organisation_id, name,
+    });
+    setSavingCustomer(false);
+    if (error) { toast.error(error.message || "Could not add customer"); return; }
+    await queryClient.invalidateQueries({ queryKey: ["jobcard_customers"] });
+    setSelectedCustomer(name);
+    setForm(f => ({ ...f, client_name: name, vehicle_id: "" }));
+    setUseOther(false);
+    setAddingCustomer(false);
+    setNewCustomerName("");
+    toast.success("Customer added ✓");
+  };
 
   // Auto-fill tech name from the logged-in account
   useEffect(() => {
@@ -128,6 +173,8 @@ export default function JobCardForm() {
       setForm(f => ({
         ...f,
         client_name: selectedVehicle.customer_name || "",
+        unit_make: selectedVehicle.fridge_brand || "",
+        unit_model: selectedVehicle.fridge_model || "",
         engine_hours: f.engine_hours || String(selectedVehicle.fridge_current_hrs || ""),
       }));
     }
@@ -177,8 +224,8 @@ export default function JobCardForm() {
         const { data: newV, error: vErr } = await supabase.from("vehicles").insert({
           organisation_id: profile?.organisation_id,
           registration_number: form.other_reg,
-          fridge_brand: form.other_make || null,
-          fridge_model: form.other_model || null,
+          fridge_brand: form.unit_make || null,
+          fridge_model: form.unit_model || null,
           customer_name: form.client_name || null,
           is_active: true,
           vehicle_type: "trailer",
@@ -221,7 +268,7 @@ export default function JobCardForm() {
           clientName: form.client_name, orderNo: form.order_no,
           clientAddress: form.client_address, clientEmail: form.client_email, clientVatNo: form.client_vat_no,
           contactPerson: form.contact_person, contactCell: form.contact_cell,
-          registration: reg, make: useOther ? form.other_make : (selectedVehicle?.fridge_brand || ""), model: useOther ? form.other_model : (selectedVehicle?.fridge_model || ""),
+          registration: reg, make: form.unit_make || "", model: form.unit_model || "",
           unitSerial: selectedVehicle?.fridge_serial_number || "", jobType: form.service_type,
           engineHours: form.engine_hours, standbyHours: form.standby_hours, kilometres: form.kilometres,
           clientInstructions: form.client_instructions, technicianReport: form.work_done, technicianName: form.tech_name,
@@ -288,10 +335,27 @@ export default function JobCardForm() {
           <>
             <div>
               <label className={labelCls}>Customer</label>
-              <select value={selectedCustomer} onChange={e => { setSelectedCustomer(e.target.value); setUseOther(false); setForm({ ...form, vehicle_id: "" }); }} className={inputCls}>
+              <select value={selectedCustomer} onChange={e => {
+                if (e.target.value === "__add__") { setAddingCustomer(true); return; }
+                setSelectedCustomer(e.target.value);
+                setUseOther(false);
+                setForm({ ...form, vehicle_id: "", client_name: e.target.value });
+              }} className={inputCls}>
                 <option value="">Select the customer...</option>
                 {customerList.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                <option value="__add__">+ Add new customer</option>
               </select>
+              {addingCustomer && (
+                <div className="border border-primary/30 rounded-xl p-3 space-y-2 bg-primary/5 mt-2">
+                  <input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="New customer name" className={inputCls} autoFocus />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={addCustomer} disabled={savingCustomer} className="flex-1 bg-primary text-primary-foreground py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-50">
+                      {savingCustomer ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save customer
+                    </button>
+                    <button type="button" onClick={() => { setAddingCustomer(false); setNewCustomerName(""); }} className="px-3 py-2 rounded-xl text-sm text-muted-foreground border border-border">Cancel</button>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className={labelCls}>{L.unitLabelStar}</label>
@@ -306,8 +370,19 @@ export default function JobCardForm() {
                 <p className="text-xs text-muted-foreground">New unit — it'll be added to the fleet.</p>
                 <input value={form.other_reg} onChange={e => setForm({ ...form, other_reg: e.target.value.toUpperCase() })} placeholder="Registration *" className={inputCls} />
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={form.other_make} onChange={e => setForm({ ...form, other_make: e.target.value })} placeholder={L.brandPlaceholder} className={inputCls} />
-                  <input value={form.other_model} onChange={e => setForm({ ...form, other_model: e.target.value })} placeholder={L.modelPlaceholder} className={inputCls} />
+                  <input value={form.unit_make} onChange={e => setForm({ ...form, unit_make: e.target.value })} placeholder={L.brandPlaceholder} className={inputCls} />
+                  <input value={form.unit_model} onChange={e => setForm({ ...form, unit_model: e.target.value })} placeholder={L.modelPlaceholder} className={inputCls} />
+                </div>
+              </div>
+            )}
+
+            {form.vehicle_id && !useOther && (
+              <div className="border border-border rounded-xl p-3 space-y-3">
+                <label className={labelCls}>{isFridge ? "Fridge Unit — Make & Model *" : "Make & Model"}</label>
+                <p className="text-xs text-muted-foreground">Enter the {isFridge ? "fridge unit" : "unit"} make and model on this registration — edit if it's changed.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={form.unit_make} onChange={e => setForm({ ...form, unit_make: e.target.value })} placeholder={L.brandPlaceholder} className={inputCls} />
+                  <input value={form.unit_model} onChange={e => setForm({ ...form, unit_model: e.target.value })} placeholder={L.modelPlaceholder} className={inputCls} />
                 </div>
               </div>
             )}
@@ -462,7 +537,7 @@ export default function JobCardForm() {
 
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 py-3 flex gap-3 max-w-lg mx-auto">
         {step < 2 ? (
-          <button onClick={() => { if (step === 1 && !useOther && !form.vehicle_id) { toast.error("Select a vehicle first"); return; } if (step === 1 && useOther && !form.other_reg) { toast.error("Enter the unit reg"); return; } setStep(step + 1); }} className="flex-1 bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">Next <ArrowRight className="w-4 h-4" /></button>
+          <button onClick={() => { if (step === 1 && !useOther && !form.vehicle_id) { toast.error("Select a vehicle first"); return; } if (step === 1 && useOther && !form.other_reg) { toast.error("Enter the unit reg"); return; } if (step === 1 && isFridge && (form.vehicle_id || useOther) && !form.unit_make.trim()) { toast.error("Enter the fridge unit make"); return; } setStep(step + 1); }} className="flex-1 bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">Next <ArrowRight className="w-4 h-4" /></button>
         ) : (
           <button onClick={handleSubmit} disabled={saving} className="flex-1 bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50">{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />} Submit Job Card</button>
         )}
