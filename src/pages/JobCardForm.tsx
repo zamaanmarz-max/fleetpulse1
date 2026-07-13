@@ -50,7 +50,7 @@ export default function JobCardForm() {
   const isFridge = industry === "refrigeration";
   const L = {
     unitLabel: isFridge ? "Unit" : "Vehicle / Asset",
-    unitLabelStar: isFridge ? "Fridge Unit *" : "Vehicle / Asset *",
+    unitLabelStar: isFridge ? "Reg *" : "Vehicle / Asset *",
     brandPlaceholder: isFridge ? "Fridge Brand" : "Make (e.g. Hino 500)",
     modelPlaceholder: isFridge ? "Fridge Model" : "Model",
     // metric fields
