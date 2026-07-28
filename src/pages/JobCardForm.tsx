@@ -257,32 +257,8 @@ export default function JobCardForm() {
       // Logged-in company branding for the PDF header (read per-org, never hardcoded)
       const org = (profile as any)?.organisations || {};
 
-      // Generate the job card PDF (single copy — parts have no pricing, so no separate office costing copy)
-      let pdfUrl: string | null = null;
-      try {
-        const pdfData = {
-          jobCardNumber: jcNumber,
-          orgName: org.name || "", orgPhone: org.phone || "", orgEmail: org.email || "",
-          orgVat: org.vat_number || "", orgAddress: org.address || "", orgLogoUrl: org.logo_url || null,
-          industry: org.industry || industry,
-          clientName: form.client_name, orderNo: form.order_no,
-          clientAddress: form.client_address, clientEmail: form.client_email, clientVatNo: form.client_vat_no,
-          contactPerson: form.contact_person, contactCell: form.contact_cell,
-          registration: reg, make: form.unit_make || "", model: form.unit_model || "",
-          unitSerial: selectedVehicle?.fridge_serial_number || "", jobType: form.service_type,
-          engineHours: form.engine_hours, standbyHours: form.standby_hours, kilometres: form.kilometres,
-          clientInstructions: form.client_instructions, technicianReport: form.work_done, technicianName: form.tech_name,
-          dateCommenced: form.date_commenced, timeCommenced: form.time_commenced, dateCompleted: form.date_completed, timeCompleted: form.time_completed,
-          parts: cleanParts, photos: photoUrls,
-          signature: signatureData, signName: form.customer_sign_name, noSignature,
-        };
-        const blob = await generateJobCardPDF(pdfData);
-        const pdfPath = `${reg}/${Date.now()}_jobcard.pdf`;
-        const { error: pErr } = await supabase.storage.from("job-cards").upload(pdfPath, blob, { upsert: true, contentType: "application/pdf" });
-        if (!pErr) { const { data } = supabase.storage.from("job-cards").getPublicUrl(pdfPath); pdfUrl = data.publicUrl; }
-      } catch (e) { console.error("PDF gen failed:", e); }
-
-      const { error } = await supabase.from("fridge_service_log" as any).insert({
+      // Insert the job card first — the server builds the PDF from the saved row.
+      const { data: inserted, error } = await supabase.from("fridge_service_log" as any).insert({
         organisation_id: profile?.organisation_id, vehicle_id: vehicleId,
         service_date: form.date_completed || new Date().toISOString().split("T")[0],
         hours_at_service: hrs, service_type: form.service_type, work_done: form.work_done,
@@ -295,12 +271,20 @@ export default function JobCardForm() {
         date_commenced: form.date_commenced || null, time_commenced: form.time_commenced || null,
         date_completed: form.date_completed || null, time_completed: form.time_completed || null,
         unit_serial: selectedVehicle?.fridge_serial_number || null, parts_list: cleanParts, costing: null,
-        photos: photoUrls, pdf_url: pdfUrl, customer_pdf_url: pdfUrl, job_card_url: pdfUrl, total_cost: null,
-        parts_used: cleanParts.map(p => (p.qty ? `${p.qty} × ${p.name}` : p.name)).join(", ") || null,
+        photos: photoUrls, total_cost: null,
+        parts_used: cleanParts.map(p => (p.qty ? `${p.qty} \u00d7 ${p.name}` : p.name)).join(", ") || null,
         customer_signature: signatureData, customer_sign_name: form.customer_sign_name || null,
         no_customer_signature: noSignature, status: "submitted", logged_via: "tech_app", updates_service_clock: isScheduled,
-      });
+      }).select("id").single();
       if (error) throw error;
+
+      // Generate the branded PDF server-side (robust photo embedding — no client canvas/CORS/HEIC issues).
+      let pdfUrl: string | null = null;
+      try {
+        const { data: pdfRes, error: pdfErr } = await supabase.functions.invoke("generate-jobcard-pdf", { body: { jobCardId: inserted.id } });
+        if (pdfErr) throw pdfErr;
+        pdfUrl = (pdfRes as any)?.url || null;
+      } catch (e) { console.error("PDF generation failed:", e); toast.error("Job card saved — PDF is still generating, refresh in a moment if it isn't ready."); }
 
       if (hrs && !useOther) {
         const update: any = { fridge_current_hrs: hrs, fridge_hours_updated_at: new Date().toISOString() };

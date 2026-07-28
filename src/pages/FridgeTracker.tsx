@@ -160,6 +160,11 @@ export default function FridgeTracker() {
     setSavingEdit(false);
     if (error) { toast.error(error.message); return; }
     if (!data || data.length === 0) { toast.error("Could not save — permission blocked."); return; }
+    // Regenerate the branded PDF so the downloadable job card reflects the edit.
+    try {
+      const { error: pdfErr } = await supabase.functions.invoke("generate-jobcard-pdf", { body: { jobCardId: editJob.id } });
+      if (pdfErr) throw pdfErr;
+    } catch (e) { console.error("PDF regen failed:", e); toast.error("Saved — but the PDF didn't refresh. Try again shortly."); }
     toast.success("Job card updated");
     setEditJob(null);
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
