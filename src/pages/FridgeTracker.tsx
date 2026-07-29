@@ -142,32 +142,90 @@ export default function FridgeTracker() {
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
   };
 
-  // Office edit of a job card (updates the record; already-generated PDFs keep the original)
+  // Office edit of a job card — full parity with the technician form.
   const [editJob, setEditJob] = useState<any>(null);
+  const [editParts, setEditParts] = useState<{ name: string; qty: string }[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
-  const saveEditJob = async () => {
-    if (!editJob) return;
-    setSavingEdit(true);
+
+  // Open the editor and hydrate the structured parts list from the row.
+  const openEdit = (s: any) => {
+    setEditJob({ ...s });
+    const pl = Array.isArray(s.parts_list) ? s.parts_list : [];
+    setEditParts(pl.length ? pl.map((p: any) => ({ name: p.name || "", qty: String(p.qty ?? "") })) : [{ name: "", qty: "" }]);
+  };
+  const setPart = (i: number, k: "name" | "qty", v: string) => setEditParts(ps => ps.map((p, idx) => idx === i ? { ...p, [k]: v } : p));
+  const addPart = () => setEditParts(ps => [...ps, { name: "", qty: "" }]);
+  const removePart = (i: number) => setEditParts(ps => ps.filter((_, idx) => idx !== i));
+
+  // Persist every field, then regenerate the branded PDF from the saved row.
+  const persistEdit = async (): Promise<boolean> => {
+    if (!editJob) return false;
+    const cleanParts = editParts.filter(p => (p.name || "").trim()).map(p => ({ name: p.name.trim(), qty: (p.qty || "").trim() }));
     const { data, error } = await supabase.from("fridge_service_log" as any).update({
+      job_card_number: editJob.job_card_number || null,
       service_date: editJob.service_date || null,
       service_type: editJob.service_type,
+      client_name: editJob.client_name || null,
+      client_address: editJob.client_address || null,
+      client_email: editJob.client_email || null,
+      client_vat_no: editJob.client_vat_no || null,
+      contact_person: editJob.contact_person || null,
+      contact_cell: editJob.contact_cell || null,
+      order_no: editJob.order_no || null,
+      unit_serial: editJob.unit_serial || null,
+      engine_hours: parseFloat(editJob.engine_hours) || null,
+      standby_hours: parseFloat(editJob.standby_hours) || null,
+      kilometres: parseFloat(editJob.kilometres) || null,
+      client_instructions: editJob.client_instructions || null,
       work_done: editJob.work_done || null,
-      parts_used: editJob.parts_used || null,
       tech_name: editJob.tech_name || null,
-      job_card_number: editJob.job_card_number || null,
+      date_commenced: editJob.date_commenced || null,
+      time_commenced: editJob.time_commenced || null,
+      date_completed: editJob.date_completed || null,
+      time_completed: editJob.time_completed || null,
+      parts_list: cleanParts,
+      parts_used: cleanParts.map(p => (p.qty ? `${p.qty} × ${p.name}` : p.name)).join(", ") || null,
       notes: editJob.notes || null,
     }).eq("id", editJob.id).select();
-    setSavingEdit(false);
-    if (error) { toast.error(error.message); return; }
-    if (!data || data.length === 0) { toast.error("Could not save — permission blocked."); return; }
-    // Regenerate the branded PDF so the downloadable job card reflects the edit.
+    if (error) { toast.error(error.message); return false; }
+    if (!data || data.length === 0) { toast.error("Could not save — permission blocked."); return false; }
+    // Regenerate the branded PDF so both copies reflect the edit.
     try {
       const { error: pdfErr } = await supabase.functions.invoke("generate-jobcard-pdf", { body: { jobCardId: editJob.id } });
       if (pdfErr) throw pdfErr;
-    } catch (e) { console.error("PDF regen failed:", e); toast.error("Saved — but the PDF didn't refresh. Try again shortly."); }
-    toast.success("Job card updated");
-    setEditJob(null);
+    } catch (e) { console.error("PDF regen failed:", e); toast.error("Saved — but the PDF didn't refresh. Try the download again shortly."); }
     qc.invalidateQueries({ queryKey: ["fridge_service_history"] });
+    return true;
+  };
+
+  const saveEditJob = async () => {
+    setSavingEdit(true);
+    const ok = await persistEdit();
+    setSavingEdit(false);
+    if (ok) { toast.success("Job card updated"); setEditJob(null); }
+  };
+
+  // Save, then force-download the freshly regenerated customer copy.
+  const saveAndDownloadCopy = async () => {
+    if (!editJob) return;
+    setSavingEdit(true);
+    const ok = await persistEdit();
+    if (!ok) { setSavingEdit(false); return; }
+    try {
+      const { data } = await supabase.from("fridge_service_log" as any).select("customer_pdf_url, pdf_url, job_card_number").eq("id", editJob.id).single();
+      const url = (data as any)?.customer_pdf_url || (data as any)?.pdf_url;
+      if (!url) { toast.error("No customer copy available yet — try again in a moment."); setSavingEdit(false); return; }
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `jobcard-${(data as any)?.job_card_number || editJob.id}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(a.href);
+      toast.success("Customer copy downloaded");
+    } catch (e) { console.error(e); toast.error("Couldn't download the copy — the record was saved."); }
+    setSavingEdit(false);
+    setEditJob(null);
   };
 
   // Job card date + quote filters
@@ -649,7 +707,7 @@ export default function FridgeTracker() {
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex gap-3">
-                              <button onClick={() => setEditJob({ ...s })} className="text-muted-foreground hover:text-primary" title="Edit job card"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => openEdit(s)} className="text-muted-foreground hover:text-primary" title="Edit job card"><Pencil className="w-4 h-4" /></button>
                               <button onClick={() => handleDeleteJob(s.id)} className="text-muted-foreground hover:text-destructive" title="Delete job card"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
@@ -679,7 +737,7 @@ export default function FridgeTracker() {
                       <div className="flex items-center gap-2 flex-wrap">
                         {s.customer_pdf_url && <a href={`${s.customer_pdf_url}?download=jobcard-${s.job_card_number || s.id}.pdf`} className="text-xs bg-primary text-primary-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Customer copy</a>}
                         {s.pdf_url && <a href={`${s.pdf_url}?download=jobcard-office-${s.job_card_number || s.id}.pdf`} className="text-xs bg-secondary text-foreground px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Office copy</a>}
-                        <button onClick={() => setEditJob({ ...s })} className="text-xs text-primary px-2.5 py-1.5 rounded-lg flex items-center gap-1 ml-auto"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+                        <button onClick={() => openEdit(s)} className="text-xs text-primary px-2.5 py-1.5 rounded-lg flex items-center gap-1 ml-auto"><Pencil className="w-3.5 h-3.5" /> Edit</button>
                         <button onClick={() => handleDeleteJob(s.id)} className="text-xs text-destructive px-2.5 py-1.5 rounded-lg flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
                       </div>
                     </div>
@@ -772,19 +830,17 @@ export default function FridgeTracker() {
               <h2 className="text-base font-bold text-foreground">Edit Job Card {editJob.job_card_number ? `#${editJob.job_card_number}` : ""}</h2>
               <button onClick={() => setEditJob(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-muted-foreground">Job card #</label>
-                <input value={editJob.job_card_number || ""} onChange={e => setEditJob({ ...editJob, job_card_number: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+                <label className={labelCls}>Job Card No.</label>
+                <input value={editJob.job_card_number || ""} onChange={e => setEditJob({ ...editJob, job_card_number: e.target.value })} className={inputCls} />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Service Date</label><input type="date" value={editJob.service_date || ""} onChange={e => setEditJob({ ...editJob, service_date: e.target.value })} className={inputCls} /></div>
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground">Date</label>
-                  <input type="date" value={editJob.service_date || ""} onChange={e => setEditJob({ ...editJob, service_date: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground">Type</label>
-                  <select value={editJob.service_type || "scheduled"} onChange={e => setEditJob({ ...editJob, service_type: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+                  <label className={labelCls}>Job Type</label>
+                  <select value={editJob.service_type || "scheduled"} onChange={e => setEditJob({ ...editJob, service_type: e.target.value })} className={inputCls}>
                     <option value="scheduled">Scheduled service</option>
                     <option value="repair">Repair</option>
                     <option value="breakdown">Breakdown</option>
@@ -792,27 +848,80 @@ export default function FridgeTracker() {
                   </select>
                 </div>
               </div>
+
               <div>
-                <label className="text-xs font-semibold text-muted-foreground">Technician</label>
-                <input value={editJob.tech_name || ""} onChange={e => setEditJob({ ...editJob, tech_name: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+                <label className={labelCls}>Customer / Client</label>
+                <input value={editJob.client_name || ""} onChange={e => setEditJob({ ...editJob, client_name: e.target.value })} placeholder="Customer name" className={inputCls} />
               </div>
+
+              <details className="border border-border rounded-xl p-3">
+                <summary className="text-sm font-medium text-foreground cursor-pointer">More client details</summary>
+                <div className="space-y-3 mt-3">
+                  <input value={editJob.client_address || ""} onChange={e => setEditJob({ ...editJob, client_address: e.target.value })} placeholder="Address" className={inputCls} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input value={editJob.client_email || ""} onChange={e => setEditJob({ ...editJob, client_email: e.target.value })} placeholder="Email" className={inputCls} />
+                    <input value={editJob.client_vat_no || ""} onChange={e => setEditJob({ ...editJob, client_vat_no: e.target.value })} placeholder="VAT No." className={inputCls} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input value={editJob.contact_person || ""} onChange={e => setEditJob({ ...editJob, contact_person: e.target.value })} placeholder="Contact Person" className={inputCls} />
+                    <input value={editJob.contact_cell || ""} onChange={e => setEditJob({ ...editJob, contact_cell: e.target.value })} placeholder="Cell No." className={inputCls} />
+                  </div>
+                  <input value={editJob.order_no || ""} onChange={e => setEditJob({ ...editJob, order_no: e.target.value })} placeholder="Order No." className={inputCls} />
+                </div>
+              </details>
+
               <div>
-                <label className="text-xs font-semibold text-muted-foreground">Work done</label>
-                <textarea rows={4} value={editJob.work_done || ""} onChange={e => setEditJob({ ...editJob, work_done: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+                <label className={labelCls}>Unit Serial</label>
+                <input value={editJob.unit_serial || ""} onChange={e => setEditJob({ ...editJob, unit_serial: e.target.value })} placeholder="Fridge unit serial" className={inputCls} />
               </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div><label className={labelCls}>Engine Hrs</label><input type="number" inputMode="decimal" value={editJob.engine_hours ?? ""} onChange={e => setEditJob({ ...editJob, engine_hours: e.target.value })} className={inputCls} /></div>
+                <div><label className={labelCls}>Standby Hrs</label><input type="number" inputMode="decimal" value={editJob.standby_hours ?? ""} onChange={e => setEditJob({ ...editJob, standby_hours: e.target.value })} className={inputCls} /></div>
+                <div><label className={labelCls}>Km</label><input type="number" inputMode="decimal" value={editJob.kilometres ?? ""} onChange={e => setEditJob({ ...editJob, kilometres: e.target.value })} className={inputCls} /></div>
+              </div>
+
+              <div><label className={labelCls}>Client's Instructions</label><textarea rows={2} value={editJob.client_instructions || ""} onChange={e => setEditJob({ ...editJob, client_instructions: e.target.value })} className={inputCls} /></div>
+
+              <div><label className={labelCls}>Technician Report</label><textarea rows={5} value={editJob.work_done || ""} onChange={e => setEditJob({ ...editJob, work_done: e.target.value })} className={inputCls} /></div>
+
+              <div><label className={labelCls}>Technician Name</label><input value={editJob.tech_name || ""} onChange={e => setEditJob({ ...editJob, tech_name: e.target.value })} className={inputCls} /></div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Date Started</label><input type="date" value={editJob.date_commenced || ""} onChange={e => setEditJob({ ...editJob, date_commenced: e.target.value })} className={inputCls} /></div>
+                <div><label className={labelCls}>Time Started</label><input type="time" value={editJob.time_commenced || ""} onChange={e => setEditJob({ ...editJob, time_commenced: e.target.value })} className={inputCls} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Date Completed</label><input type="date" value={editJob.date_completed || ""} onChange={e => setEditJob({ ...editJob, date_completed: e.target.value })} className={inputCls} /></div>
+                <div><label className={labelCls}>Time Completed</label><input type="time" value={editJob.time_completed || ""} onChange={e => setEditJob({ ...editJob, time_completed: e.target.value })} className={inputCls} /></div>
+              </div>
+
               <div>
-                <label className="text-xs font-semibold text-muted-foreground">Parts used</label>
-                <textarea rows={3} value={editJob.parts_used || ""} onChange={e => setEditJob({ ...editJob, parts_used: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={labelCls + " mb-0"}>Parts Used</label>
+                  <button type="button" onClick={addPart} className="flex items-center gap-1 text-xs font-semibold text-primary"><Plus className="w-3.5 h-3.5" /> Add part</button>
+                </div>
+                <div className="space-y-2">
+                  {editParts.map((p, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input value={p.name} onChange={e => setPart(i, "name", e.target.value)} placeholder="Part name" className={inputCls} />
+                      <input value={p.qty} onChange={e => setPart(i, "qty", e.target.value)} placeholder="Qty" type="number" inputMode="decimal" className="w-20 shrink-0 bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      <button type="button" onClick={() => removePart(i)} className="text-muted-foreground hover:text-destructive shrink-0"><X className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground">Notes</label>
-                <textarea rows={2} value={editJob.notes || ""} onChange={e => setEditJob({ ...editJob, notes: e.target.value })} className="w-full mt-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
-              </div>
-              <p className="text-[11px] text-muted-foreground">Note: editing updates the system record. PDFs already generated keep the original details.</p>
+
+              <div><label className={labelCls}>Notes (internal)</label><textarea rows={2} value={editJob.notes || ""} onChange={e => setEditJob({ ...editJob, notes: e.target.value })} className={inputCls} /></div>
+
+              <p className="text-[11px] text-muted-foreground">Saving regenerates the branded PDF (customer &amp; office copies) with these details plus the job's existing photos and signature.</p>
             </div>
-            <div className="px-5 py-4 border-t border-border flex-shrink-0 flex gap-3">
-              <button onClick={() => setEditJob(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-semibold text-foreground">Cancel</button>
-              <button onClick={saveEditJob} disabled={savingEdit} className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-bold disabled:opacity-60">{savingEdit ? "Saving..." : "Save changes"}</button>
+            <div className="px-5 py-4 border-t border-border flex-shrink-0 space-y-2">
+              <button onClick={saveAndDownloadCopy} disabled={savingEdit} className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2"><Download className="w-4 h-4" /> {savingEdit ? "Working..." : "Save & download customer copy"}</button>
+              <div className="flex gap-3">
+                <button onClick={() => setEditJob(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-semibold text-foreground">Cancel</button>
+                <button onClick={saveEditJob} disabled={savingEdit} className="flex-1 py-2.5 rounded-lg bg-secondary text-foreground text-sm font-bold disabled:opacity-60">{savingEdit ? "Saving..." : "Save changes"}</button>
+              </div>
             </div>
           </div>
         </div>
